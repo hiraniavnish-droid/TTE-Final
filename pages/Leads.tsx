@@ -182,6 +182,12 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
                     ))}
                     {metadata.length === 0 && <span className="italic opacity-50">No details</span>}
                 </div>
+                {lead.assignedTo && (
+                    <span className={cn("inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border", getAgentColor(lead.assignedTo))}>
+                        <User size={9} />
+                        {lead.assignedTo}
+                    </span>
+                )}
             </div>
 
             <div className="flex flex-col items-end gap-2 shrink-0">
