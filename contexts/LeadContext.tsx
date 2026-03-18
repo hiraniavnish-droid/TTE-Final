@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useMemo, useEffect } from 'react';
 import { Lead, Interaction, Reminder, LeadStatus, Supplier, ActivityLog } from '../types';
-import { MOCK_INTERACTIONS, MOCK_REMINDERS, MOCK_SUPPLIERS, MOCK_ACTIVITY_LOGS } from '../constants';
 import { generateId } from '../utils/helpers';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
@@ -17,11 +16,11 @@ export interface NudgeData {
 
 interface LeadContextType {
   leads: Lead[];
-  allLeads: Lead[]; 
+  allLeads: Lead[];
   interactions: Interaction[];
   reminders: Reminder[];
   suppliers: Supplier[];
-  activityLogs: ActivityLog[]; 
+  activityLogs: ActivityLog[];
   isLoading: boolean;
   addLead: (lead: Lead) => Promise<void>;
   addLeads: (leads: Lead[]) => Promise<void>;
@@ -38,7 +37,7 @@ interface LeadContextType {
   deleteReminder: (id: string) => void;
   addSupplier: (supplier: Supplier) => void;
   updateSupplier: (supplier: Supplier) => void;
-  isAddLeadModalOpen: boolean; 
+  isAddLeadModalOpen: boolean;
   setAddLeadModalOpen: (isOpen: boolean) => void;
   nudge: NudgeData;
   closeNudge: () => void;
@@ -48,17 +47,15 @@ const LeadContext = createContext<LeadContextType | undefined>(undefined);
 
 export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  
-  // -- Real Data State --
+
+  // -- Supabase-backed Data State --
   const [internalLeads, setInternalLeads] = useState<Lead[]>([]);
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // -- Mock Data States (Keeping local for now) --
-  const [interactions, setInteractions] = useState<Interaction[]>(MOCK_INTERACTIONS);
-  const [reminders, setReminders] = useState<Reminder[]>(MOCK_REMINDERS);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(MOCK_ACTIVITY_LOGS);
-  
   // -- UI States --
   const [isAddLeadModalOpen, setAddLeadModalOpen] = useState(false);
   const [nudge, setNudge] = useState<NudgeData>({ isOpen: false, leadId: null, leadName: '', status: null });
@@ -67,7 +64,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const mapLeadFromDB = (data: any): Lead => ({
     id: data.id,
     name: data.name,
-    contact: data.contact || { phone: data.phone || '', email: '' }, 
+    contact: data.contact || { phone: data.phone || '', email: data.email || '' },
     tripDetails: data.trip_details || {
         destination: data.destination || '',
         budget: data.budget || 0,
@@ -78,8 +75,8 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     commercials: data.commercials,
     vendors: data.vendors || [],
     status: data.status,
-    temperature: data.temperature,
-    source: data.source,
+    temperature: data.temperature || 'Warm',
+    source: data.source || 'Other',
     interestedServices: data.interested_services || [],
     referenceName: data.reference_name,
     assignedTo: data.assigned_to,
@@ -90,12 +87,12 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const mapLeadToDB = (lead: Partial<Lead>) => {
     const dbObj: any = { ...lead };
-    if (lead.tripDetails) dbObj.trip_details = lead.tripDetails;
-    if (lead.interestedServices) dbObj.interested_services = lead.interestedServices;
-    if (lead.referenceName) dbObj.reference_name = lead.referenceName;
-    if (lead.assignedTo) dbObj.assigned_to = lead.assignedTo;
-    if (lead.lastStatusUpdate) dbObj.last_status_update = lead.lastStatusUpdate;
-    if (lead.createdAt) dbObj.created_at = lead.createdAt;
+    if (lead.tripDetails !== undefined) dbObj.trip_details = lead.tripDetails;
+    if (lead.interestedServices !== undefined) dbObj.interested_services = lead.interestedServices;
+    if (lead.referenceName !== undefined) dbObj.reference_name = lead.referenceName;
+    if (lead.assignedTo !== undefined) dbObj.assigned_to = lead.assignedTo;
+    if (lead.lastStatusUpdate !== undefined) dbObj.last_status_update = lead.lastStatusUpdate;
+    if (lead.createdAt !== undefined) dbObj.created_at = lead.createdAt;
 
     delete dbObj.tripDetails;
     delete dbObj.interestedServices;
@@ -107,49 +104,87 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return dbObj;
   };
 
-  // --- Fetch Logic ---
-  const fetchLeads = async () => {
-    if(internalLeads.length === 0) setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false });
+  const mapInteractionFromDB = (data: any): Interaction => ({
+    id: data.id,
+    leadId: data.lead_id,
+    type: data.type,
+    content: data.content,
+    sentiment: data.sentiment,
+    timestamp: data.timestamp,
+  });
 
-      if (error) throw error;
+  const mapReminderFromDB = (data: any): Reminder => ({
+    id: data.id,
+    leadId: data.lead_id,
+    task: data.task,
+    dueDate: data.due_date,
+    isCompleted: data.is_completed,
+  });
 
-      if (data) {
-        setInternalLeads(data.map(mapLeadFromDB));
-      }
-    } catch (err) {
-      console.error('Failed to fetch leads:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const mapSupplierFromDB = (data: any): Supplier => ({
+    id: data.id,
+    name: data.name,
+    contactPerson: data.contact_person || '',
+    phone: data.phone || '',
+    email: data.email || '',
+    destinations: data.destinations || [],
+    category: data.category,
+    rating: data.rating,
+  });
 
+  const mapActivityLogFromDB = (data: any): ActivityLog => ({
+    id: data.id,
+    agentName: data.agent_name,
+    actionType: data.action_type,
+    details: data.details,
+    timestamp: data.timestamp,
+    leadId: data.lead_id,
+    metadata: data.metadata || {},
+  });
+
+  // --- Initial Data Fetch ---
   useEffect(() => {
-    fetchLeads();
+    const fetchAll = async () => {
+      setIsLoading(true);
+      try {
+        const [leadsRes, interactionsRes, remindersRes, suppliersRes, logsRes] = await Promise.all([
+          supabase.from('leads').select('*').order('created_at', { ascending: false }),
+          supabase.from('interactions').select('*').order('timestamp', { ascending: false }),
+          supabase.from('reminders').select('*').order('due_date', { ascending: true }),
+          supabase.from('suppliers').select('*').order('name', { ascending: true }),
+          supabase.from('activity_logs').select('*').order('timestamp', { ascending: false }).limit(200),
+        ]);
+
+        if (leadsRes.data) setInternalLeads(leadsRes.data.map(mapLeadFromDB));
+        if (interactionsRes.data) setInteractions(interactionsRes.data.map(mapInteractionFromDB));
+        if (remindersRes.data) setReminders(remindersRes.data.map(mapReminderFromDB));
+        if (suppliersRes.data) setSuppliers(suppliersRes.data.map(mapSupplierFromDB));
+        if (logsRes.data) setActivityLogs(logsRes.data.map(mapActivityLogFromDB));
+      } catch (err) {
+        console.error('Failed to fetch initial data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAll();
   }, []);
 
-  // --- REALTIME SUBSCRIPTION ---
-  // Serves as a backup and for syncing changes from OTHER users.
+  // --- REALTIME SUBSCRIPTION (leads) ---
   useRealtime('leads', (payload) => {
     const { eventType, new: newRecord, old: oldRecord } = payload;
 
     if (eventType === 'INSERT') {
       const newLead = mapLeadFromDB(newRecord);
       setInternalLeads(prev => {
-        // Prevent duplicate inserts if we already added it optimistically
         if (prev.some(l => l.id === newLead.id)) return prev;
         return [newLead, ...prev];
       });
       logActivity('NEW_LEAD', newLead, `New lead received: ${newLead.name}`);
-    } 
+    }
     else if (eventType === 'UPDATE') {
       const updatedLead = mapLeadFromDB(newRecord);
       setInternalLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-    } 
+    }
     else if (eventType === 'DELETE') {
       setInternalLeads(prev => prev.filter(l => l.id !== oldRecord.id));
     }
@@ -179,41 +214,60 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               ...extraMetadata
           }
       };
+      // Optimistic update
       setActivityLogs(prev => [newLog, ...prev]);
+      // Persist to Supabase (fire-and-forget)
+      supabase.from('activity_logs').insert([{
+          id: newLog.id,
+          agent_name: newLog.agentName,
+          action_type: newLog.actionType,
+          details: newLog.details,
+          timestamp: newLog.timestamp,
+          lead_id: newLog.leadId,
+          metadata: newLog.metadata,
+      }]).then(({ error }) => {
+          if (error) console.error('Failed to persist activity log:', error);
+      });
   };
 
-  // --- Actions ---
+  // --- Lead Actions ---
 
   const addLead = async (lead: Lead) => {
     try {
-        const l = lead as any;
-        const calculatedPax = (l.tripDetails?.paxConfig?.adults || 0) + (l.tripDetails?.paxConfig?.children || 0);
+        const pax = (lead.tripDetails?.paxConfig?.adults || 0) + (lead.tripDetails?.paxConfig?.children || 0);
+        const assignee = user?.role === 'agent' ? user.name : (lead.assignedTo || null);
 
-        const sanitizedLead: any = {
-            name: l.name,
-            phone: l.phone || l.contact?.phone || '',
-            status: l.status || 'new',
-            destination: l.destination || l.tripDetails?.destination || '',
-            pax: parseInt(l.pax) || calculatedPax || 0,
-            travel_date: l.travel_date || l.tripDetails?.startDate || null,
-            budget: parseFloat(l.budget) || parseFloat(l.tripDetails?.budget) || 0,
-            notes: l.notes || '',
+        const sanitizedLead = {
+            name: lead.name,
+            phone: lead.contact?.phone || '',
+            email: lead.contact?.email || '',
+            contact: lead.contact || { phone: lead.contact?.phone || '', email: lead.contact?.email || '' },
+            status: lead.status || 'New',
+            temperature: lead.temperature || 'Warm',
+            source: lead.source || 'Other',
+            destination: lead.tripDetails?.destination || '',
+            pax,
+            travel_date: lead.tripDetails?.startDate || null,
+            budget: lead.tripDetails?.budget || 0,
+            trip_details: lead.tripDetails,
+            preferences: lead.preferences || {},
+            commercials: lead.commercials || null,
+            vendors: lead.vendors || [],
+            tags: lead.tags || [],
+            interested_services: lead.interestedServices || [],
+            reference_name: lead.referenceName || null,
+            assigned_to: assignee !== 'Unassigned' ? assignee : null,
+            notes: '',
         };
 
-        const assignee = l.assigned_to || (user?.role === 'agent' ? user.name : l.assignedTo);
-        if (assignee && assignee !== 'Unassigned') {
-            sanitizedLead.assigned_to = assignee;
-        }
-
-        // Standardize Add Pattern: Insert -> Select -> Update State
         const { data, error } = await supabase
             .from('leads')
             .insert([sanitizedLead])
             .select()
             .single();
-        
+
         if (error) throw error;
-        
+
         if (data) {
             const newLead = mapLeadFromDB(data);
             setInternalLeads(prev => {
@@ -229,29 +283,38 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addLeads = async (newLeads: Lead[]) => {
       try {
-          const dbPayloads = newLeads.map((lead: any) => {
-             const calculatedPax = (lead.tripDetails?.paxConfig?.adults || 0) + (lead.tripDetails?.paxConfig?.children || 0);
+          const dbPayloads = newLeads.map((lead) => {
+             const pax = (lead.tripDetails?.paxConfig?.adults || 0) + (lead.tripDetails?.paxConfig?.children || 0);
              return {
                 name: lead.name,
                 phone: lead.contact?.phone || '',
-                status: lead.status || 'new',
+                email: lead.contact?.email || '',
+                contact: lead.contact,
+                status: lead.status || 'New',
+                temperature: lead.temperature || 'Warm',
+                source: lead.source || 'Other',
                 destination: lead.tripDetails?.destination || '',
-                pax: parseInt(lead.pax) || calculatedPax || 0,
+                pax,
                 travel_date: lead.tripDetails?.startDate || null,
-                budget: parseFloat(lead.tripDetails?.budget) || 0,
-                notes: lead.notes || '',
-                assigned_to: lead.assignedTo !== 'Unassigned' ? lead.assignedTo : undefined
+                budget: lead.tripDetails?.budget || 0,
+                trip_details: lead.tripDetails,
+                preferences: lead.preferences || {},
+                vendors: lead.vendors || [],
+                tags: lead.tags || [],
+                interested_services: lead.interestedServices || [],
+                reference_name: lead.referenceName || null,
+                assigned_to: lead.assignedTo !== 'Unassigned' ? lead.assignedTo : null,
+                notes: '',
              };
           });
 
-          // Standardize Bulk Add Pattern: Insert -> Select -> Update State
           const { data, error } = await supabase
             .from('leads')
             .insert(dbPayloads)
             .select();
 
           if (error) throw error;
-          
+
           if (data) {
               const mappedLeads = data.map(mapLeadFromDB);
               setInternalLeads(prev => {
@@ -259,7 +322,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   const uniqueNew = mappedLeads.filter(l => !existingIds.has(l.id));
                   return [...uniqueNew, ...prev];
               });
-              
+
               if (mappedLeads.length > 0) {
                   logActivity('NEW_LEAD', mappedLeads[0], `Imported ${mappedLeads.length} leads`);
               }
@@ -272,8 +335,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateLead = async (id: string, updates: Partial<Lead>) => {
     try {
         const dbUpdates = mapLeadToDB(updates);
-        
-        // Standardize Update Pattern: Update -> Select -> Update State
+
         const { data, error } = await supabase
             .from('leads')
             .update(dbUpdates)
@@ -308,7 +370,6 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addInteraction(interaction);
 
     try {
-        // Standardize Update Pattern: Update -> Select -> Update State
         const { data, error } = await supabase.from('leads').update({
             status: status,
             last_status_update: newTimestamp
@@ -325,8 +386,8 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             if (currentLead) {
                 logActivity(
-                    'STATUS_CHANGE', 
-                    updatedLead, 
+                    'STATUS_CHANGE',
+                    updatedLead,
                     `Moved ${updatedLead.name} from ${oldStatus} -> ${status}`,
                     { oldStatus, newStatus: status }
                 );
@@ -349,13 +410,16 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteLead = async (id: string) => {
     try {
+        // Delete child records first (no FK cascade since we removed FK constraints)
+        await Promise.all([
+            supabase.from('interactions').delete().eq('lead_id', id),
+            supabase.from('reminders').delete().eq('lead_id', id),
+        ]);
+
         const { error } = await supabase.from('leads').delete().eq('id', id);
         if (error) throw error;
 
-        // Standardize Delete Pattern: Immediate Filter
         setInternalLeads(prev => prev.filter(l => l.id !== id));
-        
-        // Cleanup local state
         setInteractions(prev => prev.filter(i => i.leadId !== id));
         setReminders(prev => prev.filter(r => r.leadId !== id));
     } catch (err) {
@@ -363,17 +427,60 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // --- Local State Helpers ---
+  // --- Interaction Actions (Supabase-backed) ---
 
-  const closeNudge = () => setNudge(prev => ({ ...prev, isOpen: false }));
-  const addInteraction = (interaction: Interaction) => setInteractions(prev => [interaction, ...prev]);
-  const addReminder = (reminder: Reminder) => setReminders(prev => [reminder, ...prev]);
-  const updateReminder = (id: string, updates: Partial<Reminder>) => setReminders(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  const addInteraction = (interaction: Interaction) => {
+    // Optimistic update
+    setInteractions(prev => {
+      if (prev.some(i => i.id === interaction.id)) return prev;
+      return [interaction, ...prev];
+    });
+    // Persist to Supabase (fire-and-forget)
+    supabase.from('interactions').insert([{
+        id: interaction.id,
+        lead_id: interaction.leadId,
+        type: interaction.type,
+        content: interaction.content,
+        sentiment: interaction.sentiment || null,
+        timestamp: interaction.timestamp,
+    }]).then(({ error }) => {
+        if (error) console.error('Failed to persist interaction:', error);
+    });
+  };
+
+  // --- Reminder Actions (Supabase-backed) ---
+
+  const addReminder = (reminder: Reminder) => {
+    // Optimistic update
+    setReminders(prev => [reminder, ...prev]);
+    // Persist to Supabase
+    supabase.from('reminders').insert([{
+        id: reminder.id,
+        lead_id: reminder.leadId,
+        task: reminder.task,
+        due_date: reminder.dueDate,
+        is_completed: reminder.isCompleted,
+    }]).then(({ error }) => {
+        if (error) console.error('Failed to persist reminder:', error);
+    });
+  };
+
+  const updateReminder = (id: string, updates: Partial<Reminder>) => {
+    setReminders(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    const dbUpdates: any = {};
+    if (updates.task !== undefined) dbUpdates.task = updates.task;
+    if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
+    if (updates.isCompleted !== undefined) dbUpdates.is_completed = updates.isCompleted;
+    supabase.from('reminders').update(dbUpdates).eq('id', id).then(({ error }) => {
+        if (error) console.error('Failed to update reminder:', error);
+    });
+  };
+
   const toggleReminder = (id: string) => {
     const reminder = reminders.find(r => r.id === id);
     if (!reminder) return;
     const newStatus = !reminder.isCompleted;
-    setReminders(prev => prev.map(r => r.id === id ? { ...r, isCompleted: newStatus } : r));
+    updateReminder(id, { isCompleted: newStatus });
     if (newStatus) {
       addInteraction({
         id: generateId(),
@@ -385,9 +492,50 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     }
   };
-  const deleteReminder = (id: string) => setReminders(prev => prev.filter(r => r.id !== id));
-  const addSupplier = (supplier: Supplier) => setSuppliers(prev => [supplier, ...prev]);
-  const updateSupplier = (updatedSupplier: Supplier) => setSuppliers(prev => prev.map(s => s.id === updatedSupplier.id ? updatedSupplier : s));
+
+  const deleteReminder = (id: string) => {
+    setReminders(prev => prev.filter(r => r.id !== id));
+    supabase.from('reminders').delete().eq('id', id).then(({ error }) => {
+        if (error) console.error('Failed to delete reminder:', error);
+    });
+  };
+
+  // --- Supplier Actions (Supabase-backed) ---
+
+  const addSupplier = (supplier: Supplier) => {
+    setSuppliers(prev => [supplier, ...prev]);
+    supabase.from('suppliers').insert([{
+        id: supplier.id,
+        name: supplier.name,
+        contact_person: supplier.contactPerson,
+        phone: supplier.phone,
+        email: supplier.email,
+        destinations: supplier.destinations,
+        category: supplier.category,
+        rating: supplier.rating,
+    }]).then(({ error }) => {
+        if (error) console.error('Failed to persist supplier:', error);
+    });
+  };
+
+  const updateSupplier = (updatedSupplier: Supplier) => {
+    setSuppliers(prev => prev.map(s => s.id === updatedSupplier.id ? updatedSupplier : s));
+    supabase.from('suppliers').update({
+        name: updatedSupplier.name,
+        contact_person: updatedSupplier.contactPerson,
+        phone: updatedSupplier.phone,
+        email: updatedSupplier.email,
+        destinations: updatedSupplier.destinations,
+        category: updatedSupplier.category,
+        rating: updatedSupplier.rating,
+    }).eq('id', updatedSupplier.id).then(({ error }) => {
+        if (error) console.error('Failed to update supplier:', error);
+    });
+  };
+
+  // --- Derived Helpers ---
+
+  const closeNudge = () => setNudge(prev => ({ ...prev, isOpen: false }));
   const getLeadsByStatus = (status: LeadStatus) => visibleLeads.filter(l => l.status === status);
   const getLeadInteractions = (leadId: string) => interactions.filter(i => i.leadId === leadId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   const getLeadReminders = (leadId: string) => reminders.filter(r => r.leadId === leadId);
