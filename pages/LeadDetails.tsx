@@ -50,7 +50,9 @@ import {
   BarChart3,
   Trophy,
   ExternalLink,
-  Send
+  Send,
+  XCircle,
+  RefreshCw
 } from 'lucide-react';
 
 const WORKFLOW_ORDER: LeadStatus[] = ['New', 'Contacted', 'Proposal Sent', 'Discussion', 'Won'];
@@ -604,12 +606,27 @@ export const LeadDetails = () => {
 
           <div className="flex flex-wrap gap-2 w-full lg:w-auto justify-start lg:justify-end">
               <Button variant="secondary" onClick={() => setIsEditing(!isEditing)}>
-                  {isEditing ? <X size={16} /> : <Pencil size={16} />} 
+                  {isEditing ? <X size={16} /> : <Pencil size={16} />}
                   {isEditing ? 'Cancel Edit' : 'Edit Lead'}
               </Button>
               <Button variant="secondary" onClick={handleCopyBrief} className="hidden sm:flex">
                   <ClipboardList size={16} /> Copy Brief
               </Button>
+              {lead.status === 'Lost' ? (
+                  <Button
+                      onClick={() => handleStepClick('New', 'Reactivate', false)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+                  >
+                      <RefreshCw size={16} /> Reactivate
+                  </Button>
+              ) : (
+                  <Button
+                      onClick={() => handleStepClick('Lost', 'Lost', false)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-400"
+                  >
+                      <XCircle size={16} /> Mark as Lost
+                  </Button>
+              )}
               <Button variant="danger" onClick={handleDeleteLead} className="hidden sm:flex">
                   <Trash2 size={16} />
               </Button>

@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../utils/helpers';
-import { Check, RotateCcw, XCircle, RefreshCw } from 'lucide-react';
+import { Check, RotateCcw, XCircle, RefreshCw } from 'lucide-react'; // XCircle used in Lost banner
 import { LeadStatus } from '../types';
 
 interface WorkflowStepperProps {
@@ -121,23 +121,6 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentStatus,
             );
           })}
 
-          {/* Mark as Lost — always at the end */}
-          {!isLost && (
-            <>
-              <div className={cn("h-0.5 w-6 mx-4 shrink-0", theme === 'light' ? "bg-slate-200" : "bg-white/10")} />
-              <button
-                onClick={() => onStepClick('Lost', 'Lost', false)}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all shrink-0",
-                  theme === 'light'
-                    ? "border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400"
-                    : "border-red-500/30 text-red-400 hover:bg-red-500/10"
-                )}
-              >
-                <XCircle size={14} /> Mark as Lost
-              </button>
-            </>
-          )}
         </div>
       </div>
     </div>
