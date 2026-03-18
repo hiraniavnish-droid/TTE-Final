@@ -88,7 +88,7 @@ const getLeadUrgency = (lead: Lead): { colorClass: string, tooltip: string } => 
 };
 
 export const getAgentColor = (name: string | undefined) => {
-    if (!name || name === 'Unassigned') return 'bg-gray-100 text-gray-600 border-gray-200';
+    if (!name || name === 'Unassigned' || name === 'System' || name === 'Admin') return 'bg-gray-100 text-gray-600 border-gray-200';
     const colors = [
         'bg-blue-100 text-blue-700 border-blue-200',
         'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -182,12 +182,16 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
                     ))}
                     {metadata.length === 0 && <span className="italic opacity-50">No details</span>}
                 </div>
-                {lead.assignedTo && (
-                    <span className={cn("inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border", getAgentColor(lead.assignedTo))}>
-                        <User size={9} />
-                        {lead.assignedTo}
-                    </span>
-                )}
+                {(() => {
+                    const isUnassigned = !lead.assignedTo || lead.assignedTo === 'Unassigned' || lead.assignedTo === 'System';
+                    const displayAgent = isUnassigned ? 'Admin' : lead.assignedTo!;
+                    return (
+                        <span className={cn("inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border", getAgentColor(displayAgent))}>
+                            <User size={9} />
+                            {displayAgent}
+                        </span>
+                    );
+                })()}
             </div>
 
             <div className="flex flex-col items-end gap-2 shrink-0">
@@ -875,16 +879,18 @@ export const Leads = () => {
                                     {/* Admin Agent Column */}
                                     {user?.role === 'admin' && (
                                         <td className="p-5">
-                                            {lead.assignedTo ? (
-                                                <span className={cn(
-                                                    "px-2 py-0.5 rounded-full text-[10px] font-bold border opacity-70 group-hover:opacity-100 transition-opacity",
-                                                    theme === 'light' ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-white/10 border-white/10 text-white'
-                                                )}>
-                                                    {lead.assignedTo}
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs opacity-30 italic">Unassigned</span>
-                                            )}
+                                            {(() => {
+                                                const isUnassigned = !lead.assignedTo || lead.assignedTo === 'Unassigned' || lead.assignedTo === 'System';
+                                                const displayAgent = isUnassigned ? 'Admin' : lead.assignedTo!;
+                                                return (
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-[10px] font-bold border opacity-70 group-hover:opacity-100 transition-opacity",
+                                                        getAgentColor(displayAgent)
+                                                    )}>
+                                                        {displayAgent}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                     )}
 

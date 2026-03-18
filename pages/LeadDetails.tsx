@@ -722,7 +722,7 @@ export const LeadDetails = () => {
                                           ))}
                                       </select>
                                   ) : (
-                                      <span className="text-sm font-medium">{lead.assignedTo || 'Unassigned'}</span>
+                                      <span className="text-sm font-medium">{(!lead.assignedTo || lead.assignedTo === 'System' || lead.assignedTo === 'Unassigned') ? 'Admin' : lead.assignedTo}</span>
                                   )}
                               </div>
                           </div>
