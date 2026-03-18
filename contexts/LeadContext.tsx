@@ -196,6 +196,14 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return internalLeads.filter(l => l.assignedTo === user.name);
   }, [user, internalLeads]);
 
+  // Only show reminders for leads the current user can see
+  const visibleReminders = useMemo(() => {
+      if (!user) return [];
+      if (user.role === 'admin') return reminders;
+      const visibleLeadIds = new Set(visibleLeads.map(l => l.id));
+      return reminders.filter(r => visibleLeadIds.has(r.leadId));
+  }, [user, reminders, visibleLeads]);
+
   const logActivity = (
       actionType: 'NEW_LEAD' | 'STATUS_CHANGE' | 'COMMENT',
       lead: Lead,
@@ -545,7 +553,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       leads: visibleLeads,
       allLeads: internalLeads,
       interactions,
-      reminders,
+      reminders: visibleReminders,
       suppliers,
       activityLogs,
       isLoading,

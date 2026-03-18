@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -376,6 +377,7 @@ export const LeadDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { leads, allLeads, updateLead, updateLeadStatus, deleteLead, getLeadInteractions, getLeadReminders, addInteraction, addReminder, suppliers } = useLeads();
+  const { user, users } = useAuth();
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
 
   const [interactionText, setInteractionText] = useState('');
@@ -658,13 +660,30 @@ export const LeadDetails = () => {
                               <div>
                                   <label className="text-[10px] opacity-50 block mb-1">Email</label>
                                   {isEditing ? (
-                                      <input 
-                                          value={formData.contact.email} 
+                                      <input
+                                          value={formData.contact.email}
                                           onChange={e => setFormData({...formData, contact: {...formData.contact, email: e.target.value}})}
                                           className={editInputClass}
                                       />
                                   ) : (
                                       <span className="text-sm">{lead.contact.email || '-'}</span>
+                                  )}
+                              </div>
+                              <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Assigned To</label>
+                                  {isEditing && user?.role === 'admin' ? (
+                                      <select
+                                          value={formData.assignedTo || 'Unassigned'}
+                                          onChange={e => setFormData({...formData, assignedTo: e.target.value === 'Unassigned' ? undefined : e.target.value})}
+                                          className={cn(editInputClass, "[&>option]:text-black")}
+                                      >
+                                          <option value="Unassigned">Unassigned</option>
+                                          {users.filter(u => u.role === 'agent').map(u => (
+                                              <option key={u.id} value={u.name}>{u.name}</option>
+                                          ))}
+                                      </select>
+                                  ) : (
+                                      <span className="text-sm font-medium">{lead.assignedTo || 'Unassigned'}</span>
                                   )}
                               </div>
                           </div>
