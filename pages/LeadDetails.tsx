@@ -423,10 +423,19 @@ export const LeadDetails = () => {
           }
 
           let logMessage = `System: Status moved to ${status} via Workflow.`;
-          
-          // Removed manual auto-reminder creation here.
-          // The Context will trigger the SmartNudge.
-          
+
+          if (status === 'Lost') {
+              logMessage = `System: Lead marked as Lost.`;
+              updateLeadStatus(lead.id, status, logMessage);
+              return;
+          }
+
+          if (status === 'New') {
+              logMessage = `System: Lead reactivated.`;
+              updateLeadStatus(lead.id, status, logMessage);
+              return;
+          }
+
           if (status === 'Proposal Sent') {
               setToastMessage("✅ Quote Shared. Status Updated!");
               setShowToast(true);
