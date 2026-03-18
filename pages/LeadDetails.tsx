@@ -638,10 +638,23 @@ export const LeadDetails = () => {
                           <h4 className={cn("text-xs font-bold uppercase tracking-wider opacity-50", getTextColor())}>Contact Info</h4>
                           <div className="space-y-3">
                               <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Name</label>
+                                  {isEditing ? (
+                                      <input
+                                          value={formData.name}
+                                          onChange={e => setFormData({...formData, name: e.target.value})}
+                                          className={editInputClass}
+                                          placeholder="Client name"
+                                      />
+                                  ) : (
+                                      <span className="text-sm font-semibold">{lead.name}</span>
+                                  )}
+                              </div>
+                              <div>
                                   <label className="text-[10px] opacity-50 block mb-1">Phone</label>
                                   {isEditing ? (
-                                      <input 
-                                          value={formData.contact.phone} 
+                                      <input
+                                          value={formData.contact.phone}
                                           onChange={e => setFormData({...formData, contact: {...formData.contact, phone: e.target.value}})}
                                           className={editInputClass}
                                       />
