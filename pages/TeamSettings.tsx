@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { User, Shield, Key, Trash2, Plus, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { cn } from '../utils/helpers';
 import { User as UserType } from '../types';
+import { UserAvatar } from '../components/ui/UserAvatar';
 
 export const TeamSettings = () => {
   const { user, users, addUser, removeUser, updateUserPasscode } = useAuth();
@@ -97,9 +98,7 @@ export const TeamSettings = () => {
                         {users.map((u) => (
                             <tr key={u.id} className={cn("group transition-colors", theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5')}>
                                 <td className="p-5 font-bold flex items-center gap-3">
-                                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs", theme === 'light' ? 'bg-blue-100 text-blue-700' : 'bg-white/10 text-white')}>
-                                        {u.name.charAt(0)}
-                                    </div>
+                                    <UserAvatar name={u.name} size={32} />
                                     {u.name}
                                     {u.id === user.id && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 ml-2">You</span>}
                                 </td>

@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { DialButton } from '../components/ui/DialButton';
 import { Sparkline } from '../components/ui/Sparkline';
+import { UserAvatar } from '../components/ui/UserAvatar';
 import { useLeads } from '../contexts/LeadContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatCompactCurrency, cn, formatDate } from '../utils/helpers';
@@ -364,11 +365,11 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                             {agentStats.map((agent, idx) => (
                                 <tr key={agent.name} className="group hover:bg-gray-500/5 transition-colors">
                                     <td className="py-4 pl-2 font-medium flex items-center gap-2">
-                                        <div className={cn(
-                                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
-                                            idx === 0 ? "bg-amber-100 text-amber-600" : (theme === 'light' ? "bg-slate-100" : "bg-white/10")
-                                        )}>
-                                            {idx + 1}
+                                        <div className="relative" style={{ width: 28, height: 28, flexShrink: 0 }}>
+                                            <UserAvatar name={agent.name} size={28} animate={false} />
+                                            {idx === 0 && (
+                                                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-400 text-[8px] font-black text-white flex items-center justify-center shadow">1</span>
+                                            )}
                                         </div>
                                         {agent.name}
                                     </td>
@@ -1008,9 +1009,7 @@ export const Dashboard = () => {
                       hotLeads.map(lead => (
                           <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-white/5 border-white/5")}>
                               <div className="flex items-center gap-3">
-                                  <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold", theme === 'light' ? "bg-white text-slate-600" : "bg-white/10 text-white")}>
-                                      {lead.name.charAt(0)}
-                                  </div>
+                                  <UserAvatar name={lead.name} size={32} />
                                   <div>
                                       <p className={cn("text-sm font-bold", getTextColor())}>{lead.name}</p>
                                       <p className={cn("text-[10px] font-mono", getSecondaryTextColor())}>{lead.tripDetails.destination} • {formatCompactCurrency(lead.tripDetails.budget)}</p>

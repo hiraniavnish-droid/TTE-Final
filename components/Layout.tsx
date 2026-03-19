@@ -25,20 +25,7 @@ import { AddLeadModal } from './AddLeadModal';
 import { DraggableFab } from './DraggableFab';
 import { SmartNudge } from './SmartNudge';
 import { GridBackground } from './ui/GridBackground';
-
-const getAvatarGradient = (name: string) => {
-  const gradients = [
-    'from-blue-500 to-indigo-600',
-    'from-emerald-500 to-teal-600',
-    'from-amber-500 to-orange-600',
-    'from-rose-500 to-pink-600',
-    'from-violet-500 to-purple-600',
-    'from-cyan-500 to-blue-600',
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return gradients[Math.abs(hash) % gradients.length];
-};
+import { UserAvatar } from './ui/UserAvatar';
 
 export const Layout = () => {
   const { theme, setTheme, getTextColor } = useTheme();
@@ -146,12 +133,7 @@ export const Layout = () => {
                 "p-3 rounded-lg flex items-center gap-3 border transition-all duration-200", 
                 theme === 'light' ? 'bg-white/50 border-slate-200/50 shadow-sm' : 'bg-white/5 border-white/10'
             )}>
-                <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-gradient-to-br text-white shrink-0",
-                    getAvatarGradient(user?.name || 'A')
-                )}>
-                    {user?.name.charAt(0)}
-                </div>
+                <UserAvatar name={user?.name || 'A'} size={32} />
                 <div className="flex-1 min-w-0">
                     <p className={cn("text-sm font-semibold truncate", getTextColor())}>{user?.name}</p>
                     <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">{user?.role}</p>
