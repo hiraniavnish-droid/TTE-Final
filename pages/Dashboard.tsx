@@ -437,15 +437,17 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
 const KPICard = ({ title, value, subtext, breakdown, icon: Icon, colorClass, onClick }: any) => {
     const { getTextColor, getCardBg } = useTheme();
     return (
-        <div 
+        <div
             onClick={onClick}
             className={cn(
-                "p-4 md:p-5 rounded-xl border transition-all duration-300 group cursor-pointer relative overflow-hidden",
+                "p-4 md:p-5 rounded-xl border transition-all duration-300 group cursor-pointer relative overflow-hidden hover:-translate-y-0.5 hover:shadow-md",
                 getCardBg(),
-                "border-slate-100 hover:border-slate-200 shadow-sm" // Unified shadow/border
+                "border-slate-100 hover:border-slate-200 shadow-sm"
             )}
         >
-            <div className="flex justify-between items-start mb-2">
+            {/* Colored top accent */}
+            <div className={cn("absolute top-0 left-0 right-0 h-[3px] rounded-t-xl", colorClass)} />
+            <div className="flex justify-between items-start mb-2 mt-1">
                 <div className={cn("p-2 rounded-lg bg-opacity-20", colorClass)}>
                     <Icon size={18} className="text-white" />
                 </div>

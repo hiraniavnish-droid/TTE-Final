@@ -273,11 +273,12 @@ const BucketSection = ({ title, icon: Icon, colorClass, tasks, leads, onToggle, 
                     : 'bg-slate-900/95 text-slate-300 border-white/10',
                 isOverdueBucket && "bg-rose-50/95 text-rose-600 border-rose-200"
             )}>
-                <Icon size={14} className={colorClass} />
+                <Icon size={14} className={cn(colorClass, isOverdueBucket && "animate-pulse")} />
+                {isOverdueBucket && <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse shrink-0" />}
                 <span>{title}</span>
                 <span className={cn(
-                    "ml-auto text-[10px] px-2 py-0.5 rounded-full min-w-[24px] text-center",
-                    isOverdueBucket ? "bg-rose-100 text-rose-600" : "bg-slate-200 text-slate-600"
+                    "ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center",
+                    isOverdueBucket ? "bg-rose-500 text-white animate-pulse" : "bg-slate-200 text-slate-600"
                 )}>
                     {tasks.length}
                 </span>

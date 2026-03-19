@@ -337,8 +337,12 @@ const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> =
       <h3 className={cn("font-bold font-serif text-lg mb-3 px-2 flex justify-between items-center transition-colors", isOver ? "text-blue-500" : getTextColor())}>
           {status}
           <span className={cn(
-            "text-sm px-2.5 py-0.5 rounded-full backdrop-blur-sm transition-colors",
-            isOver ? "bg-blue-500 text-white" : "bg-white/20"
+            "text-xs font-bold px-2.5 py-0.5 rounded-full transition-colors",
+            isOver
+              ? "bg-blue-500 text-white"
+              : theme === 'light'
+                ? "bg-white text-slate-600 border border-slate-200 shadow-sm"
+                : "bg-white/10 text-white/70 border border-white/10"
           )}>
               {React.Children.count(children)}
           </span>

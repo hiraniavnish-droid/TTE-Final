@@ -1,6 +1,7 @@
 
-import React from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
+import { useLeads } from '../contexts/LeadContext';
 import { 
   LayoutDashboard, 
   Users, 
@@ -25,13 +26,38 @@ import { DraggableFab } from './DraggableFab';
 import { SmartNudge } from './SmartNudge';
 import { GridBackground } from './ui/GridBackground';
 
+const getAvatarGradient = (name: string) => {
+  const gradients = [
+    'from-blue-500 to-indigo-600',
+    'from-emerald-500 to-teal-600',
+    'from-amber-500 to-orange-600',
+    'from-rose-500 to-pink-600',
+    'from-violet-500 to-purple-600',
+    'from-cyan-500 to-blue-600',
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return gradients[Math.abs(hash) % gradients.length];
+};
+
 export const Layout = () => {
   const { theme, setTheme, getTextColor } = useTheme();
   const { user, logout } = useAuth();
+  const { reminders } = useLeads();
   const navigate = useNavigate();
   const location = useLocation();
-  
+  const mainRef = useRef<HTMLElement>(null);
+
   const MotionDiv = motion.div as any;
+
+  const overdueCount = useMemo(() => {
+    const now = new Date();
+    return reminders.filter(r => !r.isCompleted && new Date(r.dueDate) < now).length;
+  }, [reminders]);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
 
   const handleLogout = () => {
       logout();
@@ -121,8 +147,8 @@ export const Layout = () => {
                 theme === 'light' ? 'bg-white/50 border-slate-200/50 shadow-sm' : 'bg-white/5 border-white/10'
             )}>
                 <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm",
-                    theme === 'light' ? 'bg-white text-slate-700 border border-slate-200' : 'bg-slate-700 text-white'
+                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-gradient-to-br text-white shrink-0",
+                    getAvatarGradient(user?.name || 'A')
                 )}>
                     {user?.name.charAt(0)}
                 </div>
@@ -137,7 +163,7 @@ export const Layout = () => {
           {navItems.map((item) => {
             const isActive = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
             return (
-              <Link key={item.path} to={item.path} className="relative block group">
+              <Link key={item.path} to={item.path} className="relative block group" style={{ position: 'relative' }}>
                 {isActive && (
                   <MotionDiv
                     layoutId="active-bg"
@@ -158,7 +184,14 @@ export const Layout = () => {
                         : (theme === 'light' ? "text-slate-500 hover:text-slate-900 hover:bg-slate-50/50" : "text-slate-400 hover:text-white hover:bg-white/5")
                     )}
                 >
-                    <item.icon size={18} className={cn("transition-colors duration-200", isActive ? "text-current" : "opacity-70 group-hover:opacity-100 group-hover:text-current")} strokeWidth={isActive ? 2.5 : 2} />
+                    <div className="relative">
+                      <item.icon size={18} className={cn("transition-colors duration-200", isActive ? "text-current" : "opacity-70 group-hover:opacity-100 group-hover:text-current")} strokeWidth={isActive ? 2.5 : 2} />
+                      {item.path === '/reminders' && overdueCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+                          {overdueCount > 9 ? '9+' : overdueCount}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-sm tracking-tight">{item.label}</span>
                 </MotionDiv>
               </Link>
@@ -180,9 +213,11 @@ export const Layout = () => {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden h-[calc(100vh-64px)] md:h-screen relative z-10 pb-24 md:pb-12 scroll-smooth">
+      <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden h-[calc(100vh-64px)] md:h-screen relative z-10 pb-24 md:pb-12 scroll-smooth">
         <div className="p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 text-sm md:text-base">
-            <Outlet />
+            <div key={location.pathname} className="animate-in fade-in duration-200">
+              <Outlet />
+            </div>
         </div>
       </main>
 
@@ -196,13 +231,25 @@ export const Layout = () => {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) => cn(
-                    'flex flex-col items-center gap-1 transition-all',
-                    isActive 
-                      ? (theme === 'light' ? 'text-blue-600 font-bold scale-110' : 'text-blue-400 font-bold scale-110') 
+                    'flex flex-col items-center gap-0.5 transition-all relative',
+                    isActive
+                      ? (theme === 'light' ? 'text-blue-600 font-bold scale-105' : 'text-blue-400 font-bold scale-105')
                       : (theme === 'light' ? 'text-slate-400' : 'text-slate-600')
                   )}
                 >
-                    {({ isActive }) => <><item.icon size={24} strokeWidth={isActive ? 2.5 : 2} /></>}
+                    {({ isActive }) => (
+                      <>
+                        <div className="relative">
+                          <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                          {item.path === '/reminders' && overdueCount > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                              {overdueCount > 9 ? '9+' : overdueCount}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[9px] font-semibold tracking-wide leading-none">{item.label}</span>
+                      </>
+                    )}
                 </NavLink>
             ))}
         </div>
