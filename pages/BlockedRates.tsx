@@ -633,17 +633,20 @@ const CityView: React.FC<{
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const HOTELS_PAGE_SIZE = 18;
+
 export const BlockedRates = () => {
   const { theme, getTextColor, getSecondaryTextColor } = useTheme();
 
-  const [rates,    setRates]    = useState<HotelRate[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
-  const [search,   setSearch]   = useState('');
-  const [view,     setView]     = useState<'home' | 'city' | 'hotel'>('home');
-  const [selCity,  setSelCity]  = useState('');
-  const [selHotel, setSelHotel] = useState('');
-  const [backLabel, setBackLabel] = useState('');
+  const [rates,        setRates]        = useState<HotelRate[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
+  const [search,       setSearch]       = useState('');
+  const [view,         setView]         = useState<'home' | 'city' | 'hotel'>('home');
+  const [selCity,      setSelCity]      = useState('');
+  const [selHotel,     setSelHotel]     = useState('');
+  const [backLabel,    setBackLabel]    = useState('');
+  const [hotelLimit,   setHotelLimit]   = useState(HOTELS_PAGE_SIZE);
 
   const loadRates = () => {
     setLoading(true); setError(null);
@@ -693,6 +696,7 @@ export const BlockedRates = () => {
 
   const goToCity  = (city: string) => { setSelCity(city); setView('city'); setSearch(''); };
   const goToHotel = (city: string, name: string, label: string) => { setSelCity(city); setSelHotel(name); setBackLabel(label); setView('hotel'); setSearch(''); };
+  const goHome    = () => { setView('home'); setHotelLimit(HOTELS_PAGE_SIZE); };
 
   const headerBg = theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : 'bg-slate-900 border-white/10';
   const inputBg  = theme === 'light' ? 'bg-slate-50 border-slate-200 focus-within:border-blue-400 focus-within:bg-white' : 'bg-white/5 border-white/10 focus-within:border-blue-400';
@@ -730,8 +734,8 @@ export const BlockedRates = () => {
       )}
 
       {/* Detail views */}
-      {view === 'city'  && <CityView cityName={selCity} cityRates={rates.filter(r => r.City === selCity)} onBack={() => setView('home')} onSelectHotel={name => goToHotel(selCity, name, selCity)} />}
-      {view === 'hotel' && <HotelView hotelName={selHotel} rows={hotelRows} onBack={() => view === 'hotel' && setView(backLabel ? 'city' : 'home')} backLabel={backLabel} />}
+      {view === 'city'  && <CityView cityName={selCity} cityRates={rates.filter(r => r.City === selCity)} onBack={goHome} onSelectHotel={name => goToHotel(selCity, name, selCity)} />}
+      {view === 'hotel' && <HotelView hotelName={selHotel} rows={hotelRows} onBack={() => { if (backLabel) { setView('city'); } else { goHome(); } }} backLabel={backLabel} />}
 
       {/* Home view */}
       {view === 'home' && (
@@ -855,29 +859,42 @@ export const BlockedRates = () => {
                     {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="h-16" style={{ animationDelay: `${i * 30}ms` }} />)}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                    {allHotels.map((hotel, i) => (
-                      <button key={`${hotel.name}-${hotel.city}`}
-                        onClick={() => goToHotel(hotel.city, hotel.name, hotel.city)}
-                        className={cn('group text-left p-3.5 rounded-xl border transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md', hotelCard)}>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              {i === 0 && <Star size={10} className="text-amber-500 fill-amber-400 shrink-0" />}
-                              <p className={cn('font-semibold text-sm truncate', getTextColor())}>{hotel.name}</p>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
+                      {allHotels.slice(0, hotelLimit).map((hotel, i) => (
+                        <button key={`${hotel.name}-${hotel.city}`}
+                          onClick={() => goToHotel(hotel.city, hotel.name, hotel.city)}
+                          className={cn('group text-left p-3.5 rounded-xl border transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md', hotelCard)}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                {i === 0 && <Star size={10} className="text-amber-500 fill-amber-400 shrink-0" />}
+                                <p className={cn('font-semibold text-sm truncate', getTextColor())}>{hotel.name}</p>
+                              </div>
+                              <div className={cn('flex items-center gap-2 mt-0.5 text-[11px]', getSecondaryTextColor())}>
+                                <span className="flex items-center gap-0.5 opacity-50"><MapPin size={9} />{hotel.city}</span>
+                                {hotel.cheapestInfo
+                                  ? <span className="font-bold font-mono text-emerald-600">₹{hotel.cheapestInfo.rate.toLocaleString('en-IN')}</span>
+                                  : <span className="italic opacity-30">On request</span>}
+                              </div>
                             </div>
-                            <div className={cn('flex items-center gap-2 mt-0.5 text-[11px]', getSecondaryTextColor())}>
-                              <span className="flex items-center gap-0.5 opacity-50"><MapPin size={9} />{hotel.city}</span>
-                              {hotel.cheapestInfo
-                                ? <span className="font-bold font-mono text-emerald-600">₹{hotel.cheapestInfo.rate.toLocaleString('en-IN')}</span>
-                                : <span className="italic opacity-30">On request</span>}
-                            </div>
+                            <ChevronRight size={13} className="opacity-20 shrink-0 group-hover:opacity-60 group-hover:translate-x-0.5 transition-all" />
                           </div>
-                          <ChevronRight size={13} className="opacity-20 shrink-0 group-hover:opacity-60 group-hover:translate-x-0.5 transition-all" />
-                        </div>
+                        </button>
+                      ))}
+                    </div>
+                    {hotelLimit < allHotels.length && (
+                      <button
+                        onClick={() => setHotelLimit(l => l + HOTELS_PAGE_SIZE)}
+                        className={cn('mt-4 w-full py-2.5 rounded-xl border text-sm font-semibold transition-all',
+                          theme === 'light'
+                            ? 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'
+                            : 'bg-white/5 border-white/10 text-white/60 hover:border-blue-400/40 hover:text-white'
+                        )}>
+                        Show more · {allHotels.length - hotelLimit} remaining
                       </button>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             </>
