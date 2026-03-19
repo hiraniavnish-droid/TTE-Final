@@ -256,7 +256,7 @@ const HotelView: React.FC<{ hotelName: string; rows: HotelRate[]; onBack: () => 
                     <p className={cn('text-[10px] font-mono uppercase opacity-40 tracking-wider', getTextColor())}>
                       {calculation.nights} night{calculation.nights !== 1 ? 's' : ''} · {calculation.occupancy} · {plan}
                     </p>
-                    <p className={cn('text-2xl font-bold font-mono tracking-tight', getTextColor())}>
+                    <p className="text-2xl font-bold font-mono tracking-tight text-emerald-600">
                       ₹{calculation.totalCost.toLocaleString('en-IN')}
                     </p>
                   </div>
@@ -305,7 +305,11 @@ const HotelView: React.FC<{ hotelName: string; rows: HotelRate[]; onBack: () => 
                     {PLAN_TYPES.map(p => (
                       <tr key={p} className={cn('transition-colors', theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5')}>
                         <td className={cn('px-4 py-3.5 border-r', border)}>
-                          <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-500 text-[10px] font-bold inline-flex items-center justify-center">{p}</span>
+                          <span className={cn('w-7 h-7 rounded-lg text-[10px] font-bold inline-flex items-center justify-center',
+                            p === 'CP'  ? 'bg-blue-50 text-blue-600' :
+                            p === 'MAP' ? 'bg-violet-50 text-violet-600' :
+                                          'bg-emerald-50 text-emerald-600'
+                          )}>{p}</span>
                         </td>
                         {DAY_TYPES.map(day => OCC_TYPES.map(occ => {
                           const key = `${day} ${occ} ${p}`;
@@ -593,7 +597,7 @@ const CityView: React.FC<{
                   <div>
                     {displayRate !== null ? (
                       <>
-                        <p className={cn('text-2xl font-bold font-mono tracking-tight', getTextColor())}>
+                        <p className="text-2xl font-bold font-mono tracking-tight text-emerald-600">
                           ₹{displayRate.toLocaleString('en-IN')}
                         </p>
                         <p className={cn('text-[10px] mt-0.5 opacity-50', getSecondaryTextColor())}>per room per night</p>
@@ -811,12 +815,19 @@ export const BlockedRates = () => {
                       const cheapest = getCheapestRateInfo(rates.filter(r => r.City === city));
                       return (
                         <button key={city} onClick={() => goToCity(city)}
-                          className={cn('group text-left p-4 rounded-xl border transition-all duration-200 relative overflow-hidden', cityCard)}>
+                          className={cn('group text-left p-4 rounded-xl border transition-all duration-200 relative overflow-hidden hover:-translate-y-0.5 hover:shadow-lg', cityCard)}>
                           {i < 3 && (
-                            <span className="absolute top-2.5 right-2.5 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200 font-bold">
+                            <span className={cn('absolute top-2.5 right-2.5 text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold border',
+                              i === 0 ? 'bg-amber-100 text-amber-700 border-amber-300' :
+                              i === 1 ? 'bg-slate-100 text-slate-600 border-slate-300' :
+                                        'bg-orange-100 text-orange-700 border-orange-200'
+                            )}>
                               #{i + 1}
                             </span>
                           )}
+                          <div className={cn('absolute left-0 top-0 bottom-0 w-1 rounded-l-xl',
+                            i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-slate-400' : i === 2 ? 'bg-orange-400' : 'bg-blue-300'
+                          )} />
                           <MapPin size={14} className="text-blue-500 mb-2" />
                           <p className={cn('font-bold text-sm', getTextColor())}>{city}</p>
                           <p className={cn('text-[10px] mt-1 opacity-50', getSecondaryTextColor())}>{count} hotel{count !== 1 ? 's' : ''}</p>
@@ -848,7 +859,7 @@ export const BlockedRates = () => {
                     {allHotels.map((hotel, i) => (
                       <button key={`${hotel.name}-${hotel.city}`}
                         onClick={() => goToHotel(hotel.city, hotel.name, hotel.city)}
-                        className={cn('group text-left p-3.5 rounded-xl border transition-all duration-150', hotelCard)}>
+                        className={cn('group text-left p-3.5 rounded-xl border transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md', hotelCard)}>
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
