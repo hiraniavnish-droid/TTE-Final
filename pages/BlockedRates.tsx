@@ -400,12 +400,11 @@ const CityView: React.FC<{
   const hotelNames = useMemo(() => Array.from(new Set(cityRates.map(r => r.HOTEL))), [cityRates]);
 
   const getRate = (row: HotelRate): number | null => {
-    const remarks = (row.Remarks || '').toLowerCase();
-    const sameRates = remarks.includes('w/d & w/e same');
+    const otherDay = dayType === 'Weekday' ? 'Weekend' : 'Weekday';
     let raw = row[`${dayType} ${occupancy} ${plan}`];
-    if (sameRates && (!raw || raw.trim() === '')) {
-      raw = row[`${dayType === 'Weekday' ? 'Weekend' : 'Weekday'} ${occupancy} ${plan}`];
-    }
+    // Always fall back to the other day type if this one is empty
+    if (!raw || raw.trim() === '')
+      raw = row[`${otherDay} ${occupancy} ${plan}`];
     if (!raw || raw.trim() === '') return null;
     const num = Number(raw.replace(/,/g, '').trim());
     return isNaN(num) ? null : num;
