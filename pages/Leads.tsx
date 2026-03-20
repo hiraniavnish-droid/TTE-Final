@@ -161,7 +161,7 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
             "relative p-3 rounded-xl border transition-all duration-200 select-none group",
             theme === 'light'
               ? (lead.status === 'Won' ? 'bg-emerald-50/60 border-emerald-100 hover:border-emerald-200' : lead.status === 'Lost' ? 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100' : 'bg-white border-slate-100 hover:border-slate-300')
-              : 'bg-white/5 backdrop-blur-md border-white/10 hover:bg-white/10 hover:border-white/20',
+              : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40 hover:bg-blue-900/50 hover:border-blue-700/50' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700/60 hover:border-slate-600/70',
             isOverlay ? "shadow-2xl scale-105 rotate-2 cursor-grabbing ring-1 ring-blue-500/50" : "shadow-sm hover:shadow-md cursor-grab",
             isDragging ? "opacity-30 grayscale" : "opacity-100",
             urgencyClass || statusAccent[lead.status] || ''
@@ -248,7 +248,7 @@ const MobileLeadCard: React.FC<MobileLeadCardProps> = ({ lead, onStatusChange })
   return (
     <div className={cn(
         "p-4 rounded-xl border transition-all shadow-sm",
-        theme === 'light' ? 'bg-white border-slate-100' : 'bg-white/5 border-white/10',
+        theme === 'light' ? 'bg-white border-slate-100' : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40' : 'bg-slate-800/80 border-slate-700/50',
         urgencyClass
     )}>
        <div className="flex justify-between items-start mb-3">
@@ -357,7 +357,7 @@ const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> =
         colColors.accent,
         theme === 'light'
           ? (isOver ? `bg-white ring-2 ${colColors.glow} shadow-lg` : 'bg-slate-50 border border-slate-200/80 border-t-[4px] shadow-sm')
-          : (isOver ? `bg-white/10 ring-2 ${colColors.glow} shadow-inner` : 'bg-black/20')
+          : (isOver ? `bg-blue-800/20 ring-2 ${colColors.glow} shadow-inner` : theme === 'ocean' ? 'bg-blue-950/40' : 'bg-slate-800/40')
     )}>
       <div className="flex justify-between items-center mb-3 px-1">
         <h3 className={cn("font-bold text-sm uppercase tracking-wide", isOver ? colColors.headerText : (theme === 'light' ? 'text-slate-600' : 'text-white/70'))}>
@@ -369,14 +369,14 @@ const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> =
             ? colColors.badge
             : theme === 'light'
               ? "bg-white text-slate-500 border border-slate-200 shadow-sm"
-              : "bg-white/10 text-white/60 border border-white/10"
+              : theme === 'ocean' ? "bg-blue-900/60 text-blue-200/80 border border-blue-700/40" : "bg-slate-700/60 text-slate-300 border border-slate-600/50"
         )}>
             {count}
         </span>
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-20">
         {count === 0 ? (
-          <div className={cn("mt-4 border-2 border-dashed rounded-xl p-4 text-center", theme === 'light' ? 'border-slate-200 text-slate-300' : 'border-white/10 text-white/20')}>
+          <div className={cn("mt-4 border-2 border-dashed rounded-xl p-4 text-center", theme === 'light' ? 'border-slate-200 text-slate-300' : theme === 'ocean' ? 'border-blue-700/30 text-blue-300/30' : 'border-slate-600/40 text-slate-500/40')}>
             <span className="text-xs font-medium">Drop here</span>
           </div>
         ) : children}
@@ -684,7 +684,7 @@ export const Leads = () => {
           <div className="fixed top-20 left-1/2 -translate-x-1/2 md:top-6 md:right-6 md:translate-x-0 md:left-auto z-50 animate-in slide-in-from-top-2 fade-in duration-300 w-full max-w-sm px-4">
               <div className={cn(
                   "flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md",
-                  theme === 'light' ? 'bg-white/90 border-slate-200' : 'bg-slate-800/90 border-white/10',
+                  theme === 'light' ? 'bg-white/90 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/90 border-blue-700/40' : 'bg-slate-800/90 border-slate-700/50',
                   showToast.type === 'success' ? 'text-green-500' : 'text-red-500'
               )}>
                   <CheckCircle2 size={18} className="shrink-0" />
@@ -710,16 +710,16 @@ export const Leads = () => {
         
         <div className="flex items-center gap-3 flex-wrap w-full md:w-auto h-12 md:h-auto">
             {/* View Toggles */}
-            <div className={cn("flex items-center rounded-xl p-1 border h-10 md:h-11 flex-shrink-0", theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
-                <button 
-                    onClick={() => setView('kanban')} 
-                    className={cn("p-2 rounded-lg transition-all h-full w-10 flex items-center justify-center", view === 'kanban' ? (theme === 'light' ? 'bg-slate-100 text-blue-600' : 'bg-white/20 text-white') : 'opacity-50 hover:opacity-100 text-gray-400')}
+            <div className={cn("flex items-center rounded-xl p-1 border h-10 md:h-11 flex-shrink-0", theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40' : 'bg-slate-800 border-slate-700/50')}>
+                <button
+                    onClick={() => setView('kanban')}
+                    className={cn("p-2 rounded-lg transition-all h-full w-10 flex items-center justify-center", view === 'kanban' ? (theme === 'light' ? 'bg-slate-100 text-blue-600' : theme === 'ocean' ? 'bg-blue-800/60 text-indigo-300' : 'bg-slate-700 text-indigo-300') : 'opacity-50 hover:opacity-100 text-gray-400')}
                 >
                     <LayoutGrid size={20} />
                 </button>
-                <button 
-                    onClick={() => setView('list')} 
-                    className={cn("p-2 rounded-lg transition-all h-full w-10 flex items-center justify-center", view === 'list' ? (theme === 'light' ? 'bg-slate-100 text-blue-600' : 'bg-white/20 text-white') : 'opacity-50 hover:opacity-100 text-gray-400')}
+                <button
+                    onClick={() => setView('list')}
+                    className={cn("p-2 rounded-lg transition-all h-full w-10 flex items-center justify-center", view === 'list' ? (theme === 'light' ? 'bg-slate-100 text-blue-600' : theme === 'ocean' ? 'bg-blue-800/60 text-indigo-300' : 'bg-slate-700 text-indigo-300') : 'opacity-50 hover:opacity-100 text-gray-400')}
                 >
                     <LayoutList size={20} />
                 </button>
@@ -733,7 +733,7 @@ export const Leads = () => {
                 {/* Filter Dropdown */}
                 <div className={cn(
                     "absolute top-full right-0 mt-2 w-56 rounded-xl shadow-2xl p-3 hidden group-hover:block backdrop-blur-xl border",
-                     theme === 'light' ? 'bg-white/90 border-slate-200' : 'bg-gray-900/90 border-white/10'
+                     theme === 'light' ? 'bg-white/90 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/95 border-blue-800/40' : 'bg-slate-900/95 border-slate-700/50'
                 )}>
                     <div className={cn("text-xs font-bold uppercase tracking-wider mb-2 opacity-50", getTextColor())}>Temperature</div>
                     {['Hot', 'Warm', 'Cold'].map(t => (
@@ -778,7 +778,7 @@ export const Leads = () => {
       {filteredLeads.length === 0 ? (
          <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] animate-in fade-in zoom-in-95 duration-500">
             {/* Empty State ... (Unchanged) */}
-            <div className={cn("w-24 h-24 rounded-full flex items-center justify-center mb-6", theme === 'light' ? 'bg-blue-50 text-blue-400' : 'bg-white/5 text-white/30')}>
+            <div className={cn("w-24 h-24 rounded-full flex items-center justify-center mb-6", theme === 'light' ? 'bg-blue-50 text-blue-400' : theme === 'ocean' ? 'bg-blue-900/30 text-blue-400/50' : 'bg-slate-800/60 text-slate-500')}>
                 {hasActiveFilters ? <SearchX size={48} /> : <Users size={48} />}
             </div>
             <h2 className={cn("text-2xl font-bold font-serif mb-2", getTextColor())}>
@@ -840,7 +840,7 @@ export const Leads = () => {
                                     "whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold border transition-all min-h-[44px]",
                                     activeMobileStatus === status
                                         ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                                        : (theme === 'light' ? "bg-white text-slate-500 border-slate-200" : "bg-white/5 text-white/60 border-white/10")
+                                        : (theme === 'light' ? "bg-white text-slate-500 border-slate-200" : theme === 'ocean' ? "bg-blue-900/40 text-blue-200/70 border-blue-700/40" : "bg-slate-800 text-slate-400 border-slate-700/50")
                                 )}
                              >
                                 {status}
@@ -848,7 +848,7 @@ export const Leads = () => {
                          ))}
                      </div>
                      {/* Scroll Hint Overlay */}
-                     <div className={cn("absolute right-0 top-0 bottom-4 w-12 pointer-events-none bg-gradient-to-l", theme === 'light' ? "from-slate-50 to-transparent" : "from-slate-900 to-transparent")} />
+                     <div className={cn("absolute right-0 top-0 bottom-4 w-12 pointer-events-none bg-gradient-to-l", theme === 'light' ? "from-slate-50 to-transparent" : theme === 'ocean' ? "from-blue-950 to-transparent" : "from-slate-900 to-transparent")} />
                  </div>
                  
                  <div className="flex-1 space-y-4 pb-32">
@@ -863,7 +863,7 @@ export const Leads = () => {
                      ))}
                      {filteredLeads.filter(l => l.status === activeMobileStatus).length === 0 && (
                          <div className="text-center opacity-50 py-10 flex flex-col items-center gap-2">
-                             <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", theme === 'light' ? 'bg-slate-100' : 'bg-white/5')}>
+                             <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", theme === 'light' ? 'bg-slate-100' : theme === 'ocean' ? 'bg-blue-900/30' : 'bg-slate-800/60')}>
                                  <LayoutList size={24} />
                              </div>
                              <p className="text-sm">No leads in {activeMobileStatus}</p>
@@ -879,7 +879,7 @@ export const Leads = () => {
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left border-collapse", getTextColor())}>
                         <thead>
-                            <tr className={cn(theme === 'light' ? 'bg-slate-50 border-b border-slate-200' : 'bg-white/5 border-b border-white/10')}>
+                            <tr className={cn(theme === 'light' ? 'bg-slate-50 border-b border-slate-200' : theme === 'ocean' ? 'bg-blue-950/40 border-b border-blue-800/40' : 'bg-slate-800/60 border-b border-slate-700/60')}>
                                 <th className="p-5 font-bold font-serif text-sm">Name</th>
                                 {user?.role === 'admin' && <th className="p-5 font-bold font-serif text-sm">Agent</th>}
                                 <th className="p-5 font-bold font-serif text-sm">Status</th>
@@ -895,7 +895,7 @@ export const Leads = () => {
                                     "group relative transition-all duration-500 ease-in-out border-b",
                                     theme === 'light' 
                                         ? "border-slate-100 hover:bg-gradient-to-r hover:from-transparent hover:via-slate-50 hover:to-transparent" 
-                                        : "border-white/5 hover:bg-gradient-to-r hover:from-transparent hover:via-white/5 hover:to-transparent",
+                                        : theme === 'ocean' ? "border-blue-800/20 hover:bg-gradient-to-r hover:from-transparent hover:via-blue-800/20 hover:to-transparent" : "border-slate-700/30 hover:bg-gradient-to-r hover:from-transparent hover:via-slate-700/30 hover:to-transparent",
                                     "hover:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:z-10"
                                 )}>
                                     <td className="p-5 font-semibold relative">
@@ -930,7 +930,7 @@ export const Leads = () => {
                                     )}
 
                                     <td className="p-5">
-                                        <span className={cn("px-2.5 py-1 rounded-md text-xs font-medium border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/10 border-white/10')}>{lead.status}</span>
+                                        <span className={cn("px-2.5 py-1 rounded-md text-xs font-medium border", theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/40' : 'bg-slate-700/60 border-slate-600/50')}>{lead.status}</span>
                                     </td>
                                     <td className="p-5">
                                         <span className={cn(
@@ -940,10 +940,10 @@ export const Leads = () => {
                                             'bg-sky-500/10 text-sky-500 border-sky-500/20'
                                         )}>{lead.temperature}</span>
                                     </td>
-                                    <td className={cn("p-5 text-sm transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-white/60 group-hover:text-white")}>
+                                    <td className={cn("p-5 text-sm transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-slate-400 group-hover:text-slate-100")}>
                                         {lead.tripDetails.destination}
                                     </td>
-                                    <td className={cn("p-5 text-sm font-mono tracking-wide transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-white/60 group-hover:text-white")}>
+                                    <td className={cn("p-5 text-sm font-mono tracking-wide transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-slate-400 group-hover:text-slate-100")}>
                                         {formatCurrency(lead.tripDetails.budget)}
                                     </td>
                                     <td className="p-5">
@@ -1021,7 +1021,7 @@ export const Leads = () => {
                 </div>
             </div>
 
-            <div className={cn("p-4 rounded-xl border border-dashed space-y-3", getBorderClass(), theme === 'light' ? 'bg-slate-50' : 'bg-white/5')}>
+            <div className={cn("p-4 rounded-xl border border-dashed space-y-3", getBorderClass(), theme === 'light' ? 'bg-slate-50' : theme === 'ocean' ? 'bg-blue-950/40' : 'bg-slate-800/40')}>
                 <p className={cn("text-xs font-bold uppercase tracking-wide opacity-50", getTextColor())}>Trip Details</p>
                 
                 <div className="space-y-4">

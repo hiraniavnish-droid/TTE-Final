@@ -25,13 +25,17 @@ export const Button: React.FC<ButtonProps> = ({
     // Secondary: Clean outlined with colored border
     secondary: theme === 'light'
         ? 'bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm'
-        : 'bg-white/5 border border-white/15 text-white hover:bg-white/10 hover:border-white/25',
+        : theme === 'ocean'
+          ? 'bg-blue-900/50 border border-blue-700/50 text-blue-100 hover:bg-blue-800/60 hover:border-blue-600/60'
+          : 'bg-slate-700/80 border border-slate-600/70 text-slate-200 hover:bg-slate-600/80 hover:border-slate-500',
 
     danger: 'bg-gradient-to-r from-red-600 to-rose-500 text-white hover:from-red-500 hover:to-rose-400 shadow-sm shadow-red-500/20',
 
     ghost: theme === 'light'
         ? 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-        : 'bg-transparent text-white/70 hover:bg-white/10 hover:text-white'
+        : theme === 'ocean'
+          ? 'bg-transparent text-blue-100/70 hover:bg-blue-800/40 hover:text-blue-100'
+          : 'bg-transparent text-slate-400 hover:bg-slate-700/60 hover:text-slate-100'
   };
 
   const sizes = {

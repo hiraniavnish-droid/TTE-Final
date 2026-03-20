@@ -156,15 +156,15 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
                 </div>
 
                 <div className="flex flex-col items-end gap-3">
-                    <div className={cn("flex w-full overflow-x-auto whitespace-nowrap no-scrollbar p-1 rounded-lg", theme === 'light' ? "bg-slate-100" : "bg-white/10")}>
+                    <div className={cn("flex w-full overflow-x-auto whitespace-nowrap no-scrollbar p-1 rounded-lg", theme === 'light' ? "bg-slate-100" : theme === 'ocean' ? "bg-blue-950/60 border border-blue-800/40" : "bg-slate-800 border border-slate-700/50")}>
                         {(['Today', 'Yesterday', 'This Week', 'Custom Range'] as ActivityRange[]).map((r) => (
                             <button
                                 key={r}
                                 onClick={() => setRange(r)}
                                 className={cn(
                                     "px-3 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-1 md:flex-none text-center",
-                                    range === r 
-                                        ? (theme === 'light' ? "bg-white shadow text-indigo-600" : "bg-white/20 text-white shadow") 
+                                    range === r
+                                        ? (theme === 'light' ? "bg-white shadow text-indigo-600" : theme === 'ocean' ? "bg-blue-900 text-indigo-300 shadow" : "bg-slate-700 text-indigo-300 shadow")
                                         : "opacity-50 hover:opacity-100"
                                 )}
                             >
@@ -681,8 +681,8 @@ export const Dashboard = () => {
           theme === 'light'
             ? "bg-gradient-to-r from-indigo-50 via-sky-50 to-white border border-indigo-100 shadow-sm"
             : theme === 'ocean'
-              ? "bg-gradient-to-br from-teal-900 via-slate-900 to-indigo-950"
-              : "bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950"
+              ? "bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 border border-blue-800/40"
+              : "bg-gradient-to-r from-slate-800 via-slate-800 to-indigo-900/60 border border-slate-700/60"
         )}>
           <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-sky-200/50' : 'bg-indigo-500/10')} />
           <div className="relative">
@@ -690,7 +690,7 @@ export const Dashboard = () => {
               "text-xl md:text-3xl font-extrabold leading-tight",
               theme === 'light'
                 ? "bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-transparent"
-                : "bg-gradient-to-r from-indigo-200 via-sky-200 to-white bg-clip-text text-transparent"
+                : "bg-gradient-to-r from-indigo-300 via-blue-200 to-slate-200 bg-clip-text text-transparent"
             )}>
                 {getGreeting(user?.name || 'Expert')}
             </h1>
@@ -707,7 +707,7 @@ export const Dashboard = () => {
                     "flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all",
                     viewAsAgent !== 'all'
                       ? "bg-amber-50 border-amber-200"
-                      : (theme === 'light' ? "bg-white border-slate-200" : "bg-white/10 border-white/20")
+                      : (theme === 'light' ? "bg-white border-slate-200" : theme === 'ocean' ? "bg-blue-950/60 border-blue-800/40" : "bg-slate-800 border-slate-700/50")
                 )}>
                     <Eye size={13} className={viewAsAgent !== 'all' ? "text-amber-600" : "opacity-50"} />
                     <span className={cn("text-xs font-bold uppercase tracking-wider opacity-70 hidden md:inline", viewAsAgent !== 'all' && "text-amber-700")}>Viewing:</span>
@@ -729,7 +729,7 @@ export const Dashboard = () => {
             )}
 
             {/* Time Filter */}
-            <div className={cn("relative p-1 rounded-xl flex gap-1", theme === 'light' ? "bg-slate-100 border border-slate-200" : "bg-white/10")}>
+            <div className={cn("relative p-1 rounded-xl flex gap-1", theme === 'light' ? "bg-slate-100 border border-slate-200" : theme === 'ocean' ? "bg-blue-950/60 border border-blue-800/40" : "bg-slate-800 border border-slate-700/50")}>
                 {(['This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
                     <button
                         key={tf}
@@ -737,7 +737,7 @@ export const Dashboard = () => {
                         className={cn(
                             "px-2 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap",
                             timeFilter === tf
-                                ? (theme === 'light' ? "bg-white shadow text-indigo-600 border border-indigo-100" : "bg-white/20 text-white shadow")
+                                ? (theme === 'light' ? "bg-white shadow text-indigo-600 border border-indigo-100" : theme === 'ocean' ? "bg-blue-900 text-indigo-300 shadow" : "bg-slate-700 text-indigo-300 shadow")
                                 : (theme === 'light' ? "text-slate-500 hover:text-slate-700" : "text-white/50 hover:text-white/80")
                         )}
                     >
@@ -810,7 +810,7 @@ export const Dashboard = () => {
               <div className="flex-1 w-full min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart layout="vertical" data={stats.funnelData} margin={{ left: 0, right: 30, top: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.10)'} />
                     <XAxis type="number" hide />
                     <YAxis 
                       dataKey="name" 
@@ -823,10 +823,10 @@ export const Dashboard = () => {
                     <Tooltip 
                         cursor={{fill: 'transparent'}}
                         contentStyle={{ 
-                            backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(15, 23, 42, 0.95)', 
-                            borderRadius: '8px', 
+                            backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(22, 30, 50, 0.97)',
+                            borderRadius: '8px',
                             border: 'none',
-                            color: theme === 'light' ? '#0f172a' : '#fff',
+                            color: theme === 'light' ? '#0f172a' : '#e2e8f0',
                             fontSize: '12px'
                         }} 
                     />
@@ -962,7 +962,7 @@ export const Dashboard = () => {
           <div className={cn("rounded-2xl border overflow-hidden", getGlassClass())}>
               <div className={cn(
                   "flex overflow-x-auto w-full whitespace-nowrap no-scrollbar p-2 gap-2 border-b",
-                  theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/20 border-white/10'
+                  theme === 'light' ? 'bg-slate-50 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50'
               )}>
                   {(['Ongoing Now', 'Starts Tomorrow', 'This Week', 'Next Week', 'This Month'] as OpTab[]).map(tab => (
                       <button
@@ -970,8 +970,8 @@ export const Dashboard = () => {
                         onClick={() => setOpTab(tab)}
                         className={cn(
                             "px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0",
-                            opTab === tab 
-                                ? (theme === 'light' ? 'bg-white shadow text-blue-600' : 'bg-white/10 text-white shadow border border-white/10')
+                            opTab === tab
+                                ? (theme === 'light' ? 'bg-white shadow text-blue-600' : theme === 'ocean' ? 'bg-blue-900 text-indigo-300 shadow border border-blue-700/50' : 'bg-slate-700 text-indigo-300 shadow')
                                 : "opacity-50 hover:opacity-100"
                         )}
                       >
@@ -1002,7 +1002,7 @@ export const Dashboard = () => {
                               else { statusText = 'Departing Today'; statusColor = 'text-green-500'; }
 
                               return (
-                                <div key={lead.id} className={cn("p-4 rounded-xl border transition-all hover:scale-[1.02]", theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : 'bg-white/5 border-white/10')}>
+                                <div key={lead.id} className={cn("p-4 rounded-xl border transition-all hover:scale-[1.02]", theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50')}>
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="min-w-0 pr-2">
                                             <h4 className={cn("font-bold text-sm truncate", getTextColor())}>{lead.name}</h4>
@@ -1042,7 +1042,7 @@ export const Dashboard = () => {
               <div className="space-y-3">
                   {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> : 
                       hotLeads.map(lead => (
-                          <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-white/5 border-white/5")}>
+                          <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40 hover:border-blue-700/50" : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/40")}>
                               <div className="flex items-center gap-3">
                                   <UserAvatar name={lead.name} size={32} />
                                   <div>
@@ -1068,8 +1068,8 @@ export const Dashboard = () => {
               <div className="space-y-3">
                   {tasksToday.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No pending tasks.</div> : 
                       tasksToday.map(task => (
-                          <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded-xl border", theme === 'light' ? "bg-white border-slate-100" : "bg-white/5 border-white/5")}>
-                              <div className={cn("mt-0.5 p-1 rounded-full border", theme === 'light' ? "border-slate-300 text-slate-300" : "border-white/20 text-white/20")}><CheckSquare size={12} /></div>
+                          <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded-xl border", theme === 'light' ? "bg-white border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")}>
+                              <div className={cn("mt-0.5 p-1 rounded-full border", theme === 'light' ? "border-slate-300 text-slate-300" : "border-slate-500/50 text-slate-500/50")}><CheckSquare size={12} /></div>
                               <div className="flex-1 min-w-0">
                                   <p className={cn("text-sm font-medium line-clamp-1", getTextColor())}>{task.task}</p>
                                   <p className={cn("text-[10px] opacity-50", getTextColor())}>Due Today</p>
