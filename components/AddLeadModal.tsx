@@ -10,7 +10,7 @@ import { PaxSelector } from './PaxSelector';
 import { TravelPreferences } from './TravelPreferences';
 import { Lead, LeadTemperature, LeadSource, PaxConfig, TravelPreferences as TravelPreferencesType } from '../types';
 import { generateId, cn } from '../utils/helpers';
-import { UploadCloud, Download, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, Download, CheckCircle2, Sparkles, User, MapPin, Flame } from 'lucide-react';
 import Papa from 'papaparse';
 
 export const AddLeadModal = () => {
@@ -21,9 +21,34 @@ export const AddLeadModal = () => {
   const [newLeadServices, setNewLeadServices] = useState<string[]>([]);
   const [newLeadPax, setNewLeadPax] = useState<PaxConfig>({ adults: 2, children: 0, childAges: [] });
   const [newLeadPrefs, setNewLeadPrefs] = useState<TravelPreferencesType>({});
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showToast, setShowToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+
+  // Section color configs - theme-aware
+  const sc = {
+    violet: {
+      iconBg: theme === 'light' ? 'bg-violet-100' : 'bg-violet-900/30',
+      text:   theme === 'light' ? 'text-violet-600' : 'text-violet-400',
+      border: 'border-l-2 border-violet-400',
+    },
+    blue: {
+      iconBg: theme === 'light' ? 'bg-blue-100' : 'bg-blue-900/30',
+      text:   theme === 'light' ? 'text-blue-600' : 'text-blue-400',
+      border: 'border-l-2 border-blue-400',
+    },
+    emerald: {
+      iconBg:    theme === 'light' ? 'bg-emerald-100' : 'bg-emerald-900/30',
+      text:      theme === 'light' ? 'text-emerald-600' : 'text-emerald-400',
+      boxBg:     theme === 'light' ? 'bg-emerald-50/60' : 'bg-emerald-950/20',
+      boxBorder: theme === 'light' ? 'border-emerald-200' : 'border-emerald-800/40',
+    },
+    amber: {
+      iconBg: theme === 'light' ? 'bg-amber-100' : 'bg-amber-900/30',
+      text:   theme === 'light' ? 'text-amber-600' : 'text-amber-400',
+      border: 'border-l-2 border-amber-400',
+    },
+  };
 
   // --- CSV Logic ---
   const downloadSampleCsv = () => {
@@ -156,12 +181,12 @@ export const AddLeadModal = () => {
           id: generateId(),
           name: formData.get('name') as string,
           contact: {
-              phone: (formData.get('phone') as string) || '', 
+              phone: (formData.get('phone') as string) || '',
               email: (formData.get('email') as string) || '',
           },
           tripDetails: {
               destination: formData.get('destination') as string,
-              budget: Number(formData.get('budget') || 0), 
+              budget: Number(formData.get('budget') || 0),
               paxConfig: newLeadPax,
               startDate: formData.get('startDate') as string,
           },
@@ -178,7 +203,7 @@ export const AddLeadModal = () => {
           vendors: []
       };
       addLead(newLead);
-      
+
       // Reset form state for next time
       setNewLeadServices([]);
       setNewLeadPax({ adults: 2, children: 0, childAges: [] });
@@ -207,45 +232,68 @@ export const AddLeadModal = () => {
       )}
 
       <Modal isOpen={isAddLeadModalOpen} onClose={() => setAddLeadModalOpen(false)} title="Create New Lead">
-        <form onSubmit={handleAddLead} className="space-y-5">
-            <div className="space-y-2">
-                 <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Service Requirements</label>
-                 <ServiceSelector 
-                    selectedServices={newLeadServices}
-                    onChange={setNewLeadServices}
-                 />
+        <form onSubmit={handleAddLead} className="space-y-6">
+
+            {/* ── Section 1: Service Requirements ── Violet */}
+            <div className={cn("space-y-2.5 pl-3", sc.violet.border)}>
+                <div className="flex items-center gap-2">
+                    <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", sc.violet.iconBg)}>
+                        <Sparkles size={12} className={sc.violet.text} />
+                    </div>
+                    <span className={cn("text-xs font-bold uppercase tracking-wider", sc.violet.text)}>Service Requirements</span>
+                </div>
+                <ServiceSelector
+                   selectedServices={newLeadServices}
+                   onChange={setNewLeadServices}
+                />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Client Name</label>
-                    <input name="name" required className={inputClasses} placeholder="John Doe" />
+            {/* ── Section 2: Contact Info ── Blue */}
+            <div className={cn("space-y-3 pl-3", sc.blue.border)}>
+                <div className="flex items-center gap-2">
+                    <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", sc.blue.iconBg)}>
+                        <User size={12} className={sc.blue.text} />
+                    </div>
+                    <span className={cn("text-xs font-bold uppercase tracking-wider", sc.blue.text)}>Contact Info</span>
                 </div>
-                <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Source</label>
-                    <select name="source" className={cn(inputClasses, "[&>option]:text-black")}>
-                        <option value="Instagram">Instagram</option>
-                        <option value="Walk-in">Walk-in</option>
-                        <option value="Referral">Referral</option>
-                        <option value="Website">Website</option>
-                    </select>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Client Name</label>
+                        <input name="name" required className={inputClasses} placeholder="John Doe" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Source</label>
+                        <select name="source" className={cn(inputClasses, "[&>option]:text-black")}>
+                            <option value="Instagram">Instagram</option>
+                            <option value="Walk-in">Walk-in</option>
+                            <option value="Referral">Referral</option>
+                            <option value="Website">Website</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Phone</label>
-                    <input name="phone" defaultValue="+91 " className={inputClasses} placeholder="+91 ..." />
-                </div>
-                <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Email <span className="text-[10px] opacity-50 font-normal normal-case ml-1">(Optional)</span></label>
-                    <input name="email" type="email" className={inputClasses} placeholder="email@example.com" />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Phone</label>
+                        <input name="phone" defaultValue="+91 " className={inputClasses} placeholder="+91 ..." />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Email <span className="text-[10px] opacity-50 font-normal normal-case ml-1">(Optional)</span></label>
+                        <input name="email" type="email" className={inputClasses} placeholder="email@example.com" />
+                    </div>
                 </div>
             </div>
 
-            <div className={cn("p-4 rounded-xl border border-dashed space-y-3", getBorderClass(), theme === 'light' ? 'bg-slate-50/50' : 'bg-white/5')}>
-                <p className={cn("text-xs font-bold uppercase tracking-wide opacity-50", getTextColor())}>Trip Details</p>
-                
+            {/* ── Section 3: Trip Details ── Emerald box */}
+            <div className={cn("p-4 rounded-xl border border-dashed space-y-3", sc.emerald.boxBorder, sc.emerald.boxBg)}>
+                <div className="flex items-center gap-2">
+                    <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", sc.emerald.iconBg)}>
+                        <MapPin size={12} className={sc.emerald.text} />
+                    </div>
+                    <span className={cn("text-xs font-bold uppercase tracking-wider", sc.emerald.text)}>Trip Details</span>
+                </div>
+
                 <div className="space-y-4">
                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          <div className="space-y-1">
@@ -257,9 +305,9 @@ export const AddLeadModal = () => {
                             <input name="startDate" type="date" required className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
                          </div>
                      </div>
-                     
+
                      <PaxSelector value={newLeadPax} onChange={setNewLeadPax} />
-                     
+
                      <div className="pt-2">
                         <TravelPreferences value={newLeadPrefs} onChange={setNewLeadPrefs} />
                      </div>
@@ -271,54 +319,65 @@ export const AddLeadModal = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Temperature</label>
-                    <select name="temperature" className={cn(inputClasses, "[&>option]:text-black")}>
-                        <option value="Hot">Hot (Ready to buy)</option>
-                        <option value="Warm">Warm (Interested)</option>
-                        <option value="Cold">Cold (Future)</option>
-                    </select>
+            {/* ── Section 4: Lead Qualification ── Amber */}
+            <div className={cn("space-y-3 pl-3", sc.amber.border)}>
+                <div className="flex items-center gap-2">
+                    <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", sc.amber.iconBg)}>
+                        <Flame size={12} className={sc.amber.text} />
+                    </div>
+                    <span className={cn("text-xs font-bold uppercase tracking-wider", sc.amber.text)}>Lead Qualification</span>
                 </div>
-                 <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>
-                        {user?.role === 'admin' ? 'Assign To' : 'Reference Name'}
-                    </label>
-                    {user?.role === 'admin' ? (
-                        <select name="assignedTo" className={cn(inputClasses, "[&>option]:text-black")}>
-                            <option value="Unassigned">Unassigned</option>
-                            {users.filter(u => u.role === 'agent').map(u => (
-                                <option key={u.id} value={u.name}>{u.name}</option>
-                            ))}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div className="space-y-1.5">
+                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Temperature</label>
+                        <select name="temperature" className={cn(inputClasses, "[&>option]:text-black")}>
+                            <option value="Hot">🔥 Hot (Ready to buy)</option>
+                            <option value="Warm">🌤 Warm (Interested)</option>
+                            <option value="Cold">❄️ Cold (Future)</option>
                         </select>
-                    ) : (
-                        <input name="reference" className={inputClasses} placeholder="Optional" />
-                    )}
+                    </div>
+                     <div className="space-y-1.5">
+                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>
+                            {user?.role === 'admin' ? 'Assign To' : 'Reference Name'}
+                        </label>
+                        {user?.role === 'admin' ? (
+                            <select name="assignedTo" className={cn(inputClasses, "[&>option]:text-black")}>
+                                <option value="Unassigned">Unassigned</option>
+                                {users.filter(u => u.role === 'agent').map(u => (
+                                    <option key={u.id} value={u.name}>{u.name}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input name="reference" className={inputClasses} placeholder="Optional" />
+                        )}
+                    </div>
                 </div>
             </div>
 
+            {/* ── Footer ── */}
             <div className="pt-4 flex justify-between items-center border-t border-gray-500/10 relative">
-                 <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept=".csv" 
+                 <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept=".csv"
                     onChange={handleFileUpload}
                  />
-                 
+
                  <div className="flex flex-col gap-1">
-                    <div 
+                    <div
                         className={cn("text-xs font-medium flex items-center gap-2 cursor-pointer transition-colors px-3 py-2 rounded-lg border border-dashed hover:bg-slate-100", getTextColor(), getBorderClass())}
                         onClick={() => fileInputRef.current?.click()}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={handleDrop}
                     >
-                        <UploadCloud size={16} className="text-slate-500" /> 
+                        <UploadCloud size={16} className="text-slate-500" />
                         <span>Import CSV</span>
                     </div>
-                    <button 
-                        type="button" 
-                        onClick={downloadSampleCsv} 
+                    <button
+                        type="button"
+                        onClick={downloadSampleCsv}
                         className={cn("text-[10px] opacity-50 hover:opacity-100 flex items-center gap-1 ml-1", getSecondaryTextColor())}
                     >
                         <Download size={10} /> Download Sample
