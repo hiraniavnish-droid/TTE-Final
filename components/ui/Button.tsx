@@ -17,20 +17,20 @@ export const Button: React.FC<ButtonProps> = ({
   const { theme } = useTheme();
   
   const variants = {
-    // Primary: Solid Slate-900 (Enterprise)
+    // Primary: Indigo → Blue gradient with glow
     primary: theme === 'light'
-        ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm border border-transparent'
-        : 'bg-blue-600 hover:bg-blue-500 text-white shadow-md',
-    
-    // Secondary: Clean White with Border
+        ? 'bg-gradient-to-r from-indigo-600 to-blue-500 text-white hover:from-indigo-500 hover:to-blue-400 shadow-md shadow-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/40 border border-transparent'
+        : 'bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-400 hover:to-blue-400 text-white shadow-md shadow-indigo-500/30',
+
+    // Secondary: Clean outlined with colored border
     secondary: theme === 'light'
-        ? 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-sm'
-        : 'bg-white/5 border border-white/10 text-white hover:bg-white/10',
-    
-    danger: 'bg-red-600 text-white hover:bg-red-700 shadow-sm',
-    
-    ghost: theme === 'light' 
-        ? 'bg-transparent text-slate-600 hover:bg-slate-100'
+        ? 'bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm'
+        : 'bg-white/5 border border-white/15 text-white hover:bg-white/10 hover:border-white/25',
+
+    danger: 'bg-gradient-to-r from-red-600 to-rose-500 text-white hover:from-red-500 hover:to-rose-400 shadow-sm shadow-red-500/20',
+
+    ghost: theme === 'light'
+        ? 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
         : 'bg-transparent text-white/70 hover:bg-white/10 hover:text-white'
   };
 

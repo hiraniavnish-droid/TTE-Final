@@ -352,46 +352,64 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left text-sm", getTextColor())}>
                         <thead>
-                            <tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50">
-                                <th className="pb-3 pl-2">Agent</th>
+                            <tr className="border-b border-gray-500/10 text-xs uppercase tracking-widest opacity-40">
+                                <th className="pb-3 pl-3">Agent</th>
                                 <th className="pb-3 text-center">Trend</th>
                                 <th className="pb-3 text-center">Total Leads</th>
                                 <th className="pb-3 text-center">Won</th>
                                 <th className="pb-3 text-center">Conversion</th>
-                                <th className="pb-3 text-right pr-2">Revenue</th>
+                                <th className="pb-3 text-right pr-3">Revenue</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-500/10">
-                            {agentStats.map((agent, idx) => (
-                                <tr key={agent.name} className="group hover:bg-gray-500/5 transition-colors">
-                                    <td className="py-4 pl-2 font-medium flex items-center gap-2">
-                                        <div className="relative" style={{ width: 28, height: 28, flexShrink: 0 }}>
-                                            <UserAvatar name={agent.name} size={28} animate={false} />
-                                            {idx === 0 && (
-                                                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-400 text-[8px] font-black text-white flex items-center justify-center shadow">1</span>
-                                            )}
+                        <tbody className="divide-y divide-gray-500/5">
+                            {agentStats.map((agent, idx) => {
+                                const rankBg = idx === 0
+                                  ? (theme === 'light' ? 'bg-gradient-to-r from-amber-50 to-yellow-50' : 'bg-amber-500/8')
+                                  : idx === 1
+                                    ? (theme === 'light' ? 'bg-gradient-to-r from-slate-50 to-gray-50' : 'bg-slate-500/5')
+                                    : idx === 2
+                                      ? (theme === 'light' ? 'bg-gradient-to-r from-orange-50/60 to-amber-50/40' : 'bg-orange-500/5')
+                                      : '';
+                                const rankEmoji = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+                                const convRate = agent.leads > 0 ? ((agent.won / agent.leads) * 100) : 0;
+                                return (
+                                <tr key={agent.name} className={cn("group transition-colors rounded-xl", rankBg)}>
+                                    <td className="py-3.5 pl-3 font-semibold">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="relative" style={{ width: 30, height: 30, flexShrink: 0 }}>
+                                                <UserAvatar name={agent.name} size={30} animate={false} />
+                                            </div>
+                                            <span>{agent.name}</span>
+                                            {rankEmoji && <span className="text-base leading-none">{rankEmoji}</span>}
                                         </div>
-                                        {agent.name}
                                     </td>
-                                    <td className="py-4 text-center">
+                                    <td className="py-3.5 text-center">
                                         <div className="w-20 mx-auto">
-                                            <Sparkline 
-                                                data={[5, 10, 8, 15, 12, 20]} 
+                                            <Sparkline
+                                                data={[5, 10, 8, 15, 12, 20]}
                                                 color={idx === 0 ? 'amber' : 'slate'}
-                                                height={24}
+                                                height={26}
                                             />
                                         </div>
                                     </td>
-                                    <td className="py-4 text-center font-bold">{agent.leads}</td>
-                                    <td className="py-4 text-center text-emerald-500 font-bold">{agent.won}</td>
-                                    <td className="py-4 text-center opacity-70 font-mono">
-                                        {agent.leads > 0 ? ((agent.won / agent.leads) * 100).toFixed(1) : 0}%
+                                    <td className="py-3.5 text-center font-bold">{agent.leads}</td>
+                                    <td className="py-3.5 text-center">
+                                        <span className="font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md">{agent.won}</span>
                                     </td>
-                                    <td className="py-4 text-right pr-2 font-mono font-bold tracking-tight">
-                                        {formatCompactCurrency(agent.revenue)}
+                                    <td className="py-3.5 text-center">
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <span className={cn("font-mono text-xs font-semibold", convRate > 30 ? "text-emerald-500" : "opacity-60")}>{convRate.toFixed(1)}%</span>
+                                            <div className="w-12 h-1 rounded-full bg-gray-200 overflow-hidden">
+                                                <div className={cn("h-full rounded-full", convRate > 30 ? "bg-emerald-400" : "bg-slate-300")} style={{ width: `${Math.min(convRate, 100)}%` }} />
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="py-3.5 text-right pr-3 font-mono font-bold tracking-tight">
+                                        <span className={cn(idx === 0 ? "text-amber-600" : "")}>{formatCompactCurrency(agent.revenue)}</span>
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -658,29 +676,46 @@ export const Dashboard = () => {
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div className="max-w-[70%] md:max-w-none pr-4 md:pr-0">
-          <h1 className={cn("text-xl md:text-3xl font-bold font-serif text-gray-800", getTextColor())}>
-              {getGreeting(user?.name || 'Expert')}
-          </h1>
-          <p className={cn("text-sm italic opacity-60 mt-1 font-medium line-clamp-1 md:line-clamp-none", getTextColor())}>
-              "{quote}"
-          </p>
+        <div className={cn(
+          "relative overflow-hidden rounded-2xl p-5 md:p-6 flex-1",
+          theme === 'light'
+            ? "bg-gradient-to-r from-indigo-50 via-sky-50 to-white border border-indigo-100 shadow-sm"
+            : theme === 'ocean'
+              ? "bg-gradient-to-br from-teal-900 via-slate-900 to-indigo-950"
+              : "bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950"
+        )}>
+          <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-sky-200/50' : 'bg-indigo-500/10')} />
+          <div className="relative">
+            <h1 className={cn(
+              "text-xl md:text-3xl font-extrabold leading-tight",
+              theme === 'light'
+                ? "bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-transparent"
+                : "bg-gradient-to-r from-indigo-200 via-sky-200 to-white bg-clip-text text-transparent"
+            )}>
+                {getGreeting(user?.name || 'Expert')}
+            </h1>
+            <p className={cn("text-sm italic mt-1 font-medium line-clamp-1 md:line-clamp-none", theme === 'light' ? 'text-slate-500' : 'text-indigo-300/70')}>
+                "{quote}"
+            </p>
+          </div>
         </div>
-        
+
         <div className="flex flex-wrap md:flex-col items-end gap-2 self-end md:self-auto">
             {/* CEO Mode Switcher */}
             {user?.role === 'admin' && (
                 <div className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm transition-all", 
-                    viewAsAgent !== 'all' ? "bg-amber-50 border-amber-200" : (theme === 'light' ? "bg-white border-slate-200" : "bg-white/10 border-white/20")
+                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all",
+                    viewAsAgent !== 'all'
+                      ? "bg-amber-50 border-amber-200"
+                      : (theme === 'light' ? "bg-white border-slate-200" : "bg-white/10 border-white/20")
                 )}>
-                    <Eye size={14} className={viewAsAgent !== 'all' ? "text-amber-600" : "opacity-50"} />
+                    <Eye size={13} className={viewAsAgent !== 'all' ? "text-amber-600" : "opacity-50"} />
                     <span className={cn("text-xs font-bold uppercase tracking-wider opacity-70 hidden md:inline", viewAsAgent !== 'all' && "text-amber-700")}>Viewing:</span>
-                    <select 
+                    <select
                         value={viewAsAgent}
                         onChange={(e) => setViewAsAgent(e.target.value)}
                         className={cn(
-                            "bg-transparent outline-none text-sm font-bold cursor-pointer", 
+                            "bg-transparent outline-none text-sm font-bold cursor-pointer",
                             viewAsAgent !== 'all' ? "text-amber-700" : getTextColor(),
                             "[&>option]:text-black"
                         )}
@@ -694,16 +729,16 @@ export const Dashboard = () => {
             )}
 
             {/* Time Filter */}
-            <div className={cn("relative p-1 rounded-lg flex gap-1", theme === 'light' ? "bg-slate-200" : "bg-white/10")}>
+            <div className={cn("relative p-1 rounded-xl flex gap-1", theme === 'light' ? "bg-slate-100 border border-slate-200" : "bg-white/10")}>
                 {(['This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
                     <button
                         key={tf}
                         onClick={() => setTimeFilter(tf)}
                         className={cn(
-                            "px-2 md:px-3 py-1.5 rounded-md text-[10px] md:text-xs font-bold transition-all whitespace-nowrap",
-                            timeFilter === tf 
-                                ? (theme === 'light' ? "bg-white shadow text-blue-600" : "bg-white/20 text-white shadow") 
-                                : "opacity-50 hover:opacity-100"
+                            "px-2 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap",
+                            timeFilter === tf
+                                ? (theme === 'light' ? "bg-white shadow text-indigo-600 border border-indigo-100" : "bg-white/20 text-white shadow")
+                                : (theme === 'light' ? "text-slate-500 hover:text-slate-700" : "text-white/50 hover:text-white/80")
                         )}
                     >
                         {tf}

@@ -145,16 +145,28 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
   const budgetStr = formatCompactCurrency(lead.tripDetails.budget);
   if (budgetStr) metadata.push(budgetStr);
 
+  // Status-based left border accent (only when no urgency class)
+  const statusAccent: Record<string, string> = {
+    'New':           'border-l-4 border-l-sky-300',
+    'Contacted':     'border-l-4 border-l-amber-300',
+    'Proposal Sent': 'border-l-4 border-l-violet-300',
+    'Discussion':    'border-l-4 border-l-indigo-300',
+    'Won':           'border-l-4 border-l-emerald-400',
+    'Lost':          'border-l-4 border-l-slate-300',
+  };
+
   return (
-    <div 
+    <div
         className={cn(
             "relative p-3 rounded-xl border transition-all duration-200 select-none group",
-            theme === 'light' ? 'bg-white border-slate-100 hover:border-slate-300' : 'bg-white/5 backdrop-blur-md border-white/10 hover:bg-white/10 hover:border-white/20',
+            theme === 'light'
+              ? (lead.status === 'Won' ? 'bg-emerald-50/60 border-emerald-100 hover:border-emerald-200' : lead.status === 'Lost' ? 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100' : 'bg-white border-slate-100 hover:border-slate-300')
+              : 'bg-white/5 backdrop-blur-md border-white/10 hover:bg-white/10 hover:border-white/20',
             isOverlay ? "shadow-2xl scale-105 rotate-2 cursor-grabbing ring-1 ring-blue-500/50" : "shadow-sm hover:shadow-md cursor-grab",
             isDragging ? "opacity-30 grayscale" : "opacity-100",
-            urgencyClass 
+            urgencyClass || statusAccent[lead.status] || ''
         )}
-        title={urgencyTooltip} 
+        title={urgencyTooltip}
     >
         <div className="flex justify-between items-start gap-3">
             <div className="flex-1 min-w-0">
@@ -321,34 +333,53 @@ const DraggableCard: React.FC<{ lead: Lead }> = ({ lead }) => {
   );
 };
 
+// Color accent per kanban column
+const COLUMN_COLORS: Record<string, { accent: string, headerText: string, badge: string, glow: string }> = {
+  'New':           { accent: 'border-t-sky-400',     headerText: 'text-sky-600',     badge: 'bg-sky-500 text-white',     glow: 'ring-sky-200' },
+  'Contacted':     { accent: 'border-t-amber-400',   headerText: 'text-amber-600',   badge: 'bg-amber-500 text-white',   glow: 'ring-amber-200' },
+  'Proposal Sent': { accent: 'border-t-violet-400',  headerText: 'text-violet-600',  badge: 'bg-violet-500 text-white',  glow: 'ring-violet-200' },
+  'Discussion':    { accent: 'border-t-indigo-400',  headerText: 'text-indigo-600',  badge: 'bg-indigo-500 text-white',  glow: 'ring-indigo-200' },
+  'Won':           { accent: 'border-t-emerald-400', headerText: 'text-emerald-600', badge: 'bg-emerald-500 text-white', glow: 'ring-emerald-200' },
+  'Lost':          { accent: 'border-t-slate-400',   headerText: 'text-slate-500',   badge: 'bg-slate-400 text-white',   glow: 'ring-slate-200' },
+};
+
 const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> = ({ status, children }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
-  const { theme, getTextColor } = useTheme();
+  const { theme } = useTheme();
+  const colColors = COLUMN_COLORS[status] || COLUMN_COLORS['New'];
+  const count = React.Children.count(children);
 
   return (
     <div ref={setNodeRef} className={cn(
-        "flex-1 min-w-[300px] rounded-2xl p-3 flex flex-col h-[calc(100vh-240px)] transition-all duration-300",
-        theme === 'light' 
-          ? (isOver ? 'bg-blue-50 ring-2 ring-blue-200 shadow-inner' : 'bg-slate-100/50') 
-          : (isOver ? 'bg-white/10 ring-2 ring-white/10 shadow-inner' : 'bg-black/20')
+        "flex-1 min-w-[300px] rounded-2xl p-3 flex flex-col h-[calc(100vh-240px)] transition-all duration-300 border-t-4",
+        colColors.accent,
+        theme === 'light'
+          ? (isOver ? `bg-white ring-2 ${colColors.glow} shadow-lg` : 'bg-slate-50 border border-slate-200/80 border-t-[4px] shadow-sm')
+          : (isOver ? `bg-white/10 ring-2 ${colColors.glow} shadow-inner` : 'bg-black/20')
     )}>
-      <h3 className={cn("font-bold font-serif text-lg mb-3 px-2 flex justify-between items-center transition-colors", isOver ? "text-blue-500" : getTextColor())}>
-          {status}
-          <span className={cn(
-            "text-xs font-bold px-2.5 py-0.5 rounded-full transition-colors",
-            isOver
-              ? "bg-blue-500 text-white"
-              : theme === 'light'
-                ? "bg-white text-slate-600 border border-slate-200 shadow-sm"
-                : "bg-white/10 text-white/70 border border-white/10"
-          )}>
-              {React.Children.count(children)}
-          </span>
-      </h3>
+      <div className="flex justify-between items-center mb-3 px-1">
+        <h3 className={cn("font-bold text-sm uppercase tracking-wide", isOver ? colColors.headerText : (theme === 'light' ? 'text-slate-600' : 'text-white/70'))}>
+            {status}
+        </h3>
+        <span className={cn(
+          "text-[11px] font-bold px-2 py-0.5 rounded-full transition-all",
+          isOver
+            ? colColors.badge
+            : theme === 'light'
+              ? "bg-white text-slate-500 border border-slate-200 shadow-sm"
+              : "bg-white/10 text-white/60 border border-white/10"
+        )}>
+            {count}
+        </span>
+      </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-20">
-        {children}
+        {count === 0 ? (
+          <div className={cn("mt-4 border-2 border-dashed rounded-xl p-4 text-center", theme === 'light' ? 'border-slate-200 text-slate-300' : 'border-white/10 text-white/20')}>
+            <span className="text-xs font-medium">Drop here</span>
+          </div>
+        ) : children}
       </div>
     </div>
   );
@@ -673,8 +704,8 @@ export const Leads = () => {
       {/* Header and Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-            <h1 className={cn("text-2xl md:text-4xl font-bold font-serif mb-1", getTextColor())}>Leads</h1>
-            <p className={cn("text-sm opacity-70", getTextColor())}>Manage and track your opportunities</p>
+            <h1 className={cn("text-2xl md:text-3xl font-extrabold mb-0.5 bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent")}>Leads</h1>
+            <p className={cn("text-sm opacity-60", getTextColor())}>Manage and track your opportunities</p>
         </div>
         
         <div className="flex items-center gap-3 flex-wrap w-full md:w-auto h-12 md:h-auto">

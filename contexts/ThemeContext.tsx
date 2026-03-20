@@ -24,9 +24,9 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const getGlassClass = (opacity = '10') => {
     if (theme === 'ocean') return `bg-white/${opacity} backdrop-blur-md border border-white/20 shadow-xl`;
     if (theme === 'dark') return `bg-gray-900 border border-gray-800 shadow-sm`;
-    
-    // Technical Luxury: Double Ring Border
-    return `bg-white border border-slate-200 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] ring-1 ring-slate-900/5 rounded-xl`;
+
+    // Elevated card with warm white background and depth shadow
+    return `bg-white border border-slate-200/80 shadow-[0_2px_8px_0_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 rounded-xl`;
   };
 
   const getTextColor = () => {

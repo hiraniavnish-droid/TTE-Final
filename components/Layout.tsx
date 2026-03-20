@@ -94,54 +94,59 @@ export const Layout = () => {
 
       <header className={cn(
         "md:hidden flex items-center justify-between p-3 sticky top-0 z-30 border-b transition-colors",
-        theme === 'light' ? "bg-white/80 backdrop-blur-md border-slate-200" : "bg-slate-900/90 border-white/10"
+        theme === 'light' ? "bg-white/90 backdrop-blur-md border-slate-200" : "bg-slate-900/90 border-white/10"
       )}>
         <div className="flex items-center gap-2">
-            <div className={cn("p-1.5 rounded-lg", theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900')}>
-              <Compass className="h-5 w-5" />
+            <div className={cn("p-1.5 rounded-lg", theme === 'light' ? 'bg-gradient-to-br from-indigo-500 to-blue-500' : 'bg-white text-slate-900')}>
+              <Compass className="h-4 w-4 text-white" />
             </div>
-            <span className={cn("text-lg font-semibold tracking-tight font-sans", getTextColor())}>
+            <span className={cn("text-base font-extrabold tracking-tight", theme === 'light' ? 'text-slate-800' : 'text-white')}>
               The Tourism Experts
             </span>
         </div>
-        
+
         <div className="flex items-center gap-2">
-            <button onClick={handleMobileThemeToggle} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100">
-                <MobileThemeIcon size={20} />
+            <button onClick={handleMobileThemeToggle} className={cn("p-2 rounded-lg", theme === 'light' ? 'text-slate-500 hover:bg-slate-100' : 'text-slate-400 hover:bg-white/10')}>
+                <MobileThemeIcon size={18} />
             </button>
-            <button onClick={handleLogout} className="p-2 rounded-lg text-red-500 hover:bg-red-50">
-                <LogOut size={20} />
+            <button onClick={handleLogout} className={cn("p-2 rounded-lg", theme === 'light' ? 'text-red-500 hover:bg-red-50' : 'text-red-400 hover:bg-red-500/10')}>
+                <LogOut size={18} />
             </button>
         </div>
       </header>
 
       <aside className={cn(
         'hidden md:flex w-64 flex-shrink-0 flex-col z-20 h-screen sticky top-0',
-        theme === 'light' ? 'bg-white/60 backdrop-blur-md border-r border-slate-200/50' : 'bg-slate-900 border-r border-slate-800'
+        theme === 'light' ? 'bg-white border-r border-slate-200' : theme === 'ocean' ? 'bg-gradient-to-b from-teal-900 to-slate-900 border-r border-white/10' : 'bg-slate-950 border-r border-slate-800'
       )}>
-        <div className="p-6 flex items-center gap-3">
-          <div className={cn("p-2 rounded-lg shadow-sm", theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900')}>
-            <Compass className="h-5 w-5" />
+        {/* Logo */}
+        <div className="p-6 pb-4 flex items-center gap-3">
+          <div className={cn("p-2 rounded-xl shadow-sm", theme === 'light' ? 'bg-gradient-to-br from-indigo-500 to-blue-500' : 'bg-white text-slate-900')}>
+            <Compass className="h-5 w-5 text-white" />
           </div>
-          <span className={cn("text-sm font-bold tracking-tight uppercase", getTextColor())}>
+          <span className={cn("text-sm font-extrabold tracking-tight", theme === 'light' ? 'text-slate-800' : 'text-white')}>
             The Tourism Experts
           </span>
         </div>
 
-        <div className="px-6 mb-6">
+        {/* Thin divider */}
+        <div className={cn("mx-6 mb-5 h-px", theme === 'light' ? 'bg-slate-100' : 'bg-white/10')} />
+
+        {/* User card */}
+        <div className="px-4 mb-5">
             <div className={cn(
-                "p-3 rounded-lg flex items-center gap-3 border transition-all duration-200", 
-                theme === 'light' ? 'bg-white/50 border-slate-200/50 shadow-sm' : 'bg-white/5 border-white/10'
+              "p-3 rounded-xl flex items-center gap-3 border transition-all duration-200",
+              theme === 'light' ? 'bg-slate-50 border-slate-200 shadow-sm' : 'bg-white/5 border-white/10'
             )}>
                 <UserAvatar name={user?.name || 'A'} size={32} />
                 <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-semibold truncate", getTextColor())}>{user?.name}</p>
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">{user?.role}</p>
+                    <p className={cn("text-sm font-bold truncate", theme === 'light' ? 'text-slate-800' : 'text-white')}>{user?.name}</p>
+                    <p className={cn("text-[10px] uppercase tracking-widest font-semibold", theme === 'light' ? 'text-slate-400' : 'text-white/50')}>{user?.role}</p>
                 </div>
             </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2">
+        <nav className="flex-1 px-3 space-y-0.5">
           {navItems.map((item) => {
             const isActive = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
             return (
@@ -151,7 +156,7 @@ export const Layout = () => {
                     layoutId="active-bg"
                     className={cn(
                       "absolute inset-0 rounded-xl z-0",
-                      theme === 'light' ? "bg-blue-50 border border-blue-100 shadow-md shadow-blue-100/50" : "bg-blue-500/10 border border-blue-500/20 shadow-none"
+                      theme === 'light' ? "bg-indigo-50 border border-indigo-100 shadow-sm" : "bg-blue-500/10 border border-blue-500/20"
                     )}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   />
@@ -160,38 +165,52 @@ export const Layout = () => {
                     animate={{ scale: isActive ? 1.02 : 1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 20 }}
                     className={cn(
-                      'relative z-10 flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
-                      isActive 
-                        ? (theme === 'light' ? "text-blue-600 font-bold" : "text-blue-400 font-bold") 
-                        : (theme === 'light' ? "text-slate-500 hover:text-slate-900 hover:bg-slate-50/50" : "text-slate-400 hover:text-white hover:bg-white/5")
+                      'relative z-10 flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200',
+                      isActive
+                        ? (theme === 'light' ? 'text-indigo-700 font-bold' : 'text-blue-400 font-bold')
+                        : (theme === 'light' ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-50' : 'text-slate-400 hover:text-white hover:bg-white/5')
                     )}
                 >
                     <div className="relative">
-                      <item.icon size={18} className={cn("transition-colors duration-200", isActive ? "text-current" : "opacity-70 group-hover:opacity-100 group-hover:text-current")} strokeWidth={isActive ? 2.5 : 2} />
+                      <item.icon
+                        size={17}
+                        className={cn("transition-colors duration-200", isActive ? (theme === 'light' ? 'text-indigo-600' : 'text-blue-400') : 'opacity-60 group-hover:opacity-100')}
+                        strokeWidth={isActive ? 2.5 : 2}
+                      />
                       {item.path === '/reminders' && overdueCount > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 leading-none shadow-sm">
                           {overdueCount > 9 ? '9+' : overdueCount}
                         </span>
                       )}
                     </div>
-                    <span className="text-sm tracking-tight">{item.label}</span>
+                    <span className="text-sm font-medium">{item.label}</span>
                 </MotionDiv>
               </Link>
             );
           })}
         </nav>
 
-        <div className={cn("p-6 border-t", theme === 'light' ? 'border-slate-100' : 'border-slate-800', "space-y-2")}>
-          <button onClick={handleLogout} className={cn("w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium", theme === 'light' ? "text-slate-500 hover:text-red-600 hover:bg-red-50" : "text-slate-400 hover:text-red-400 hover:bg-white/5")}>
-              <LogOut size={18} /> Logout
-          </button>
-          <div className="flex gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200 mt-2">
+        <div className={cn("p-4 border-t space-y-2", theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
+          {/* Theme toggle */}
+          <div className={cn("flex gap-1 p-1 rounded-xl border", theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-white/5 border-white/10')}>
             {[{ id: 'light', icon: Sun }, { id: 'dark', icon: Moon }, { id: 'ocean', icon: Droplets }].map((t) => (
-              <button key={t.id} onClick={() => setTheme(t.id as any)} className={cn("flex-1 p-1.5 rounded-md flex justify-center transition-all duration-200", theme === t.id ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600')}>
-                <t.icon size={16} />
+              <button key={t.id} onClick={() => setTheme(t.id as any)} className={cn(
+                "flex-1 p-1.5 rounded-lg flex justify-center transition-all duration-200",
+                theme === t.id
+                  ? (t.id === 'light' ? 'bg-white shadow text-indigo-600 border border-slate-200' : 'bg-white/20 text-white shadow')
+                  : (theme === 'light' ? 'text-slate-400 hover:text-slate-600' : 'text-slate-500 hover:text-slate-300')
+              )}>
+                <t.icon size={15} />
               </button>
             ))}
           </div>
+          {/* Logout */}
+          <button onClick={handleLogout} className={cn(
+            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium",
+            theme === 'light' ? 'text-slate-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+          )}>
+              <LogOut size={16} /> Logout
+          </button>
         </div>
       </aside>
 
