@@ -38,7 +38,7 @@ export const DraggableFab = () => {
     >
       <div 
         ref={nodeRef} 
-        className="fixed bottom-10 right-10 z-[9999] group cursor-move touch-none"
+        className="fixed bottom-24 right-5 z-[9999] group cursor-move touch-none"
         style={{ touchAction: 'none' }} // Prevents scrolling on mobile while dragging
       >
         {/* Desktop Tooltip (Left Side) */}

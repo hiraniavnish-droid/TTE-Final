@@ -212,11 +212,11 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                 </div>
 
                 {/* Hover State: Quick Action Buttons */}
-                <div className="absolute right-0 flex items-center gap-2 opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                <div className="absolute right-0 flex items-center gap-1.5 opacity-100 translate-x-0 md:opacity-0 md:translate-x-4 md:group-hover:opacity-100 md:group-hover:translate-x-0 transition-all duration-300">
                     
                     {/* Call Button */}
                     {lead?.contact?.phone && (
-                        <DialButton phoneNumber={lead.contact.phone} className="w-9 h-9 shadow-sm border border-green-200 bg-green-50 text-green-600 hover:bg-green-100" />
+                        <DialButton phoneNumber={lead.contact.phone} className="w-10 h-10 shadow-sm border border-green-200 bg-green-50 text-green-600 hover:bg-green-100" />
                     )}
 
                     {/* WhatsApp Button */}
@@ -225,7 +225,7 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                             href={waLink} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="w-9 h-9 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 hover:scale-105 transition-all shadow-sm"
+                            className="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 hover:scale-105 transition-all shadow-sm"
                             title="WhatsApp"
                         >
                             <MessageSquare size={16} />
@@ -236,7 +236,7 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                     <div className="relative">
                         <button 
                             onClick={(e) => { e.stopPropagation(); setShowSnooze(!showSnooze); }}
-                            className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition-all shadow-sm"
+                            className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition-all shadow-sm"
                             title="Snooze"
                         >
                             <Clock size={16} />
@@ -247,7 +247,7 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                     {/* Done Button (Gamified Checkbox) */}
                     <button 
                         onClick={handleComplete}
-                        className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-500 hover:scale-110 active:scale-95 transition-all shadow-lg shadow-blue-200"
+                        className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-500 hover:scale-110 active:scale-95 transition-all shadow-lg shadow-blue-200"
                         title="Complete"
                     >
                         <Check size={18} strokeWidth={3} />

@@ -187,7 +187,7 @@ export const AddLeadModal = () => {
   };
 
   const inputClasses = cn(
-      "w-full rounded-lg px-3 py-2 text-sm md:p-3 md:text-base outline-none transition-all border",
+      "w-full rounded-lg px-3 py-3 text-sm outline-none transition-all border",
       getInputClass()
   );
 
@@ -216,7 +216,7 @@ export const AddLeadModal = () => {
                  />
             </div>
 
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                     <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Client Name</label>
                     <input name="name" required className={inputClasses} placeholder="John Doe" />
@@ -232,7 +232,7 @@ export const AddLeadModal = () => {
                 </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                     <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Phone</label>
                     <input name="phone" defaultValue="+91 " className={inputClasses} placeholder="+91 ..." />
@@ -247,7 +247,7 @@ export const AddLeadModal = () => {
                 <p className={cn("text-xs font-bold uppercase tracking-wide opacity-50", getTextColor())}>Trip Details</p>
                 
                 <div className="space-y-4">
-                     <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          <div className="space-y-1">
                             <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Destination</label>
                             <input name="destination" required placeholder="Where to?" className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
@@ -271,7 +271,7 @@ export const AddLeadModal = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div className="space-y-1.5">
                     <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Temperature</label>
                     <select name="temperature" className={cn(inputClasses, "[&>option]:text-black")}>

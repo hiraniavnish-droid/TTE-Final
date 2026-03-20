@@ -57,7 +57,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         theme === 'dark' ? 'bg-slate-900 border border-white/10' : 'bg-white'
       )}>
         {/* Header */}
-        <div className={cn("flex items-center justify-between px-6 py-5 border-b", theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
+        <div className={cn("flex items-center justify-between px-4 py-4 md:px-6 md:py-5 border-b", theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
           <h2 className={cn("text-xl font-bold tracking-tight font-serif", getTextColor())}>{title}</h2>
           <button 
             onClick={onClose}
@@ -71,7 +71,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         </div>
         
         {/* Body */}
-        <div className={cn("p-6 max-h-[80vh] overflow-y-auto scrollbar-hide", getTextColor())}>
+        <div className={cn("p-4 md:p-6 max-h-[85dvh] overflow-y-auto scrollbar-hide", getTextColor())}>
           {children}
         </div>
       </div>

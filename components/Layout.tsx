@@ -256,7 +256,7 @@ export const Layout = () => {
                             </span>
                           )}
                         </div>
-                        <span className="text-[9px] font-semibold tracking-wide leading-none">{item.label}</span>
+                        <span className="text-[11px] font-semibold leading-none">{item.label}</span>
                       </>
                     )}
                 </NavLink>
