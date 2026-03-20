@@ -158,7 +158,7 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
   return (
     <div
         className={cn(
-            "relative p-3 rounded-xl border transition-all duration-200 select-none group",
+            "relative px-3 py-2 rounded-xl border transition-all duration-200 select-none group",
             theme === 'light'
               ? (lead.status === 'Won' ? 'bg-emerald-50/60 border-emerald-100 hover:border-emerald-200' : lead.status === 'Lost' ? 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100' : 'bg-white border-slate-100 hover:border-slate-300')
               : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40 hover:bg-blue-900/50 hover:border-blue-700/50' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700/60 hover:border-slate-600/70',
@@ -168,54 +168,48 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
         )}
         title={urgencyTooltip}
     >
-        <div className="flex justify-between items-start gap-3">
+        <div className="flex items-start justify-between gap-2">
+            {/* Left: name row + metadata+agent row */}
             <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1">
-                    <h4 className={cn("font-bold truncate text-sm capitalize", getTextColor())}>{lead.name}</h4>
-                    {ServiceIcon && (
-                        <span className={cn("opacity-50 shrink-0", getSecondaryTextColor())}>
-                            <ServiceIcon size={12} />
-                        </span>
-                    )}
-                    <span className={cn("text-[10px] ml-auto shrink-0 opacity-40 whitespace-nowrap", getSecondaryTextColor())}>
-                        {timeAgo(lead.createdAt)}
+                {/* Row 1: Name + service icon + urgency */}
+                <div className="flex items-center gap-1 mb-0.5">
+                    <h4 className={cn("font-bold truncate text-sm capitalize leading-tight", getTextColor())}>{lead.name}</h4>
+                    {ServiceIcon && <ServiceIcon size={11} className={cn("opacity-40 shrink-0", getSecondaryTextColor())} />}
+                    {urgencyClass && <AlertOctagon size={11} className={cn("shrink-0 ml-0.5", urgencyClass.includes('red') ? 'text-red-500' : 'text-orange-500')} />}
+                </div>
+                {/* Row 2: metadata + agent badge inline */}
+                <div className="flex items-center gap-1.5">
+                    <span className={cn("text-[11px] opacity-60 truncate min-w-0 flex-1", getSecondaryTextColor())}>
+                        {metadata.length > 0 ? metadata.join(' · ') : <span className="italic opacity-50">No details</span>}
                     </span>
-                    {urgencyClass && <AlertOctagon size={12} className={cn("shrink-0", urgencyClass.includes('red') ? 'text-red-500' : 'text-orange-500')} />}
+                    {(() => {
+                        const isUnassigned = !lead.assignedTo || lead.assignedTo === 'Unassigned' || lead.assignedTo === 'System';
+                        const displayAgent = isUnassigned ? 'Admin' : lead.assignedTo!;
+                        return (
+                            <span className={cn("inline-flex items-center gap-0.5 shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border", getAgentColor(displayAgent))}>
+                                <User size={8} />
+                                {displayAgent}
+                            </span>
+                        );
+                    })()}
                 </div>
-
-                <div className={cn("flex items-center gap-2 text-xs truncate opacity-70", getSecondaryTextColor())}>
-                    {metadata.map((item, index) => (
-                        <React.Fragment key={index}>
-                            <span className="truncate">{item}</span>
-                            {index < metadata.length - 1 && (
-                                <span className="w-0.5 h-0.5 rounded-full bg-current opacity-50 shrink-0" />
-                            )}
-                        </React.Fragment>
-                    ))}
-                    {metadata.length === 0 && <span className="italic opacity-50">No details</span>}
-                </div>
-                {(() => {
-                    const isUnassigned = !lead.assignedTo || lead.assignedTo === 'Unassigned' || lead.assignedTo === 'System';
-                    const displayAgent = isUnassigned ? 'Admin' : lead.assignedTo!;
-                    return (
-                        <span className={cn("inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border", getAgentColor(displayAgent))}>
-                            <User size={9} />
-                            {displayAgent}
-                        </span>
-                    );
-                })()}
             </div>
 
-            <div className="flex flex-col items-end gap-2 shrink-0">
+            {/* Right: temp badge + (time + dial) */}
+            <div className="flex flex-col items-end gap-1 shrink-0">
                 <span className={cn(
                     "text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded border leading-none",
                     theme === 'light' ? tempColorsLight[lead.temperature] : tempColors[lead.temperature]
                 )}>
                     {lead.temperature}
                 </span>
-
-                <div onClick={(e) => e.stopPropagation()}>
-                   <DialButton phoneNumber={lead.contact.phone} className="w-7 h-7" />
+                <div className="flex items-center gap-1">
+                    <span className={cn("text-[9px] opacity-30 whitespace-nowrap", getSecondaryTextColor())}>
+                        {timeAgo(lead.createdAt)}
+                    </span>
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <DialButton phoneNumber={lead.contact.phone} className="w-6 h-6" />
+                    </div>
                 </div>
             </div>
         </div>
@@ -321,7 +315,7 @@ const DraggableCard: React.FC<{ lead: Lead }> = ({ lead }) => {
   });
   
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} className="mb-3 touch-none outline-none">
+    <div ref={setNodeRef} {...listeners} {...attributes} className="mb-1.5 touch-none outline-none">
        {isDragging ? (
           <LeadCard lead={lead} isDragging={true} />
        ) : (
@@ -353,13 +347,13 @@ const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> =
 
   return (
     <div ref={setNodeRef} className={cn(
-        "flex-1 min-w-[300px] rounded-2xl p-3 flex flex-col h-[calc(100vh-240px)] transition-all duration-300 border-t-4",
+        "flex-1 min-w-[260px] rounded-2xl p-2.5 flex flex-col h-[calc(100vh-240px)] transition-all duration-300 border-t-4",
         colColors.accent,
         theme === 'light'
           ? (isOver ? `bg-white ring-2 ${colColors.glow} shadow-lg` : 'bg-slate-50 border border-slate-200/80 border-t-[4px] shadow-sm')
           : (isOver ? `bg-blue-800/20 ring-2 ${colColors.glow} shadow-inner` : theme === 'ocean' ? 'bg-blue-950/40' : 'bg-slate-800/40')
     )}>
-      <div className="flex justify-between items-center mb-3 px-1">
+      <div className="flex justify-between items-center mb-2 px-1">
         <h3 className={cn("font-bold text-sm uppercase tracking-wide", isOver ? colColors.headerText : (theme === 'light' ? 'text-slate-600' : 'text-white/70'))}>
             {status}
         </h3>
