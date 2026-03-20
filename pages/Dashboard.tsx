@@ -671,19 +671,40 @@ export const Dashboard = () => {
       return sorted.map(([name, val]) => `${name}: ${formatCompactCurrency(val)}`).join(' | ');
   };
 
+  const bannerStyle: React.CSSProperties = theme === 'light'
+    ? {
+        backgroundImage: 'linear-gradient(135deg, #eef2ff, #dbeafe, #f0f9ff, #ffffff, #e0f2fe, #eef2ff)',
+        backgroundSize: '300% 300%',
+        animation: 'shimmerGradient 12s ease infinite',
+      }
+    : theme === 'ocean'
+    ? {
+        backgroundImage: 'linear-gradient(135deg, #172554, #1e1b4b, #0f172a, #1e1b4b, #1e3a8a, #172554)',
+        backgroundSize: '300% 300%',
+        animation: 'shimmerGradient 18s ease infinite',
+      }
+    : {
+        backgroundImage: 'linear-gradient(135deg, #1e293b, #1e293b, #312e81, #1e293b, #0f172a, #1e293b)',
+        backgroundSize: '300% 300%',
+        animation: 'shimmerGradient 18s ease infinite',
+      };
+
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-20 px-2 md:px-0">
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div className={cn(
-          "relative overflow-hidden rounded-2xl p-5 md:p-6 flex-1",
-          theme === 'light'
-            ? "bg-gradient-to-r from-indigo-50 via-sky-50 to-white border border-indigo-100 shadow-sm"
-            : theme === 'ocean'
-              ? "bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 border border-blue-800/40"
-              : "bg-gradient-to-r from-slate-800 via-slate-800 to-indigo-900/60 border border-slate-700/60"
-        )}>
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-2xl p-5 md:p-6 flex-1",
+            theme === 'light'
+              ? "border border-indigo-100 shadow-sm"
+              : theme === 'ocean'
+                ? "border border-blue-800/40"
+                : "border border-slate-700/60"
+          )}
+          style={bannerStyle}
+        >
           <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-sky-200/50' : 'bg-indigo-500/10')} />
           <div className="relative">
             <h1 className={cn(
