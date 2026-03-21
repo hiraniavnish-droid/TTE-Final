@@ -743,10 +743,271 @@ export const Dashboard = () => {
         animation: 'shimmerGradient 18s ease infinite',
       };
 
+  const isAdminGlobalView = user?.role === 'admin' && viewAsAgent === 'all';
+
+  // ---- Section JSX variables (reused in role-specific layouts) ----
+
+  const todaysFocusSection = hasFocusItems ? (
+    <div className={cn(
+        "rounded-2xl border px-5 py-4",
+        theme === 'light' ? 'bg-amber-50 border-amber-200' : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50'
+    )}>
+        <div className="flex items-center gap-2 mb-3">
+            <Zap size={14} className="text-amber-500" />
+            <span className={cn("text-xs font-bold uppercase tracking-wider", theme === 'light' ? 'text-amber-700' : 'text-amber-400')}>Today's Focus</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button onClick={() => handleNav('/reminders')} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]", overdueReminders.length > 0 ? (theme === 'light' ? 'bg-rose-50 border-rose-200 hover:border-rose-300' : 'bg-rose-500/10 border-rose-500/20 hover:border-rose-500/40') : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'))}>
+                <Bell size={18} className={overdueReminders.length > 0 ? 'text-rose-500' : 'text-slate-400'} />
+                <div>
+                    <div className={cn("text-xl font-extrabold leading-none", overdueReminders.length > 0 ? 'text-rose-500' : getTextColor())}>{overdueReminders.length}</div>
+                    <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Overdue Tasks</div>
+                </div>
+                <ArrowRight size={14} className="ml-auto opacity-30" />
+            </button>
+            <button onClick={() => handleNav('/leads')} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]", staleLeads.length > 0 ? (theme === 'light' ? 'bg-amber-50 border-amber-200 hover:border-amber-300' : 'bg-amber-500/10 border-amber-500/20 hover:border-amber-500/40') : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'))}>
+                <Radio size={18} className={staleLeads.length > 0 ? 'text-amber-500' : 'text-slate-400'} />
+                <div>
+                    <div className={cn("text-xl font-extrabold leading-none", staleLeads.length > 0 ? 'text-amber-500' : getTextColor())}>{staleLeads.length}</div>
+                    <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Stale Leads (24h+)</div>
+                </div>
+                <ArrowRight size={14} className="ml-auto opacity-30" />
+            </button>
+            <button onClick={() => handleNav('/leads')} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]", departingLeads.length > 0 ? (theme === 'light' ? 'bg-sky-50 border-sky-200 hover:border-sky-300' : 'bg-sky-500/10 border-sky-500/20 hover:border-sky-500/40') : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'))}>
+                <Plane size={18} className={departingLeads.length > 0 ? 'text-sky-500' : 'text-slate-400'} />
+                <div>
+                    <div className={cn("text-xl font-extrabold leading-none", departingLeads.length > 0 ? 'text-sky-500' : getTextColor())}>{departingLeads.length}</div>
+                    <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Departing This Week</div>
+                </div>
+                <ArrowRight size={14} className="ml-auto opacity-30" />
+            </button>
+        </div>
+    </div>
+  ) : null;
+
+  const operationsSection = (
+    <div className="space-y-4">
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-orange-100 text-orange-600' : 'bg-orange-500/20 text-orange-300')}><PlaneTakeoff size={20} /></div>
+                <div>
+                    <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>Operations & Departures</h3>
+                    <p className={cn("text-xs opacity-60", getTextColor())}>Monitor active trips and upcoming departures</p>
+                </div>
+            </div>
+        </div>
+        <div className={cn("rounded-2xl border overflow-hidden", getGlassClass())}>
+            <div className={cn("flex overflow-x-auto w-full whitespace-nowrap no-scrollbar p-2 gap-2 border-b", theme === 'light' ? 'bg-slate-50 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50')}>
+                {(['Ongoing Now', 'Starts Tomorrow', 'This Week', 'Next Week', 'This Month'] as OpTab[]).map(tab => (
+                    <button key={tab} onClick={() => setOpTab(tab)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0", opTab === tab ? (theme === 'light' ? 'bg-white shadow text-blue-600' : theme === 'ocean' ? 'bg-blue-900 text-indigo-300 shadow border border-blue-700/50' : 'bg-slate-700 text-indigo-300 shadow') : "opacity-50 hover:opacity-100")}>{tab}</button>
+                ))}
+            </div>
+            <div className="p-4 md:p-6">
+                {opLeads.length === 0 ? (
+                    <div className="text-center py-12 opacity-50"><PlaneLanding size={48} className="mx-auto mb-3 opacity-30" /><p>No departures scheduled for {opTab}</p></div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {opLeads.map(lead => {
+                            const startDate = new Date(lead.tripDetails.startDate);
+                            const today = new Date();
+                            const diffDays = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                            let statusText = ''; let statusColor = '';
+                            if (opTab === 'Ongoing Now') { statusText = 'In Progress'; statusColor = 'text-green-500'; }
+                            else if (diffDays === 1) { statusText = 'Departing Tomorrow'; statusColor = 'text-amber-500'; }
+                            else if (diffDays > 1) { statusText = `In ${diffDays} days`; statusColor = 'text-blue-500'; }
+                            else { statusText = 'Departing Today'; statusColor = 'text-green-500'; }
+                            return (
+                              <div key={lead.id} className={cn("p-4 rounded-xl border transition-all hover:scale-[1.02]", theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50')}>
+                                  <div className="flex justify-between items-start mb-3">
+                                      <div className="min-w-0 pr-2">
+                                          <h4 className={cn("font-bold text-sm truncate", getTextColor())}>{lead.name}</h4>
+                                          <div className="flex items-center gap-1 text-xs opacity-70 mt-0.5 truncate"><MapPin size={10} className="shrink-0" /> {lead.tripDetails.destination}</div>
+                                      </div>
+                                      <DialButton phoneNumber={lead.contact.phone} className="w-8 h-8" />
+                                  </div>
+                                  <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-gray-500/5"><Calendar size={14} className="opacity-50" /><span className={cn("text-xs font-mono", getTextColor())}>{formatDate(lead.tripDetails.startDate)}</span></div>
+                                  <div className="flex items-center justify-between pt-2 border-t border-gray-500/10">
+                                      <span className={cn("text-[10px] font-bold uppercase tracking-wider", statusColor)}>{statusText}</span>
+                                      <Link to={`/leads/${lead.id}`} className="text-xs text-blue-500 hover:underline">View Trip</Link>
+                                  </div>
+                              </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    </div>
+  );
+
+  const priorityGridSection = (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="h-full flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2"><Briefcase size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold font-serif", getTextColor())}>Priority Leads</h3></div>
+                <Link to="/leads" className="text-xs text-blue-500 hover:underline">View All</Link>
+            </div>
+            <div className="space-y-3">
+                {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> :
+                    hotLeads.map(lead => (
+                        <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40 hover:border-blue-700/50" : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/40")}>
+                            <div className="flex items-center gap-3">
+                                <UserAvatar name={lead.name} size={32} />
+                                <div><p className={cn("text-sm font-bold", getTextColor())}>{lead.name}</p><p className={cn("text-[10px] font-mono", getSecondaryTextColor())}>{lead.tripDetails.destination} • {formatCompactCurrency(lead.tripDetails.budget)}</p></div>
+                            </div>
+                            <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-blue-500" />
+                        </Link>
+                    ))
+                }
+            </div>
+        </Card>
+        <Card className="h-full flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2"><CalendarDays size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold font-serif", getTextColor())}>Today's Tasks</h3></div>
+                <Link to="/reminders" className="text-xs text-blue-500 hover:underline">View Agenda</Link>
+            </div>
+            <div className="space-y-3">
+                {tasksToday.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No pending tasks.</div> :
+                    tasksToday.map(task => (
+                        <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded-xl border", theme === 'light' ? "bg-white border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")}>
+                            <div className={cn("mt-0.5 p-1 rounded-full border", theme === 'light' ? "border-slate-300 text-slate-300" : "border-slate-500/50 text-slate-500/50")}><CheckSquare size={12} /></div>
+                            <div className="flex-1 min-w-0"><p className={cn("text-sm font-medium line-clamp-1", getTextColor())}>{task.task}</p><p className={cn("text-[10px] opacity-50", getTextColor())}>Due Today</p></div>
+                        </div>
+                    ))
+                }
+            </div>
+        </Card>
+    </div>
+  );
+
+  const kpiSection = (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <KPICard title={isAdminGlobalView ? "Total Revenue" : "Revenue"} value={formatCurrency(stats.totalRevenue)} subtext="Closed Won Deals" breakdown={getRevenueBreakdown()} icon={DollarSign} colorClass="bg-emerald-500" />
+        <KPICard title="Net Profit" value={formatCurrency(stats.netProfit)} subtext="Revenue - Net Cost" icon={TrendingUp} colorClass="bg-blue-500" />
+        <KPICard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} subtext="Won vs Total Closed" icon={Trophy} colorClass="bg-amber-500" />
+        <KPICard title="Pending Leads" value={stats.pendingCount} subtext="Status: New" icon={Clock} colorClass="bg-rose-500" onClick={() => handleNav('/leads?status=New')} />
+    </div>
+  );
+
+  const pipelineSection = stats.activePipelineCount > 0 ? (
+    <Card className="flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-4">
+            <div>
+                <div className="flex items-center gap-2 mb-1"><div className={cn("p-1.5 rounded bg-indigo-500/10 text-indigo-500")}><TrendingUp size={15} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Pipeline Value</h3></div>
+                <p className={cn("text-2xl font-extrabold tracking-tight", getTextColor())}>{formatCompactCurrency(stats.totalPipelineValue)}</p>
+                <p className={cn("text-[11px] mt-0.5", getSecondaryTextColor())}>{stats.activePipelineCount} active leads across 4 stages</p>
+            </div>
+        </div>
+        <div className="h-24 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.pipelineByStage} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip formatter={(val: number) => [formatCompactCurrency(val), 'Budget']} contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }} cursor={{ fill: 'transparent' }} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
+                        <LabelList dataKey="value" position="top" formatter={(v: number) => formatCompactCurrency(v)} style={{ fontSize: '9px', fontWeight: 700, fill: theme === 'light' ? '#64748b' : '#94a3b8' }} />
+                        {stats.pipelineByStage.map((entry, i) => (<Cell key={i} fill={entry.fill} opacity={0.85} />))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    </Card>
+  ) : null;
+
+  const analyticsSection = (
+    <div className={cn("grid grid-cols-1 xl:grid-cols-4 gap-6", viewAsAgent !== 'all' && "border-2 border-dashed border-amber-500/20 p-4 rounded-3xl relative")}>
+        <Card className="xl:col-span-1 min-h-[300px] flex flex-col">
+            <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-blue-500/10 text-blue-500")}><Activity size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Lead Funnel</h3></div>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart layout="vertical" data={stats.funnelData} margin={{ left: 0, right: 30, top: 10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.10)'} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" width={80} tick={{ fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(22, 30, 50, 0.97)', borderRadius: '8px', border: 'none', color: theme === 'light' ? '#0f172a' : '#e2e8f0', fontSize: '12px' }} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20} onClick={(data) => handleNav(`/leads?status=${data.name}`)}>
+                      <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fill: theme === 'light' ? '#64748b' : '#94a3b8', fontWeight: 'bold' }} />
+                      {stats.funnelData.map((entry, index) => (<Cell key={`cell-${index}`} fill={theme === 'light' ? '#3b82f6' : '#60a5fa'} className="cursor-pointer hover:opacity-80 transition-opacity" />))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+        </Card>
+        <div className="xl:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="flex flex-col">
+                <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-teal-500/10 text-teal-500")}><Package size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Product Matrix</h3></div>
+                <div className="overflow-x-auto">
+                    <table className={cn("w-full text-left text-sm", getTextColor())}>
+                        <thead><tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50"><th className="pb-3 font-bold pl-2">Service</th><th className="pb-3 font-bold text-center">Activity</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
+                        <tbody className="divide-y divide-gray-500/10">
+                            {stats.productStats.map((prod, idx) => (
+                                <tr key={prod.name} className="group hover:bg-gray-500/5 transition-colors">
+                                    <td className="py-3 pl-2 font-medium cursor-pointer truncate max-w-[100px]" title={prod.name} onClick={() => handleNav(`/leads?service=${prod.name}`)}>{prod.name}</td>
+                                    <td className="py-3 text-center"><div className="w-16 mx-auto"><Sparkline data={[prod.newCount, prod.wipCount, prod.wonCount]} color="blue" height={20} /></div></td>
+                                    <td className="py-3 text-center"><span onClick={() => handleNav(`/leads?service=${prod.name}&status=Won`)} className={cn("px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-transform hover:scale-110 inline-block", prod.wonCount > 0 ? "bg-emerald-500/10 text-emerald-500" : "opacity-20")}>{prod.wonCount}</span></td>
+                                    <td className="py-3 text-right pr-2 font-mono text-xs opacity-70 tracking-tight">{formatCompactCurrency(prod.revenue)}</td>
+                                </tr>
+                            ))}
+                            {stats.productStats.length === 0 && (<tr><td colSpan={4} className="py-8 text-center opacity-50 text-xs italic">No data</td></tr>)}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+            <Card className="flex flex-col">
+                <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-purple-500/10 text-purple-500")}><MapPin size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Destination Matrix</h3></div>
+                <div className="overflow-x-auto">
+                    <table className={cn("w-full text-left text-sm", getTextColor())}>
+                        <thead><tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50"><th className="pb-3 font-bold pl-2">Dest</th><th className="pb-3 font-bold text-center">Trend</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
+                        <tbody className="divide-y divide-gray-500/10">
+                            {stats.topDestinations.map((dest, idx) => (
+                                <tr key={dest.name} className="group hover:bg-gray-500/5 transition-colors">
+                                    <td className="py-3 pl-2 font-medium cursor-pointer" onClick={() => handleNav(`/leads?destination=${dest.name}`)}>{idx + 1}. {dest.name}</td>
+                                    <td className="py-3 text-center"><div className="w-16 mx-auto"><Sparkline data={[dest.newCount, dest.wipCount, dest.wonCount]} color="purple" height={20} /></div></td>
+                                    <td className="py-3 text-center"><span onClick={() => handleNav(`/leads?destination=${dest.name}&status=Won`)} className={cn("px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-transform hover:scale-110 inline-block", dest.wonCount > 0 ? "bg-emerald-500/10 text-emerald-500" : "opacity-20")}>{dest.wonCount}</span></td>
+                                    <td className="py-3 text-right pr-2 font-mono text-xs opacity-70 tracking-tight">{formatCompactCurrency(dest.revenue)}</td>
+                                </tr>
+                            ))}
+                            {stats.topDestinations.length === 0 && (<tr><td colSpan={4} className="py-8 text-center opacity-50 text-xs italic">No data</td></tr>)}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        </div>
+    </div>
+  );
+
+  const sourcesSection = stats.sourceData.length > 0 ? (
+    <Card className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+            <div className={cn("p-1.5 rounded bg-rose-500/10 text-rose-500")}><Filter size={15} /></div>
+            <h3 className={cn("font-bold font-serif", getTextColor())}>Lead Sources</h3>
+            <span className={cn("text-xs opacity-50 ml-1", getSecondaryTextColor())}>Which channel converts best?</span>
+        </div>
+        <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.sourceData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: theme === 'light' ? '#94a3b8' : 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }} cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)' }} formatter={(val: number, name: string, props: any) => { const item = props.payload; if (name === 'Won') return [`${val} (${item.rate}% conv.)`, 'Won']; return [val, name]; }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                    <Bar dataKey="Total" fill={theme === 'light' ? '#94a3b8' : '#475569'} radius={[3, 3, 0, 0]} barSize={18} />
+                    <Bar dataKey="Won" fill="#10b981" radius={[3, 3, 0, 0]} barSize={18}>
+                        <LabelList dataKey="rate" position="top" formatter={(v: number) => v > 0 ? `${v}%` : ''} style={{ fontSize: '9px', fontWeight: 700, fill: '#10b981' }} />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    </Card>
+  ) : null;
+
+  // ---- Render ----
+
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-20 px-2 md:px-0">
-      
-      {/* Header */}
+
+      {/* Header — always first */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div
           className={cn(
@@ -760,6 +1021,27 @@ export const Dashboard = () => {
           style={bannerStyle}
         >
           <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-sky-200/50' : 'bg-indigo-500/10')} />
+
+          {/* Travel theme: flight path + plane */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 600 110" fill="none">
+            <path
+              d="M -10 95 Q 220 10 580 48"
+              stroke={theme === 'light' ? '#6366f1' : '#818cf8'}
+              strokeWidth="1.5"
+              strokeDasharray="9 6"
+              opacity={theme === 'light' ? '0.18' : '0.15'}
+            />
+            <circle cx="0"   cy="95" r="3"   fill={theme === 'light' ? '#6366f1' : '#818cf8'} opacity={theme === 'light' ? '0.22' : '0.18'} />
+            <circle cx="220" cy="22" r="2.5" fill={theme === 'light' ? '#6366f1' : '#818cf8'} opacity={theme === 'light' ? '0.18' : '0.14'} />
+            <circle cx="580" cy="48" r="3"   fill={theme === 'light' ? '#6366f1' : '#818cf8'} opacity={theme === 'light' ? '0.22' : '0.18'} />
+          </svg>
+          <div
+            className="absolute pointer-events-none select-none"
+            style={{ right: '16px', top: '50%', transform: 'translateY(-50%) rotate(-10deg)', opacity: theme === 'light' ? 0.07 : 0.08 }}
+          >
+            <PlaneTakeoff size={115} strokeWidth={0.75} className={theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'} />
+          </div>
+
           <div className="relative">
             <h1 className={cn(
               "text-xl md:text-3xl font-extrabold leading-tight",
@@ -823,482 +1105,31 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* --- TODAY'S FOCUS --- */}
-      {hasFocusItems && (
-          <div className={cn(
-              "rounded-2xl border px-5 py-4",
-              theme === 'light' ? 'bg-amber-50 border-amber-200' : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50'
-          )}>
-              <div className="flex items-center gap-2 mb-3">
-                  <Zap size={14} className="text-amber-500" />
-                  <span className={cn("text-xs font-bold uppercase tracking-wider", theme === 'light' ? 'text-amber-700' : 'text-amber-400')}>Today's Focus</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Overdue tasks */}
-                  <button
-                      onClick={() => handleNav('/reminders')}
-                      className={cn(
-                          "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]",
-                          overdueReminders.length > 0
-                              ? (theme === 'light' ? 'bg-rose-50 border-rose-200 hover:border-rose-300' : 'bg-rose-500/10 border-rose-500/20 hover:border-rose-500/40')
-                              : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')
-                      )}
-                  >
-                      <Bell size={18} className={overdueReminders.length > 0 ? 'text-rose-500' : 'text-slate-400'} />
-                      <div>
-                          <div className={cn("text-xl font-extrabold leading-none", overdueReminders.length > 0 ? 'text-rose-500' : getTextColor())}>
-                              {overdueReminders.length}
-                          </div>
-                          <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Overdue Tasks</div>
-                      </div>
-                      <ArrowRight size={14} className="ml-auto opacity-30" />
-                  </button>
-
-                  {/* Stale leads */}
-                  <button
-                      onClick={() => handleNav('/leads')}
-                      className={cn(
-                          "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]",
-                          staleLeads.length > 0
-                              ? (theme === 'light' ? 'bg-amber-50 border-amber-200 hover:border-amber-300' : 'bg-amber-500/10 border-amber-500/20 hover:border-amber-500/40')
-                              : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')
-                      )}
-                  >
-                      <Radio size={18} className={staleLeads.length > 0 ? 'text-amber-500' : 'text-slate-400'} />
-                      <div>
-                          <div className={cn("text-xl font-extrabold leading-none", staleLeads.length > 0 ? 'text-amber-500' : getTextColor())}>
-                              {staleLeads.length}
-                          </div>
-                          <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Stale Leads (24h+)</div>
-                      </div>
-                      <ArrowRight size={14} className="ml-auto opacity-30" />
-                  </button>
-
-                  {/* Departing this week */}
-                  <button
-                      onClick={() => handleNav('/leads')}
-                      className={cn(
-                          "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]",
-                          departingLeads.length > 0
-                              ? (theme === 'light' ? 'bg-sky-50 border-sky-200 hover:border-sky-300' : 'bg-sky-500/10 border-sky-500/20 hover:border-sky-500/40')
-                              : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')
-                      )}
-                  >
-                      <Plane size={18} className={departingLeads.length > 0 ? 'text-sky-500' : 'text-slate-400'} />
-                      <div>
-                          <div className={cn("text-xl font-extrabold leading-none", departingLeads.length > 0 ? 'text-sky-500' : getTextColor())}>
-                              {departingLeads.length}
-                          </div>
-                          <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Departing This Week</div>
-                      </div>
-                      <ArrowRight size={14} className="ml-auto opacity-30" />
-                  </button>
-              </div>
-          </div>
-      )}
-
-      {/* --- Operations Manager --- */}
-      <div className="space-y-4">
-          <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                  <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-orange-100 text-orange-600' : 'bg-orange-500/20 text-orange-300')}>
-                      <PlaneTakeoff size={20} />
-                  </div>
-                  <div>
-                      <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>Operations & Departures</h3>
-                      <p className={cn("text-xs opacity-60", getTextColor())}>Monitor active trips and upcoming departures</p>
-                  </div>
-              </div>
-          </div>
-
-          <div className={cn("rounded-2xl border overflow-hidden", getGlassClass())}>
-              <div className={cn(
-                  "flex overflow-x-auto w-full whitespace-nowrap no-scrollbar p-2 gap-2 border-b",
-                  theme === 'light' ? 'bg-slate-50 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50'
-              )}>
-                  {(['Ongoing Now', 'Starts Tomorrow', 'This Week', 'Next Week', 'This Month'] as OpTab[]).map(tab => (
-                      <button
-                        key={tab}
-                        onClick={() => setOpTab(tab)}
-                        className={cn(
-                            "px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0",
-                            opTab === tab
-                                ? (theme === 'light' ? 'bg-white shadow text-blue-600' : theme === 'ocean' ? 'bg-blue-900 text-indigo-300 shadow border border-blue-700/50' : 'bg-slate-700 text-indigo-300 shadow')
-                                : "opacity-50 hover:opacity-100"
-                        )}
-                      >
-                          {tab}
-                      </button>
-                  ))}
-              </div>
-
-              <div className="p-4 md:p-6">
-                  {opLeads.length === 0 ? (
-                      <div className="text-center py-12 opacity-50">
-                          <PlaneLanding size={48} className="mx-auto mb-3 opacity-30" />
-                          <p>No departures scheduled for {opTab}</p>
-                      </div>
-                  ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {opLeads.map(lead => {
-                              const startDate = new Date(lead.tripDetails.startDate);
-                              const today = new Date();
-                              const diffDays = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-                              let statusText = '';
-                              let statusColor = '';
-
-                              if (opTab === 'Ongoing Now') { statusText = 'In Progress'; statusColor = 'text-green-500'; }
-                              else if (diffDays === 1) { statusText = 'Departing Tomorrow'; statusColor = 'text-amber-500'; }
-                              else if (diffDays > 1) { statusText = `In ${diffDays} days`; statusColor = 'text-blue-500'; }
-                              else { statusText = 'Departing Today'; statusColor = 'text-green-500'; }
-
-                              return (
-                                <div key={lead.id} className={cn("p-4 rounded-xl border transition-all hover:scale-[1.02]", theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50')}>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="min-w-0 pr-2">
-                                            <h4 className={cn("font-bold text-sm truncate", getTextColor())}>{lead.name}</h4>
-                                            <div className="flex items-center gap-1 text-xs opacity-70 mt-0.5 truncate">
-                                                <MapPin size={10} className="shrink-0" /> {lead.tripDetails.destination}
-                                            </div>
-                                        </div>
-                                        <DialButton phoneNumber={lead.contact.phone} className="w-8 h-8" />
-                                    </div>
-                                    <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-gray-500/5">
-                                        <Calendar size={14} className="opacity-50" />
-                                        <span className={cn("text-xs font-mono", getTextColor())}>{formatDate(lead.tripDetails.startDate)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between pt-2 border-t border-gray-500/10">
-                                        <span className={cn("text-[10px] font-bold uppercase tracking-wider", statusColor)}>{statusText}</span>
-                                        <Link to={`/leads/${lead.id}`} className="text-xs text-blue-500 hover:underline">View Trip</Link>
-                                    </div>
-                                </div>
-                              );
-                          })}
-                      </div>
-                  )}
-              </div>
-          </div>
-      </div>
-
-      {/* Priority Leads + Today's Tasks */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                      <Briefcase size={16} className={getSecondaryTextColor()} />
-                      <h3 className={cn("font-bold font-serif", getTextColor())}>Priority Leads</h3>
-                  </div>
-                  <Link to="/leads" className="text-xs text-blue-500 hover:underline">View All</Link>
-              </div>
-              <div className="space-y-3">
-                  {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> :
-                      hotLeads.map(lead => (
-                          <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40 hover:border-blue-700/50" : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/40")}>
-                              <div className="flex items-center gap-3">
-                                  <UserAvatar name={lead.name} size={32} />
-                                  <div>
-                                      <p className={cn("text-sm font-bold", getTextColor())}>{lead.name}</p>
-                                      <p className={cn("text-[10px] font-mono", getSecondaryTextColor())}>{lead.tripDetails.destination} • {formatCompactCurrency(lead.tripDetails.budget)}</p>
-                                  </div>
-                              </div>
-                              <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-blue-500" />
-                          </Link>
-                      ))
-                  }
-              </div>
-          </Card>
-
-          <Card className="h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                      <CalendarDays size={16} className={getSecondaryTextColor()} />
-                      <h3 className={cn("font-bold font-serif", getTextColor())}>Today's Tasks</h3>
-                  </div>
-                  <Link to="/reminders" className="text-xs text-blue-500 hover:underline">View Agenda</Link>
-              </div>
-              <div className="space-y-3">
-                  {tasksToday.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No pending tasks.</div> :
-                      tasksToday.map(task => (
-                          <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded-xl border", theme === 'light' ? "bg-white border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")}>
-                              <div className={cn("mt-0.5 p-1 rounded-full border", theme === 'light' ? "border-slate-300 text-slate-300" : "border-slate-500/50 text-slate-500/50")}><CheckSquare size={12} /></div>
-                              <div className="flex-1 min-w-0">
-                                  <p className={cn("text-sm font-medium line-clamp-1", getTextColor())}>{task.task}</p>
-                                  <p className={cn("text-[10px] opacity-50", getTextColor())}>Due Today</p>
-                              </div>
-                          </div>
-                      ))
-                  }
-              </div>
-          </Card>
-      </div>
-
-      {/* --- NEW: ACTIVITY MONITOR (ADMIN ONLY) --- */}
-      {user?.role === 'admin' && viewAsAgent === 'all' && (
+      {/* --- ROLE-DIFFERENTIATED LAYOUT --- */}
+      {isAdminGlobalView ? (
+        <>
           <ActivityMonitor logs={activityLogs} />
+          <div className="mb-8"><AdminLeaderboard leads={dashboardLeads} /></div>
+          {kpiSection}
+          {pipelineSection}
+          {analyticsSection}
+          {sourcesSection}
+          {todaysFocusSection}
+          {operationsSection}
+          {priorityGridSection}
+        </>
+      ) : (
+        <>
+          {todaysFocusSection}
+          {operationsSection}
+          {priorityGridSection}
+          {kpiSection}
+          {pipelineSection}
+          {analyticsSection}
+          {sourcesSection}
+        </>
       )}
 
-      {/* --- ADMIN VIEW: Leaderboard (Only show when viewing ALL) --- */}
-      {user?.role === 'admin' && viewAsAgent === 'all' && (
-          <div className="mb-8">
-              <AdminLeaderboard leads={dashboardLeads} />
-          </div>
-      )}
-
-      {/* --- COMMON: KPIs --- */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <KPICard 
-            title={user?.role === 'admin' && viewAsAgent === 'all' ? "Total Revenue" : "Revenue"}
-            value={formatCurrency(stats.totalRevenue)} 
-            subtext="Closed Won Deals"
-            breakdown={getRevenueBreakdown()} 
-            icon={DollarSign} 
-            colorClass="bg-emerald-500" 
-          />
-          <KPICard 
-            title="Net Profit" 
-            value={formatCurrency(stats.netProfit)}
-            subtext="Revenue - Net Cost"
-            icon={TrendingUp} 
-            colorClass="bg-blue-500" 
-          />
-          <KPICard 
-            title="Win Rate" 
-            value={`${stats.winRate.toFixed(1)}%`}
-            subtext="Won vs Total Closed" 
-            icon={Trophy} 
-            colorClass="bg-amber-500" 
-          />
-          <KPICard 
-            title="Pending Leads" 
-            value={stats.pendingCount}
-            subtext="Status: New"
-            icon={Clock} 
-            colorClass="bg-rose-500"
-            onClick={() => handleNav('/leads?status=New')}
-          />
-      </div>
-
-      {/* --- PIPELINE VALUE --- */}
-      {stats.activePipelineCount > 0 && (
-          <Card className="flex flex-col gap-4">
-              <div className="flex items-start justify-between gap-4">
-                  <div>
-                      <div className="flex items-center gap-2 mb-1">
-                          <div className={cn("p-1.5 rounded bg-indigo-500/10 text-indigo-500")}><TrendingUp size={15} /></div>
-                          <h3 className={cn("font-bold font-serif", getTextColor())}>Pipeline Value</h3>
-                      </div>
-                      <p className={cn("text-2xl font-extrabold tracking-tight", getTextColor())}>{formatCompactCurrency(stats.totalPipelineValue)}</p>
-                      <p className={cn("text-[11px] mt-0.5", getSecondaryTextColor())}>{stats.activePipelineCount} active leads across 4 stages</p>
-                  </div>
-              </div>
-              <div className="h-24 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stats.pipelineByStage} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
-                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                          <YAxis hide />
-                          <Tooltip
-                              formatter={(val: number) => [formatCompactCurrency(val), 'Budget']}
-                              contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }}
-                              cursor={{ fill: 'transparent' }}
-                          />
-                          <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
-                              <LabelList dataKey="value" position="top" formatter={(v: number) => formatCompactCurrency(v)} style={{ fontSize: '9px', fontWeight: 700, fill: theme === 'light' ? '#64748b' : '#94a3b8' }} />
-                              {stats.pipelineByStage.map((entry, i) => (
-                                  <Cell key={i} fill={entry.fill} opacity={0.85} />
-                              ))}
-                          </Bar>
-                      </BarChart>
-                  </ResponsiveContainer>
-              </div>
-          </Card>
-      )}
-
-      {/* --- AGENT VIEW / CEO DRILLDOWN --- */}
-      <div className={cn(
-          "grid grid-cols-1 xl:grid-cols-4 gap-6",
-          viewAsAgent !== 'all' && "border-2 border-dashed border-amber-500/20 p-4 rounded-3xl relative"
-      )}>
-          <Card className="xl:col-span-1 min-h-[300px] flex flex-col">
-              <div className="flex items-center gap-2 mb-6">
-                  <div className={cn("p-1.5 rounded bg-blue-500/10 text-blue-500")}>
-                      <Activity size={16} />
-                  </div>
-                  <h3 className={cn("font-bold font-serif", getTextColor())}>Lead Funnel</h3>
-              </div>
-              
-              <div className="flex-1 w-full min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart layout="vertical" data={stats.funnelData} margin={{ left: 0, right: 30, top: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.10)'} />
-                    <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      width={80}
-                      tick={{ fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 600 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip 
-                        cursor={{fill: 'transparent'}}
-                        contentStyle={{ 
-                            backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(22, 30, 50, 0.97)',
-                            borderRadius: '8px',
-                            border: 'none',
-                            color: theme === 'light' ? '#0f172a' : '#e2e8f0',
-                            fontSize: '12px'
-                        }} 
-                    />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20} onClick={(data) => handleNav(`/leads?status=${data.name}`)}>
-                        <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fill: theme === 'light' ? '#64748b' : '#94a3b8', fontWeight: 'bold' }} />
-                        {stats.funnelData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={theme === 'light' ? '#3b82f6' : '#60a5fa'} className="cursor-pointer hover:opacity-80 transition-opacity" />
-                        ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-          </Card>
-
-          {/* Row 3: Product & Destination Matrix (75%) */}
-          <div className="xl:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Product Matrix */}
-              <Card className="flex flex-col">
-                  <div className="flex items-center gap-2 mb-6">
-                      <div className={cn("p-1.5 rounded bg-teal-500/10 text-teal-500")}>
-                          <Package size={16} />
-                      </div>
-                      <h3 className={cn("font-bold font-serif", getTextColor())}>Product Matrix</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                      <table className={cn("w-full text-left text-sm", getTextColor())}>
-                          <thead>
-                              <tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50">
-                                  <th className="pb-3 font-bold pl-2">Service</th>
-                                  <th className="pb-3 font-bold text-center">Activity</th>
-                                  <th className="pb-3 font-bold text-center">Won</th>
-                                  <th className="pb-3 font-bold text-right pr-2">Value</th>
-                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-500/10">
-                              {stats.productStats.map((prod, idx) => (
-                                  <tr key={prod.name} className="group hover:bg-gray-500/5 transition-colors">
-                                      <td className="py-3 pl-2 font-medium cursor-pointer truncate max-w-[100px]" title={prod.name} onClick={() => handleNav(`/leads?service=${prod.name}`)}>
-                                          {prod.name}
-                                      </td>
-                                      <td className="py-3 text-center">
-                                          <div className="w-16 mx-auto">
-                                              <Sparkline 
-                                                  data={[prod.newCount, prod.wipCount, prod.wonCount]} 
-                                                  color="blue"
-                                                  height={20}
-                                              />
-                                          </div>
-                                      </td>
-                                      <td className="py-3 text-center">
-                                          <span onClick={() => handleNav(`/leads?service=${prod.name}&status=Won`)} className={cn("px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-transform hover:scale-110 inline-block", prod.wonCount > 0 ? "bg-emerald-500/10 text-emerald-500" : "opacity-20")}>{prod.wonCount}</span>
-                                      </td>
-                                      <td className="py-3 text-right pr-2 font-mono text-xs opacity-70 tracking-tight">
-                                          {formatCompactCurrency(prod.revenue)}
-                                      </td>
-                                  </tr>
-                              ))}
-                              {stats.productStats.length === 0 && (
-                                  <tr><td colSpan={4} className="py-8 text-center opacity-50 text-xs italic">No data</td></tr>
-                              )}
-                          </tbody>
-                      </table>
-                  </div>
-              </Card>
-
-              {/* Destination Matrix */}
-              <Card className="flex flex-col">
-                  <div className="flex items-center gap-2 mb-6">
-                      <div className={cn("p-1.5 rounded bg-purple-500/10 text-purple-500")}>
-                          <MapPin size={16} />
-                      </div>
-                      <h3 className={cn("font-bold font-serif", getTextColor())}>Destination Matrix</h3>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                      <table className={cn("w-full text-left text-sm", getTextColor())}>
-                          <thead>
-                              <tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50">
-                                  <th className="pb-3 font-bold pl-2">Dest</th>
-                                  <th className="pb-3 font-bold text-center">Trend</th>
-                                  <th className="pb-3 font-bold text-center">Won</th>
-                                  <th className="pb-3 font-bold text-right pr-2">Value</th>
-                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-500/10">
-                              {stats.topDestinations.map((dest, idx) => (
-                                  <tr key={dest.name} className="group hover:bg-gray-500/5 transition-colors">
-                                      <td className="py-3 pl-2 font-medium cursor-pointer" onClick={() => handleNav(`/leads?destination=${dest.name}`)}>
-                                          {idx + 1}. {dest.name}
-                                      </td>
-                                      <td className="py-3 text-center">
-                                          <div className="w-16 mx-auto">
-                                              <Sparkline 
-                                                  data={[dest.newCount, dest.wipCount, dest.wonCount]} 
-                                                  color="purple"
-                                                  height={20}
-                                              />
-                                          </div>
-                                      </td>
-                                      <td className="py-3 text-center">
-                                          <span onClick={() => handleNav(`/leads?destination=${dest.name}&status=Won`)} className={cn("px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-transform hover:scale-110 inline-block", dest.wonCount > 0 ? "bg-emerald-500/10 text-emerald-500" : "opacity-20")}>{dest.wonCount}</span>
-                                      </td>
-                                      <td className="py-3 text-right pr-2 font-mono text-xs opacity-70 tracking-tight">
-                                          {formatCompactCurrency(dest.revenue)}
-                                      </td>
-                                  </tr>
-                              ))}
-                              {stats.topDestinations.length === 0 && (
-                                  <tr><td colSpan={4} className="py-8 text-center opacity-50 text-xs italic">No data</td></tr>
-                              )}
-                          </tbody>
-                      </table>
-                  </div>
-              </Card>
-          </div>
-      </div>
-
-      {/* --- LEAD SOURCE ROI --- */}
-      {stats.sourceData.length > 0 && (
-          <Card className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                  <div className={cn("p-1.5 rounded bg-rose-500/10 text-rose-500")}><Filter size={15} /></div>
-                  <h3 className={cn("font-bold font-serif", getTextColor())}>Lead Sources</h3>
-                  <span className={cn("text-xs opacity-50 ml-1", getSecondaryTextColor())}>Which channel converts best?</span>
-              </div>
-              <div className="h-48 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stats.sourceData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
-                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: theme === 'light' ? '#94a3b8' : 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
-                          <Tooltip
-                              contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }}
-                              cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)' }}
-                              formatter={(val: number, name: string, props: any) => {
-                                  const item = props.payload;
-                                  if (name === 'Won') return [`${val} (${item.rate}% conv.)`, 'Won'];
-                                  return [val, name];
-                              }}
-                          />
-                          <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                          <Bar dataKey="Total" fill={theme === 'light' ? '#94a3b8' : '#475569'} radius={[3, 3, 0, 0]} barSize={18} />
-                          <Bar dataKey="Won" fill="#10b981" radius={[3, 3, 0, 0]} barSize={18}>
-                              <LabelList dataKey="rate" position="top" formatter={(v: number) => v > 0 ? `${v}%` : ''} style={{ fontSize: '9px', fontWeight: 700, fill: '#10b981' }} />
-                          </Bar>
-                      </BarChart>
-                  </ResponsiveContainer>
-              </div>
-          </Card>
-      )}
 
     </div>
   );
