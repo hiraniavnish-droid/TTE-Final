@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useLeads } from '../contexts/LeadContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -50,7 +50,8 @@ import {
   AlertOctagon,
   Download,
   CheckCircle2,
-  User
+  User,
+  Tag,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { VendorManagementModal } from '../components/VendorManagementModal';
@@ -213,6 +214,18 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
                 </div>
             </div>
         </div>
+      {lead.tags && lead.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-gray-200/30">
+          {lead.tags.map(tag => (
+            <span key={tag} className={cn(
+              "text-[9px] font-semibold px-1.5 py-0.5 rounded-full border leading-none",
+              theme === 'light' ? 'bg-indigo-50 text-indigo-500 border-indigo-100' : theme === 'ocean' ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+            )}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
       </div>
   );
 };
@@ -405,7 +418,8 @@ export const Leads = () => {
   
   const [filters, setFilters] = useState({
       source: '',
-      temp: ''
+      temp: '',
+      tags: [] as string[],
   });
 
   const sensors = useSensors(
@@ -451,13 +465,20 @@ export const Leads = () => {
     }
   };
 
+  const allTags = useMemo(() => {
+      const tagSet = new Set<string>();
+      leads.forEach(l => l.tags?.forEach(t => tagSet.add(t)));
+      return Array.from(tagSet).sort();
+  }, [leads]);
+
   const filteredLeads = leads.filter(l => {
       if (filters.source && l.source !== filters.source) return false;
       if (filters.temp && l.temperature !== filters.temp) return false;
+      if (filters.tags.length > 0 && !filters.tags.every(t => l.tags?.includes(t))) return false;
       return true;
   });
 
-  const hasActiveFilters = filters.source || filters.temp;
+  const hasActiveFilters = filters.source || filters.temp || filters.tags.length > 0;
   const activeLead = activeId ? leads.find(l => l.id === activeId) : null;
 
   const handleOpenModal = () => {
@@ -721,8 +742,13 @@ export const Leads = () => {
 
             {/* Filter */}
             <div className="relative group z-30 h-10 md:h-11">
-                <Button variant="secondary" className="gap-2 h-full border border-slate-200 shadow-none bg-white hover:bg-slate-50 text-slate-600">
+                <Button variant="secondary" className="gap-2 h-full border border-slate-200 shadow-none bg-white hover:bg-slate-50 text-slate-600 relative">
                     <Filter size={18} /> Filter
+                    {hasActiveFilters && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                        {(filters.source ? 1 : 0) + (filters.temp ? 1 : 0) + filters.tags.length}
+                      </span>
+                    )}
                 </Button>
                 {/* Filter Dropdown */}
                 <div className={cn(
@@ -747,12 +773,12 @@ export const Leads = () => {
                     <div className="h-px bg-gray-500/20 my-2"></div>
                     <div className={cn("text-xs font-bold uppercase tracking-wider mb-2 opacity-50", getTextColor())}>Source</div>
                      {['Instagram', 'Referral', 'Website'].map(s => (
-                        <div key={s} 
+                        <div key={s}
                             onClick={() => setFilters(p => ({...p, source: p.source === s ? '' : s}))}
                             className={cn(
-                                "px-3 py-2 rounded-lg cursor-pointer text-sm mb-1 transition-colors flex items-center justify-between min-h-[44px]", 
-                                filters.source === s 
-                                    ? 'bg-blue-500/20 text-blue-500 font-bold' 
+                                "px-3 py-2 rounded-lg cursor-pointer text-sm mb-1 transition-colors flex items-center justify-between min-h-[44px]",
+                                filters.source === s
+                                    ? 'bg-blue-500/20 text-blue-500 font-bold'
                                     : cn('hover:bg-white/10', getTextColor())
                             )}
                         >
@@ -760,6 +786,36 @@ export const Leads = () => {
                             {filters.source === s && <div className="w-2 h-2 rounded-full bg-blue-500" />}
                         </div>
                     ))}
+                    {allTags.length > 0 && (
+                      <>
+                        <div className="h-px bg-gray-500/20 my-2"></div>
+                        <div className={cn("text-xs font-bold uppercase tracking-wider mb-2 opacity-50 flex items-center gap-1", getTextColor())}>
+                          <Tag size={10} /> Tags
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pb-1">
+                          {allTags.map(tag => {
+                            const active = filters.tags.includes(tag);
+                            return (
+                              <button
+                                key={tag}
+                                onClick={() => setFilters(p => ({
+                                  ...p,
+                                  tags: active ? p.tags.filter(t => t !== tag) : [...p.tags, tag]
+                                }))}
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-all",
+                                  active
+                                    ? 'bg-blue-500/20 text-blue-500 border-blue-500/40'
+                                    : cn('border-transparent hover:border-gray-400/30', getTextColor(), 'opacity-60 hover:opacity-100')
+                                )}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
                 </div>
             </div>
 
@@ -784,7 +840,7 @@ export const Leads = () => {
                     : "Your pipeline is looking empty. Add your first potential client to start tracking their journey."}
             </p>
             {hasActiveFilters ? (
-                <Button onClick={() => setFilters({source: '', temp: ''})} variant="secondary">
+                <Button onClick={() => setFilters({source: '', temp: '', tags: []})} variant="secondary">
                     Clear Filters
                 </Button>
             ) : (
