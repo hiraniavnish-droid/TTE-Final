@@ -16,6 +16,7 @@ import { VendorManagementModal } from '../components/VendorManagementModal'; // 
 import { InteractionType, Interaction, Reminder, LeadStatus, Supplier, Commercials, Lead, VendorDetail, Sentiment } from '../types';
 import { formatCurrency, formatCompactCurrency, formatDate, generateId, cn } from '../utils/helpers';
 import { triggerConfetti } from '../utils/celebration';
+import toast from 'react-hot-toast';
 import { 
   Phone, 
   Mail, 
@@ -386,8 +387,7 @@ export const LeadDetails = () => {
   const [interactionType, setInteractionType] = useState<InteractionType>('Note');
   const [interactionSentiment, setInteractionSentiment] = useState<Sentiment>('Neutral');
   const [isReminderModalOpen, setReminderModalOpen] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
+  // toast handled by react-hot-toast globally
   
   // Gatekeeper States
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
@@ -440,9 +440,7 @@ export const LeadDetails = () => {
           }
 
           if (status === 'Proposal Sent') {
-              setToastMessage("✅ Quote Shared. Status Updated!");
-              setShowToast(true);
-              setTimeout(() => setShowToast(false), 4000);
+                  toast.success('Quote shared! Status updated.');
           } else if (status === 'Won') {
               triggerConfetti();
           }
@@ -471,14 +469,10 @@ export const LeadDetails = () => {
           updateLeadStatus(leadId, pendingStatus);
           
           if (pendingStatus === 'Proposal Sent') {
-              setToastMessage("✅ Proposal Prepared & Status Updated!");
-              setShowToast(true);
-              setTimeout(() => setShowToast(false), 4000);
+                  toast.success('Proposal prepared & status updated!');
           }
       } else {
-          setToastMessage("Commercials saved successfully.");
-          setShowToast(true);
-          setTimeout(() => setShowToast(false), 3000);
+          toast.success('Commercials saved.');
       }
 
       setPendingStatus(null);
@@ -531,9 +525,7 @@ export const LeadDetails = () => {
       const brief = generateVendorBrief(lead);
       try {
           await navigator.clipboard.writeText(brief);
-          setToastMessage('Vendor Brief copied!');
-          setShowToast(true);
-          setTimeout(() => setShowToast(false), 3000);
+          toast.success('Vendor brief copied!');
       } catch (err) {
           console.error("Failed to copy brief", err);
       }
@@ -547,17 +539,6 @@ export const LeadDetails = () => {
   return (
     <div className="animate-in fade-in slide-in-from-right-8 duration-500 max-w-7xl mx-auto relative pb-20">
       
-      {showToast && (
-          <div className="fixed top-20 left-1/2 -translate-x-1/2 md:top-6 md:right-6 md:translate-x-0 md:left-auto z-50 animate-in slide-in-from-top-2 fade-in duration-300 w-full max-w-sm px-4">
-              <div className={cn(
-                  "flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md",
-                  theme === 'light' ? 'bg-white/90 border-green-100 text-green-700' : 'bg-slate-800/90 border-green-500/30 text-green-400'
-              )}>
-                  <CheckCircle2 size={18} className="shrink-0" />
-                  <span className="font-medium text-sm">{toastMessage}</span>
-              </div>
-          </div>
-      )}
 
       {/* --- Gatekeeper Modal --- */}
       <VendorManagementModal 

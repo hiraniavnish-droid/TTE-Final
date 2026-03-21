@@ -15,6 +15,13 @@ import Papa from 'papaparse';
 
 export const AddLeadModal = () => {
   const { addLead, addLeads, isAddLeadModalOpen, setAddLeadModalOpen } = useLeads();
+
+  // Allow GlobalSearch command palette to open this modal
+  React.useEffect(() => {
+    const handler = () => setAddLeadModalOpen(true);
+    window.addEventListener('open-add-lead', handler);
+    return () => window.removeEventListener('open-add-lead', handler);
+  }, [setAddLeadModalOpen]);
   const { theme, getTextColor, getInputClass, getBorderClass, getSecondaryTextColor } = useTheme();
   const { user, users } = useAuth();
 

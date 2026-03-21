@@ -1,5 +1,8 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useCountUp } from '../hooks/useCountUp';
+import { RadialGauge } from '../components/ui/RadialGauge';
+import { ActivityHeatmap } from '../components/ActivityHeatmap';
 import { Card } from '../components/ui/Card';
 import { DialButton } from '../components/ui/DialButton';
 import { Sparkline } from '../components/ui/Sparkline';
@@ -50,6 +53,7 @@ import {
   Radio
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lead, ActivityLog } from '../types';
 import { getAgentColor } from './Leads';
@@ -457,29 +461,36 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
 
 // --- Standard Agent Dashboard Components ---
 
-const KPICard = ({ title, value, subtext, breakdown, icon: Icon, colorClass, onClick }: any) => {
-    const { getTextColor, getCardBg } = useTheme();
+const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick }: any) => {
+    const { getTextColor, getCardBg, theme } = useTheme();
+    const animated = useCountUp(typeof rawValue === 'number' ? rawValue : 0, 1200);
+    const displayValue = (typeof rawValue === 'number' && formatFn)
+      ? formatFn(animated)
+      : value;
+
     return (
         <div
             onClick={onClick}
             className={cn(
-                "p-4 md:p-5 rounded-xl border transition-all duration-300 group cursor-pointer relative overflow-hidden hover:-translate-y-0.5 hover:shadow-md",
+                "p-4 md:p-5 rounded-xl border transition-all duration-300 group cursor-pointer relative overflow-hidden",
+                "hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]",
                 getCardBg(),
-                "border-slate-100 hover:border-slate-200 shadow-sm"
+                theme === 'light' ? "border-slate-100 shadow-sm" : ""
             )}
         >
             {/* Colored top accent */}
             <div className={cn("absolute top-0 left-0 right-0 h-[3px] rounded-t-xl", colorClass)} />
+            {/* Subtle color glow in bg corner */}
+            <div className={cn("absolute -bottom-4 -right-4 w-20 h-20 rounded-full blur-2xl opacity-20 pointer-events-none", colorClass)} />
             <div className="flex justify-between items-start mb-2 mt-1">
-                <div className={cn("p-2 rounded-lg bg-opacity-20", colorClass)}>
+                <div className={cn("p-2 rounded-lg", colorClass)}>
                     <Icon size={18} className="text-white" />
                 </div>
-                {onClick && <ArrowRight size={16} className="opacity-0 group-hover:opacity-50 transition-opacity -translate-x-2 group-hover:translate-x-0" />}
+                {onClick && <ArrowRight size={16} className="opacity-0 group-hover:opacity-60 transition-all -translate-x-2 group-hover:translate-x-0" />}
             </div>
             <div className="mt-1 relative z-10">
                 <p className={cn("text-[10px] md:text-xs font-bold uppercase tracking-wider opacity-60 mb-0.5", getTextColor())}>{title}</p>
-                <h3 className={cn("text-xl md:text-2xl font-bold font-serif font-mono tracking-tight", getTextColor())}>{value}</h3>
-                
+                <h3 className={cn("text-xl md:text-2xl font-bold font-mono tracking-tight tabular-nums", getTextColor())}>{displayValue}</h3>
                 {breakdown ? (
                     <div className={cn("text-[9px] md:text-[10px] mt-2 pt-2 border-t border-dashed border-gray-500/20 font-mono opacity-80", getTextColor())}>
                         {breakdown}
@@ -882,10 +893,10 @@ export const Dashboard = () => {
 
   const kpiSection = (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <KPICard title={isAdminGlobalView ? "Total Revenue" : "Revenue"} value={formatCurrency(stats.totalRevenue)} subtext="Closed Won Deals" breakdown={getRevenueBreakdown()} icon={DollarSign} colorClass="bg-emerald-500" />
-        <KPICard title="Net Profit" value={formatCurrency(stats.netProfit)} subtext="Revenue - Net Cost" icon={TrendingUp} colorClass="bg-blue-500" />
-        <KPICard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} subtext="Won vs Total Closed" icon={Trophy} colorClass="bg-amber-500" />
-        <KPICard title="Pending Leads" value={stats.pendingCount} subtext="Status: New" icon={Clock} colorClass="bg-rose-500" onClick={() => handleNav('/leads?status=New')} />
+        <KPICard title={isAdminGlobalView ? "Total Revenue" : "Revenue"} value={formatCurrency(stats.totalRevenue)} rawValue={stats.totalRevenue} formatFn={formatCurrency} subtext="Closed Won Deals" breakdown={getRevenueBreakdown()} icon={DollarSign} colorClass="bg-emerald-500" />
+        <KPICard title="Net Profit" value={formatCurrency(stats.netProfit)} rawValue={stats.netProfit} formatFn={formatCurrency} subtext="Revenue - Net Cost" icon={TrendingUp} colorClass="bg-blue-500" />
+        <RadialGauge value={stats.winRate} label="Win Rate" subtext="Won vs Total Closed" />
+        <KPICard title="Pending Leads" value={stats.pendingCount} rawValue={stats.pendingCount} formatFn={(n: number) => String(n)} subtext="Status: New" icon={Clock} colorClass="bg-rose-500" onClick={() => handleNav('/leads?status=New')} />
     </div>
   );
 
@@ -1108,25 +1119,48 @@ export const Dashboard = () => {
       {/* --- ROLE-DIFFERENTIATED LAYOUT --- */}
       {isAdminGlobalView ? (
         <>
-          <ActivityMonitor logs={activityLogs} />
-          <div className="mb-8"><AdminLeaderboard leads={dashboardLeads} /></div>
-          {kpiSection}
-          {pipelineSection}
-          {analyticsSection}
-          {sourcesSection}
-          {todaysFocusSection}
-          {operationsSection}
-          {priorityGridSection}
+          {[
+            <ActivityMonitor logs={activityLogs} />,
+            <ActivityHeatmap logs={activityLogs} />,
+            <div className="mb-8"><AdminLeaderboard leads={dashboardLeads} /></div>,
+            kpiSection,
+            pipelineSection,
+            analyticsSection,
+            sourcesSection,
+            todaysFocusSection,
+            operationsSection,
+            priorityGridSection,
+          ].filter(Boolean).map((section, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
+              {section}
+            </motion.div>
+          ))}
         </>
       ) : (
         <>
-          {todaysFocusSection}
-          {operationsSection}
-          {priorityGridSection}
-          {kpiSection}
-          {pipelineSection}
-          {analyticsSection}
-          {sourcesSection}
+          {[
+            todaysFocusSection,
+            operationsSection,
+            priorityGridSection,
+            kpiSection,
+            pipelineSection,
+            analyticsSection,
+            sourcesSection,
+          ].filter(Boolean).map((section, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
+              {section}
+            </motion.div>
+          ))}
         </>
       )}
 

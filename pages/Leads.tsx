@@ -55,6 +55,7 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { VendorManagementModal } from '../components/VendorManagementModal';
+import { motion } from 'framer-motion';
 
 // --- Helper for Urgency Logic ---
 
@@ -156,17 +157,22 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
     'Lost':          'border-l-4 border-l-slate-300',
   };
 
+  const hotGlow = lead.temperature === 'Hot' && !isOverlay
+    ? { boxShadow: theme === 'light' ? '0 0 0 1px rgba(239,68,68,0.15), 0 4px 16px rgba(239,68,68,0.10)' : '0 0 0 1px rgba(239,68,68,0.20), 0 4px 20px rgba(239,68,68,0.15)' }
+    : {};
+
   return (
     <div
         className={cn(
-            "relative px-3 py-2 rounded-xl border transition-all duration-200 select-none group",
+            "relative px-3 py-2 rounded-xl border transition-all duration-200 select-none group cursor-pointer",
             theme === 'light'
-              ? (lead.status === 'Won' ? 'bg-emerald-50/60 border-emerald-100 hover:border-emerald-200' : lead.status === 'Lost' ? 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100' : 'bg-white border-slate-100 hover:border-slate-300')
-              : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40 hover:bg-blue-900/50 hover:border-blue-700/50' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700/60 hover:border-slate-600/70',
-            isOverlay ? "shadow-2xl scale-105 rotate-2 cursor-grabbing ring-1 ring-blue-500/50" : "shadow-sm hover:shadow-md cursor-grab",
-            isDragging ? "opacity-30 grayscale" : "opacity-100",
+              ? (lead.status === 'Won' ? 'bg-emerald-50/60 border-emerald-100 hover:border-emerald-200' : lead.status === 'Lost' ? 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100' : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5')
+              : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40 hover:bg-blue-900/50 hover:border-blue-700/50 hover:shadow-md' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700/60 hover:border-slate-600/70 hover:shadow-md',
+            isOverlay ? "shadow-[0_20px_60px_rgba(0,0,0,0.25)] scale-105 rotate-[3deg] cursor-grabbing ring-2 ring-indigo-500/40 ring-offset-2" : "shadow-sm",
+            isDragging ? "opacity-20 grayscale scale-95" : "opacity-100",
             urgencyClass || statusAccent[lead.status] || ''
         )}
+        style={hotGlow}
         title={urgencyTooltip}
     >
         <div className="flex items-start justify-between gap-2">
@@ -322,21 +328,27 @@ const MobileLeadCard: React.FC<MobileLeadCardProps> = ({ lead, onStatusChange })
 
 // --- DND Components ---
 
-const DraggableCard: React.FC<{ lead: Lead }> = ({ lead }) => {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: lead.id,
-  });
-  
+const DraggableCard: React.FC<{ lead: Lead; index?: number }> = ({ lead, index = 0 }) => {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: lead.id });
+  const MotionDiv = motion.div as any;
+
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} className="mb-1.5 touch-none outline-none">
-       {isDragging ? (
+    <MotionDiv
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.3), ease: 'easeOut' }}
+      className="mb-1.5"
+    >
+      <div ref={setNodeRef} {...listeners} {...attributes} className="touch-none outline-none">
+        {isDragging ? (
           <LeadCard lead={lead} isDragging={true} />
-       ) : (
+        ) : (
           <Link to={`/leads/${lead.id}`} className="block">
-              <LeadCard lead={lead} />
+            <LeadCard lead={lead} />
           </Link>
-       )}
-    </div>
+        )}
+      </div>
+    </MotionDiv>
   );
 };
 
@@ -862,8 +874,8 @@ export const Leads = () => {
                     <div className="flex gap-6 overflow-x-auto pb-6 h-full items-start snap-x">
                         {STATUS_COLUMNS.map(status => (
                             <DroppableColumn key={status} status={status}>
-                                {filteredLeads.filter(l => l.status === status).map(lead => (
-                                    <DraggableCard key={lead.id} lead={lead} />
+                                {filteredLeads.filter(l => l.status === status).map((lead, idx) => (
+                                    <DraggableCard key={lead.id} lead={lead} index={idx} />
                                 ))}
                             </DroppableColumn>
                         ))}

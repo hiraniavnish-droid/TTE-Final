@@ -22,6 +22,28 @@
         50%  { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
       }
+
+      /* Custom thin scrollbar */
+      ::-webkit-scrollbar { width: 5px; height: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.25); border-radius: 99px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.5); }
+      * { scrollbar-width: thin; scrollbar-color: rgba(99,102,241,0.25) transparent; }
+
+      /* Text selection */
+      ::selection { background: rgba(99,102,241,0.2); color: inherit; }
+
+      /* Smooth focus ring on all focusables */
+      :focus-visible { outline: 2px solid rgba(99,102,241,0.6); outline-offset: 2px; border-radius: 6px; }
+
+      /* Pointer cursor on all interactive elements */
+      button, [role="button"], label[for], summary { cursor: pointer; }
+
+      /* Number smoothing */
+      .tabular-nums, [class*="font-mono"] { font-variant-numeric: tabular-nums; }
+
+      /* Prevent layout shift on scrollbar appearance */
+      html { overflow-y: scroll; }
     </style>
     <script type="importmap">
 {

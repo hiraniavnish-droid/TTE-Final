@@ -1,6 +1,7 @@
 
 import React, { Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LeadProvider } from './contexts/LeadContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -41,6 +42,15 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <LeadProvider>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3500,
+                style: { borderRadius: '12px', fontSize: '13px', fontWeight: 600 },
+                success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
+                error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+              }}
+            />
             <HashRouter>
               <Suspense fallback={<PageLoader />}>
                 <Routes>

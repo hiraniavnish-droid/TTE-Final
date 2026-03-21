@@ -22,11 +22,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // bg-white border border-slate-200 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] ring-1 ring-slate-900/5
 
   const getGlassClass = (opacity = '10') => {
-    if (theme === 'ocean') return `bg-blue-950/70 backdrop-blur-md border border-blue-700/40 shadow-xl`;
-    if (theme === 'dark') return `bg-slate-800/90 border border-slate-700/60 shadow-sm`;
-
-    // Elevated card with warm white background and depth shadow
-    return `bg-white border border-slate-200/80 shadow-[0_2px_8px_0_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 rounded-xl`;
+    if (theme === 'ocean') return `bg-blue-950/60 backdrop-blur-xl border border-blue-600/20 shadow-2xl shadow-blue-950/40 rounded-2xl`;
+    if (theme === 'dark') return `bg-slate-800/80 backdrop-blur-md border border-slate-700/50 shadow-xl shadow-black/20 rounded-2xl`;
+    // Light: elevated card with subtle depth
+    return `bg-white/90 backdrop-blur-sm border border-slate-200/80 shadow-[0_2px_12px_0_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 rounded-2xl`;
   };
 
   const getTextColor = () => {
