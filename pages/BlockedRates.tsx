@@ -634,6 +634,8 @@ const CityView: React.FC<{
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const HOTELS_PAGE_SIZE = 18;
+const RATES_CACHE_KEY = 'tte_rates_cache';
+const RATES_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 export const BlockedRates = () => {
   const { theme, getTextColor, getSecondaryTextColor } = useTheme();
@@ -641,6 +643,7 @@ export const BlockedRates = () => {
   const [rates,        setRates]        = useState<HotelRate[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState<string | null>(null);
+  const [fromCache,    setFromCache]    = useState(false);
   const [search,       setSearch]       = useState('');
   const [view,         setView]         = useState<'home' | 'city' | 'hotel'>('home');
   const [selCity,      setSelCity]      = useState('');
@@ -648,13 +651,35 @@ export const BlockedRates = () => {
   const [backLabel,    setBackLabel]    = useState('');
   const [hotelLimit,   setHotelLimit]   = useState(HOTELS_PAGE_SIZE);
 
-  const loadRates = () => {
+  const loadRates = (forceRefresh = false) => {
+    // Try cache first (unless forcing a refresh)
+    if (!forceRefresh) {
+      try {
+        const raw = sessionStorage.getItem(RATES_CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (Date.now() - cached.timestamp < RATES_CACHE_TTL) {
+            setRates(cached.data);
+            setFromCache(true);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
+    }
+
+    setFromCache(false);
     setLoading(true); setError(null);
     Papa.parse(CSV_URL, {
       download: true, header: true, skipEmptyLines: 'greedy',
       transformHeader: h => h.replace(/[\u00A0\s]+/g, ' ').trim(),
       transform: v => v.trim(),
-      complete: res => { setRates(res.data as HotelRate[]); setLoading(false); },
+      complete: res => {
+        const data = res.data as HotelRate[];
+        setRates(data);
+        setLoading(false);
+        try { sessionStorage.setItem(RATES_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+      },
       error: err => { setError(err.message); setLoading(false); },
     });
   };
@@ -715,11 +740,11 @@ export const BlockedRates = () => {
           <div>
             <h1 className={cn('text-lg font-bold font-serif', getTextColor())}>Blocked Hotel Rates</h1>
             <p className={cn('text-[11px] mt-0.5', getSecondaryTextColor())}>
-              {loading ? 'Syncing from Google Sheets…' : `${allHotels.length} hotels · ${allCities.length} cities`}
+              {loading ? 'Syncing from Google Sheets…' : `${allHotels.length} hotels · ${allCities.length} cities${fromCache ? ' · cached' : ''}`}
             </p>
           </div>
         </div>
-        <button onClick={loadRates} title="Refresh"
+        <button onClick={() => loadRates(true)} title="Refresh rates"
           className={cn('p-2 rounded-xl border transition-colors', theme === 'light' ? 'border-slate-200 hover:bg-slate-50' : 'border-white/10 hover:bg-white/5')}>
           <RefreshCw size={14} className={cn(loading ? 'animate-spin text-blue-500' : getSecondaryTextColor())} />
         </button>

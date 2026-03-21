@@ -13,7 +13,7 @@ import { PaxSelector } from '../components/PaxSelector';
 import { TravelPreferences } from '../components/TravelPreferences';
 import { WorkflowStepper } from '../components/WorkflowStepper'; 
 import { VendorManagementModal } from '../components/VendorManagementModal'; // NEW
-import { InteractionType, Interaction, Reminder, LeadStatus, Supplier, Commercials, Lead, VendorDetail } from '../types';
+import { InteractionType, Interaction, Reminder, LeadStatus, Supplier, Commercials, Lead, VendorDetail, Sentiment } from '../types';
 import { formatCurrency, formatCompactCurrency, formatDate, generateId, cn } from '../utils/helpers';
 import { triggerConfetti } from '../utils/celebration';
 import { 
@@ -384,6 +384,7 @@ export const LeadDetails = () => {
 
   const [interactionText, setInteractionText] = useState('');
   const [interactionType, setInteractionType] = useState<InteractionType>('Note');
+  const [interactionSentiment, setInteractionSentiment] = useState<Sentiment>('Neutral');
   const [isReminderModalOpen, setReminderModalOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -492,10 +493,11 @@ export const LeadDetails = () => {
       type: interactionType,
       content: interactionText,
       timestamp: new Date().toISOString(),
-      sentiment: 'Neutral'
+      sentiment: interactionSentiment
     };
     addInteraction(newInteraction);
     setInteractionText('');
+    setInteractionSentiment('Neutral');
   };
 
   const handleAddReminder = (e: React.FormEvent<HTMLFormElement>) => {
@@ -857,20 +859,44 @@ export const LeadDetails = () => {
 
                   {/* Add Note Input */}
                   <Card noPadding className="p-3">
-                      <form onSubmit={handleLogInteraction} className="relative">
-                          <input 
-                              placeholder="Log a call, note, or update..." 
-                              className={cn("w-full bg-transparent text-sm outline-none pr-10", getInputClass(), "border-none shadow-none focus:ring-0")}
-                              value={interactionText}
-                              onChange={(e) => setInteractionText(e.target.value)}
-                          />
-                          <button 
-                              type="submit" 
-                              disabled={!interactionText.trim()}
-                              className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 text-blue-500 hover:bg-blue-50 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-                          >
-                              <Send size={14} />
-                          </button>
+                      <form onSubmit={handleLogInteraction}>
+                          <div className="relative">
+                              <input
+                                  placeholder="Log a call, note, or update..."
+                                  className={cn("w-full bg-transparent text-sm outline-none pr-10", getInputClass(), "border-none shadow-none focus:ring-0")}
+                                  value={interactionText}
+                                  onChange={(e) => setInteractionText(e.target.value)}
+                              />
+                              <button
+                                  type="submit"
+                                  disabled={!interactionText.trim()}
+                                  className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 text-blue-500 hover:bg-blue-50 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                              >
+                                  <Send size={14} />
+                              </button>
+                          </div>
+                          {interactionText.trim() && (
+                              <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-100/50">
+                                  <span className={cn("text-[10px] font-semibold opacity-40 mr-0.5", getTextColor())}>Sentiment:</span>
+                                  {(['Positive', 'Neutral', 'Negative'] as Sentiment[]).map(s => (
+                                      <button
+                                          key={s}
+                                          type="button"
+                                          onClick={() => setInteractionSentiment(s)}
+                                          className={cn(
+                                              "text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all",
+                                              interactionSentiment === s
+                                                  ? s === 'Positive' ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                                  : s === 'Negative' ? 'bg-rose-100 text-rose-700 border-rose-300'
+                                                  : 'bg-slate-100 text-slate-600 border-slate-300'
+                                                  : 'border-transparent text-gray-400 hover:border-gray-200'
+                                          )}
+                                      >
+                                          {s === 'Positive' ? '👍' : s === 'Negative' ? '👎' : '—'} {s}
+                                      </button>
+                                  ))}
+                              </div>
+                          )}
                       </form>
                   </Card>
 
@@ -886,9 +912,21 @@ export const LeadDetails = () => {
                               
                               <div className={cn("p-3 rounded-xl border transition-all hover:shadow-sm", theme === 'light' ? 'bg-white border-slate-100' : 'bg-white/5 border-white/10')}>
                                   <div className="flex justify-between items-start mb-1">
-                                      <span className={cn("text-[10px] font-bold uppercase tracking-wider opacity-60", getTextColor())}>
-                                          {interaction.type}
-                                      </span>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className={cn("text-[10px] font-bold uppercase tracking-wider opacity-60", getTextColor())}>
+                                              {interaction.type}
+                                          </span>
+                                          {interaction.sentiment && interaction.sentiment !== 'Neutral' && (
+                                              <span className={cn(
+                                                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none",
+                                                  interaction.sentiment === 'Positive'
+                                                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                                      : 'bg-rose-100 text-rose-700 border-rose-200'
+                                              )}>
+                                                  {interaction.sentiment === 'Positive' ? '👍' : '👎'} {interaction.sentiment}
+                                              </span>
+                                          )}
+                                      </div>
                                       <span className="text-[10px] font-mono opacity-40">
                                           {formatDate(interaction.timestamp)}
                                       </span>

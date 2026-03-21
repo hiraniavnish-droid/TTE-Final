@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { DialButton } from '../components/ui/DialButton';
-import { Lead, LeadStatus } from '../types';
+import { Lead, LeadStatus, Interaction } from '../types';
 import { cn, formatCurrency, formatDate } from '../utils/helpers';
 import { getAgentColor } from './Leads'; // Import helper
 import { 
@@ -22,7 +22,8 @@ import {
   TrendingUp,
   History,
   Globe,
-  UserCheck
+  UserCheck,
+  MessageSquare
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -40,12 +41,22 @@ interface Customer {
 }
 
 export const Customers = () => {
-  const { leads } = useLeads();
+  const { leads, interactions } = useLeads();
   const { theme, getTextColor, getSecondaryTextColor, getInputClass, getGlassClass } = useTheme();
   const { user } = useAuth(); // Access User Context
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // Merge all interactions across the selected customer's leads
+  const customerInteractions = useMemo((): Interaction[] => {
+    if (!selectedCustomer) return [];
+    const leadIds = new Set(selectedCustomer.leads.map(l => l.id));
+    return interactions
+      .filter(i => leadIds.has(i.leadId))
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 30);
+  }, [selectedCustomer, interactions]);
 
   // --- 1. Data Aggregation Logic ---
   const customers = useMemo(() => {
@@ -431,6 +442,46 @@ export const Customers = () => {
                                     </Link>
                                 ))}
                             </div>
+                        </div>
+
+                        {/* Interaction History */}
+                        <div className="space-y-3">
+                            <h3 className={cn("text-xs font-bold uppercase tracking-wider opacity-50 flex items-center gap-2", getTextColor())}>
+                                <MessageSquare size={14} /> Interaction History ({customerInteractions.length})
+                            </h3>
+                            {customerInteractions.length === 0 ? (
+                                <p className="text-sm opacity-40 italic">No interactions logged yet.</p>
+                            ) : (
+                                <div className="space-y-2 pl-3 border-l-2 border-gray-200/50 ml-1 max-h-72 overflow-y-auto pr-1">
+                                    {customerInteractions.map(interaction => {
+                                        const fromLead = selectedCustomer.leads.find(l => l.id === interaction.leadId);
+                                        return (
+                                            <div key={interaction.id} className={cn("p-2.5 rounded-lg border", theme === 'light' ? 'bg-white border-slate-100' : 'bg-white/5 border-white/10')}>
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className={cn("text-[9px] font-bold uppercase tracking-wider opacity-60", getTextColor())}>{interaction.type}</span>
+                                                        {interaction.sentiment && interaction.sentiment !== 'Neutral' && (
+                                                            <span className={cn(
+                                                                "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none",
+                                                                interaction.sentiment === 'Positive' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'
+                                                            )}>
+                                                                {interaction.sentiment === 'Positive' ? '👍' : '👎'}
+                                                            </span>
+                                                        )}
+                                                        {fromLead && (
+                                                            <Link to={`/leads/${fromLead.id}`} onClick={() => setSelectedCustomer(null)} className="text-[9px] text-blue-500 font-medium hover:underline truncate max-w-[100px]">
+                                                                {fromLead.tripDetails.destination || fromLead.name}
+                                                            </Link>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[9px] opacity-30 shrink-0 font-mono">{formatDate(interaction.timestamp)}</span>
+                                                </div>
+                                                <p className={cn("text-xs line-clamp-2", getTextColor())}>{interaction.content}</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                     </div>

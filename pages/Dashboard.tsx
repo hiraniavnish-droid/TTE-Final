@@ -7,18 +7,19 @@ import { UserAvatar } from '../components/ui/UserAvatar';
 import { useLeads } from '../contexts/LeadContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatCompactCurrency, cn, formatDate } from '../utils/helpers';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
   Cell,
-  PieChart, 
+  PieChart,
   Pie,
-  LabelList
+  LabelList,
+  Legend
 } from 'recharts';
 import { 
   Users, 
@@ -43,7 +44,10 @@ import {
   User,
   Plus,
   ArrowRightCircle,
-  X
+  X,
+  Bell,
+  Plane,
+  Radio
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -576,7 +580,42 @@ const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter) => {
     const topDestinations = Array.from(destMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
     const productStats = Array.from(prodMap.values()).sort((a, b) => (b.newCount + b.wipCount + b.wonCount) - (a.newCount + a.wipCount + a.wonCount));
 
-    return { totalRevenue, netProfit, winRate, pendingCount, funnelData, topDestinations, productStats, revenueByAgent };
+    // Pipeline value by active stage
+    const ACTIVE_STAGES = ['New', 'Contacted', 'Proposal Sent', 'Discussion'] as const;
+    const PIPELINE_COLORS: Record<string, string> = {
+        'New': '#38bdf8',
+        'Contacted': '#fbbf24',
+        'Proposal Sent': '#a78bfa',
+        'Discussion': '#818cf8',
+    };
+    const pipelineByStage = ACTIVE_STAGES.map(stage => ({
+        name: stage,
+        value: filteredLeads
+            .filter(l => l.status === stage)
+            .reduce((sum, l) => sum + (l.tripDetails.budget || 0), 0),
+        fill: PIPELINE_COLORS[stage],
+    }));
+    const totalPipelineValue = pipelineByStage.reduce((s, d) => s + d.value, 0);
+    const activePipelineCount = filteredLeads.filter(l => ACTIVE_STAGES.includes(l.status as any)).length;
+
+    // Lead source performance
+    const sourceMap: Record<string, { total: number; won: number }> = {};
+    filteredLeads.forEach(l => {
+        const src = l.source || 'Other';
+        if (!sourceMap[src]) sourceMap[src] = { total: 0, won: 0 };
+        sourceMap[src].total++;
+        if (l.status === 'Won') sourceMap[src].won++;
+    });
+    const sourceData = Object.entries(sourceMap)
+        .map(([name, d]) => ({
+            name,
+            Total: d.total,
+            Won: d.won,
+            rate: d.total > 0 ? Math.round((d.won / d.total) * 100) : 0,
+        }))
+        .sort((a, b) => b.Total - a.Total);
+
+    return { totalRevenue, netProfit, winRate, pendingCount, funnelData, topDestinations, productStats, revenueByAgent, pipelineByStage, totalPipelineValue, activePipelineCount, sourceData };
 };
 
 const getStartOfDay = (date: Date) => { 
@@ -663,6 +702,21 @@ export const Dashboard = () => {
     const due = new Date(r.dueDate).toDateString();
     return today === due && !r.isCompleted;
   }).slice(0, 5);
+
+  // Today's Focus data
+  const focusNow = new Date();
+  const focusSevenDaysLater = new Date(focusNow.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const overdueReminders = reminders.filter(r => !r.isCompleted && new Date(r.dueDate) < focusNow);
+  const staleLeads = dashboardLeads.filter(l =>
+    !['Won', 'Lost'].includes(l.status) &&
+    new Date(l.lastStatusUpdate || l.createdAt).getTime() < focusNow.getTime() - 24 * 60 * 60 * 1000
+  );
+  const departingLeads = dashboardLeads.filter(l =>
+    l.tripDetails.startDate &&
+    new Date(l.tripDetails.startDate) >= focusNow &&
+    new Date(l.tripDetails.startDate) <= focusSevenDaysLater
+  );
+  const hasFocusItems = overdueReminders.length > 0 || staleLeads.length > 0 || departingLeads.length > 0;
 
   const getRevenueBreakdown = () => {
       if (user?.role !== 'admin' || viewAsAgent !== 'all') return null;
@@ -769,6 +823,80 @@ export const Dashboard = () => {
         </div>
       </div>
 
+      {/* --- TODAY'S FOCUS --- */}
+      {hasFocusItems && (
+          <div className={cn(
+              "rounded-2xl border px-5 py-4",
+              theme === 'light' ? 'bg-amber-50 border-amber-200' : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50'
+          )}>
+              <div className="flex items-center gap-2 mb-3">
+                  <Zap size={14} className="text-amber-500" />
+                  <span className={cn("text-xs font-bold uppercase tracking-wider", theme === 'light' ? 'text-amber-700' : 'text-amber-400')}>Today's Focus</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Overdue tasks */}
+                  <button
+                      onClick={() => handleNav('/reminders')}
+                      className={cn(
+                          "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]",
+                          overdueReminders.length > 0
+                              ? (theme === 'light' ? 'bg-rose-50 border-rose-200 hover:border-rose-300' : 'bg-rose-500/10 border-rose-500/20 hover:border-rose-500/40')
+                              : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')
+                      )}
+                  >
+                      <Bell size={18} className={overdueReminders.length > 0 ? 'text-rose-500' : 'text-slate-400'} />
+                      <div>
+                          <div className={cn("text-xl font-extrabold leading-none", overdueReminders.length > 0 ? 'text-rose-500' : getTextColor())}>
+                              {overdueReminders.length}
+                          </div>
+                          <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Overdue Tasks</div>
+                      </div>
+                      <ArrowRight size={14} className="ml-auto opacity-30" />
+                  </button>
+
+                  {/* Stale leads */}
+                  <button
+                      onClick={() => handleNav('/leads')}
+                      className={cn(
+                          "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]",
+                          staleLeads.length > 0
+                              ? (theme === 'light' ? 'bg-amber-50 border-amber-200 hover:border-amber-300' : 'bg-amber-500/10 border-amber-500/20 hover:border-amber-500/40')
+                              : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')
+                      )}
+                  >
+                      <Radio size={18} className={staleLeads.length > 0 ? 'text-amber-500' : 'text-slate-400'} />
+                      <div>
+                          <div className={cn("text-xl font-extrabold leading-none", staleLeads.length > 0 ? 'text-amber-500' : getTextColor())}>
+                              {staleLeads.length}
+                          </div>
+                          <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Stale Leads (24h+)</div>
+                      </div>
+                      <ArrowRight size={14} className="ml-auto opacity-30" />
+                  </button>
+
+                  {/* Departing this week */}
+                  <button
+                      onClick={() => handleNav('/leads')}
+                      className={cn(
+                          "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.02]",
+                          departingLeads.length > 0
+                              ? (theme === 'light' ? 'bg-sky-50 border-sky-200 hover:border-sky-300' : 'bg-sky-500/10 border-sky-500/20 hover:border-sky-500/40')
+                              : (theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')
+                      )}
+                  >
+                      <Plane size={18} className={departingLeads.length > 0 ? 'text-sky-500' : 'text-slate-400'} />
+                      <div>
+                          <div className={cn("text-xl font-extrabold leading-none", departingLeads.length > 0 ? 'text-sky-500' : getTextColor())}>
+                              {departingLeads.length}
+                          </div>
+                          <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Departing This Week</div>
+                      </div>
+                      <ArrowRight size={14} className="ml-auto opacity-30" />
+                  </button>
+              </div>
+          </div>
+      )}
+
       {/* --- NEW: ACTIVITY MONITOR (ADMIN ONLY) --- */}
       {user?.role === 'admin' && viewAsAgent === 'all' && (
           <ActivityMonitor logs={activityLogs} />
@@ -814,6 +942,42 @@ export const Dashboard = () => {
             onClick={() => handleNav('/leads?status=New')}
           />
       </div>
+
+      {/* --- PIPELINE VALUE --- */}
+      {stats.activePipelineCount > 0 && (
+          <Card className="flex flex-col gap-4">
+              <div className="flex items-start justify-between gap-4">
+                  <div>
+                      <div className="flex items-center gap-2 mb-1">
+                          <div className={cn("p-1.5 rounded bg-indigo-500/10 text-indigo-500")}><TrendingUp size={15} /></div>
+                          <h3 className={cn("font-bold font-serif", getTextColor())}>Pipeline Value</h3>
+                      </div>
+                      <p className={cn("text-2xl font-extrabold tracking-tight", getTextColor())}>{formatCompactCurrency(stats.totalPipelineValue)}</p>
+                      <p className={cn("text-[11px] mt-0.5", getSecondaryTextColor())}>{stats.activePipelineCount} active leads across 4 stages</p>
+                  </div>
+              </div>
+              <div className="h-24 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stats.pipelineByStage} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                          <YAxis hide />
+                          <Tooltip
+                              formatter={(val: number) => [formatCompactCurrency(val), 'Budget']}
+                              contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }}
+                              cursor={{ fill: 'transparent' }}
+                          />
+                          <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
+                              <LabelList dataKey="value" position="top" formatter={(v: number) => formatCompactCurrency(v)} style={{ fontSize: '9px', fontWeight: 700, fill: theme === 'light' ? '#64748b' : '#94a3b8' }} />
+                              {stats.pipelineByStage.map((entry, i) => (
+                                  <Cell key={i} fill={entry.fill} opacity={0.85} />
+                              ))}
+                          </Bar>
+                      </BarChart>
+                  </ResponsiveContainer>
+              </div>
+          </Card>
+      )}
 
       {/* --- AGENT VIEW / CEO DRILLDOWN --- */}
       <div className={cn(
@@ -965,6 +1129,40 @@ export const Dashboard = () => {
               </Card>
           </div>
       </div>
+
+      {/* --- LEAD SOURCE ROI --- */}
+      {stats.sourceData.length > 0 && (
+          <Card className="flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                  <div className={cn("p-1.5 rounded bg-rose-500/10 text-rose-500")}><Filter size={15} /></div>
+                  <h3 className={cn("font-bold font-serif", getTextColor())}>Lead Sources</h3>
+                  <span className={cn("text-xs opacity-50 ml-1", getSecondaryTextColor())}>Which channel converts best?</span>
+              </div>
+              <div className="h-48 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stats.sourceData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: theme === 'light' ? '#94a3b8' : 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                          <Tooltip
+                              contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }}
+                              cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)' }}
+                              formatter={(val: number, name: string, props: any) => {
+                                  const item = props.payload;
+                                  if (name === 'Won') return [`${val} (${item.rate}% conv.)`, 'Won'];
+                                  return [val, name];
+                              }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                          <Bar dataKey="Total" fill={theme === 'light' ? '#94a3b8' : '#475569'} radius={[3, 3, 0, 0]} barSize={18} />
+                          <Bar dataKey="Won" fill="#10b981" radius={[3, 3, 0, 0]} barSize={18}>
+                              <LabelList dataKey="rate" position="top" formatter={(v: number) => v > 0 ? `${v}%` : ''} style={{ fontSize: '9px', fontWeight: 700, fill: '#10b981' }} />
+                          </Bar>
+                      </BarChart>
+                  </ResponsiveContainer>
+              </div>
+          </Card>
+      )}
 
       {/* --- Operations Manager --- */}
       <div className="space-y-4">
