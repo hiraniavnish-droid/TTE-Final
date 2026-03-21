@@ -897,6 +897,142 @@ export const Dashboard = () => {
           </div>
       )}
 
+      {/* --- Operations Manager --- */}
+      <div className="space-y-4">
+          <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                  <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-orange-100 text-orange-600' : 'bg-orange-500/20 text-orange-300')}>
+                      <PlaneTakeoff size={20} />
+                  </div>
+                  <div>
+                      <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>Operations & Departures</h3>
+                      <p className={cn("text-xs opacity-60", getTextColor())}>Monitor active trips and upcoming departures</p>
+                  </div>
+              </div>
+          </div>
+
+          <div className={cn("rounded-2xl border overflow-hidden", getGlassClass())}>
+              <div className={cn(
+                  "flex overflow-x-auto w-full whitespace-nowrap no-scrollbar p-2 gap-2 border-b",
+                  theme === 'light' ? 'bg-slate-50 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50'
+              )}>
+                  {(['Ongoing Now', 'Starts Tomorrow', 'This Week', 'Next Week', 'This Month'] as OpTab[]).map(tab => (
+                      <button
+                        key={tab}
+                        onClick={() => setOpTab(tab)}
+                        className={cn(
+                            "px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0",
+                            opTab === tab
+                                ? (theme === 'light' ? 'bg-white shadow text-blue-600' : theme === 'ocean' ? 'bg-blue-900 text-indigo-300 shadow border border-blue-700/50' : 'bg-slate-700 text-indigo-300 shadow')
+                                : "opacity-50 hover:opacity-100"
+                        )}
+                      >
+                          {tab}
+                      </button>
+                  ))}
+              </div>
+
+              <div className="p-4 md:p-6">
+                  {opLeads.length === 0 ? (
+                      <div className="text-center py-12 opacity-50">
+                          <PlaneLanding size={48} className="mx-auto mb-3 opacity-30" />
+                          <p>No departures scheduled for {opTab}</p>
+                      </div>
+                  ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          {opLeads.map(lead => {
+                              const startDate = new Date(lead.tripDetails.startDate);
+                              const today = new Date();
+                              const diffDays = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                              let statusText = '';
+                              let statusColor = '';
+
+                              if (opTab === 'Ongoing Now') { statusText = 'In Progress'; statusColor = 'text-green-500'; }
+                              else if (diffDays === 1) { statusText = 'Departing Tomorrow'; statusColor = 'text-amber-500'; }
+                              else if (diffDays > 1) { statusText = `In ${diffDays} days`; statusColor = 'text-blue-500'; }
+                              else { statusText = 'Departing Today'; statusColor = 'text-green-500'; }
+
+                              return (
+                                <div key={lead.id} className={cn("p-4 rounded-xl border transition-all hover:scale-[1.02]", theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50')}>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="min-w-0 pr-2">
+                                            <h4 className={cn("font-bold text-sm truncate", getTextColor())}>{lead.name}</h4>
+                                            <div className="flex items-center gap-1 text-xs opacity-70 mt-0.5 truncate">
+                                                <MapPin size={10} className="shrink-0" /> {lead.tripDetails.destination}
+                                            </div>
+                                        </div>
+                                        <DialButton phoneNumber={lead.contact.phone} className="w-8 h-8" />
+                                    </div>
+                                    <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-gray-500/5">
+                                        <Calendar size={14} className="opacity-50" />
+                                        <span className={cn("text-xs font-mono", getTextColor())}>{formatDate(lead.tripDetails.startDate)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2 border-t border-gray-500/10">
+                                        <span className={cn("text-[10px] font-bold uppercase tracking-wider", statusColor)}>{statusText}</span>
+                                        <Link to={`/leads/${lead.id}`} className="text-xs text-blue-500 hover:underline">View Trip</Link>
+                                    </div>
+                                </div>
+                              );
+                          })}
+                      </div>
+                  )}
+              </div>
+          </div>
+      </div>
+
+      {/* Priority Leads + Today's Tasks */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                      <Briefcase size={16} className={getSecondaryTextColor()} />
+                      <h3 className={cn("font-bold font-serif", getTextColor())}>Priority Leads</h3>
+                  </div>
+                  <Link to="/leads" className="text-xs text-blue-500 hover:underline">View All</Link>
+              </div>
+              <div className="space-y-3">
+                  {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> :
+                      hotLeads.map(lead => (
+                          <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40 hover:border-blue-700/50" : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/40")}>
+                              <div className="flex items-center gap-3">
+                                  <UserAvatar name={lead.name} size={32} />
+                                  <div>
+                                      <p className={cn("text-sm font-bold", getTextColor())}>{lead.name}</p>
+                                      <p className={cn("text-[10px] font-mono", getSecondaryTextColor())}>{lead.tripDetails.destination} • {formatCompactCurrency(lead.tripDetails.budget)}</p>
+                                  </div>
+                              </div>
+                              <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-blue-500" />
+                          </Link>
+                      ))
+                  }
+              </div>
+          </Card>
+
+          <Card className="h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                      <CalendarDays size={16} className={getSecondaryTextColor()} />
+                      <h3 className={cn("font-bold font-serif", getTextColor())}>Today's Tasks</h3>
+                  </div>
+                  <Link to="/reminders" className="text-xs text-blue-500 hover:underline">View Agenda</Link>
+              </div>
+              <div className="space-y-3">
+                  {tasksToday.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No pending tasks.</div> :
+                      tasksToday.map(task => (
+                          <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded-xl border", theme === 'light' ? "bg-white border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")}>
+                              <div className={cn("mt-0.5 p-1 rounded-full border", theme === 'light' ? "border-slate-300 text-slate-300" : "border-slate-500/50 text-slate-500/50")}><CheckSquare size={12} /></div>
+                              <div className="flex-1 min-w-0">
+                                  <p className={cn("text-sm font-medium line-clamp-1", getTextColor())}>{task.task}</p>
+                                  <p className={cn("text-[10px] opacity-50", getTextColor())}>Due Today</p>
+                              </div>
+                          </div>
+                      ))
+                  }
+              </div>
+          </Card>
+      </div>
+
       {/* --- NEW: ACTIVITY MONITOR (ADMIN ONLY) --- */}
       {user?.role === 'admin' && viewAsAgent === 'all' && (
           <ActivityMonitor logs={activityLogs} />
@@ -1164,141 +1300,6 @@ export const Dashboard = () => {
           </Card>
       )}
 
-      {/* --- Operations Manager --- */}
-      <div className="space-y-4">
-          <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                  <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-orange-100 text-orange-600' : 'bg-orange-500/20 text-orange-300')}>
-                      <PlaneTakeoff size={20} />
-                  </div>
-                  <div>
-                      <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>Operations & Departures</h3>
-                      <p className={cn("text-xs opacity-60", getTextColor())}>Monitor active trips and upcoming departures</p>
-                  </div>
-              </div>
-          </div>
-
-          <div className={cn("rounded-2xl border overflow-hidden", getGlassClass())}>
-              <div className={cn(
-                  "flex overflow-x-auto w-full whitespace-nowrap no-scrollbar p-2 gap-2 border-b",
-                  theme === 'light' ? 'bg-slate-50 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50'
-              )}>
-                  {(['Ongoing Now', 'Starts Tomorrow', 'This Week', 'Next Week', 'This Month'] as OpTab[]).map(tab => (
-                      <button
-                        key={tab}
-                        onClick={() => setOpTab(tab)}
-                        className={cn(
-                            "px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0",
-                            opTab === tab
-                                ? (theme === 'light' ? 'bg-white shadow text-blue-600' : theme === 'ocean' ? 'bg-blue-900 text-indigo-300 shadow border border-blue-700/50' : 'bg-slate-700 text-indigo-300 shadow')
-                                : "opacity-50 hover:opacity-100"
-                        )}
-                      >
-                          {tab}
-                      </button>
-                  ))}
-              </div>
-
-              <div className="p-4 md:p-6">
-                  {opLeads.length === 0 ? (
-                      <div className="text-center py-12 opacity-50">
-                          <PlaneLanding size={48} className="mx-auto mb-3 opacity-30" />
-                          <p>No departures scheduled for {opTab}</p>
-                      </div>
-                  ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {opLeads.map(lead => {
-                              const startDate = new Date(lead.tripDetails.startDate);
-                              const today = new Date();
-                              const diffDays = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                              
-                              let statusText = '';
-                              let statusColor = '';
-
-                              if (opTab === 'Ongoing Now') { statusText = 'In Progress'; statusColor = 'text-green-500'; } 
-                              else if (diffDays === 1) { statusText = 'Departing Tomorrow'; statusColor = 'text-amber-500'; } 
-                              else if (diffDays > 1) { statusText = `In ${diffDays} days`; statusColor = 'text-blue-500'; } 
-                              else { statusText = 'Departing Today'; statusColor = 'text-green-500'; }
-
-                              return (
-                                <div key={lead.id} className={cn("p-4 rounded-xl border transition-all hover:scale-[1.02]", theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50')}>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="min-w-0 pr-2">
-                                            <h4 className={cn("font-bold text-sm truncate", getTextColor())}>{lead.name}</h4>
-                                            <div className="flex items-center gap-1 text-xs opacity-70 mt-0.5 truncate">
-                                                <MapPin size={10} className="shrink-0" /> {lead.tripDetails.destination}
-                                            </div>
-                                        </div>
-                                        <DialButton phoneNumber={lead.contact.phone} className="w-8 h-8" />
-                                    </div>
-                                    <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-gray-500/5">
-                                        <Calendar size={14} className="opacity-50" />
-                                        <span className={cn("text-xs font-mono", getTextColor())}>{formatDate(lead.tripDetails.startDate)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between pt-2 border-t border-gray-500/10">
-                                        <span className={cn("text-[10px] font-bold uppercase tracking-wider", statusColor)}>{statusText}</span>
-                                        <Link to={`/leads/${lead.id}`} className="text-xs text-blue-500 hover:underline">View Trip</Link>
-                                    </div>
-                                </div>
-                              );
-                          })}
-                      </div>
-                  )}
-              </div>
-          </div>
-      </div>
-
-      {/* Legacy Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                      <Briefcase size={16} className={getSecondaryTextColor()} />
-                      <h3 className={cn("font-bold font-serif", getTextColor())}>Priority Leads</h3>
-                  </div>
-                  <Link to="/leads" className="text-xs text-blue-500 hover:underline">View All</Link>
-              </div>
-              <div className="space-y-3">
-                  {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> : 
-                      hotLeads.map(lead => (
-                          <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40 hover:border-blue-700/50" : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/40")}>
-                              <div className="flex items-center gap-3">
-                                  <UserAvatar name={lead.name} size={32} />
-                                  <div>
-                                      <p className={cn("text-sm font-bold", getTextColor())}>{lead.name}</p>
-                                      <p className={cn("text-[10px] font-mono", getSecondaryTextColor())}>{lead.tripDetails.destination} • {formatCompactCurrency(lead.tripDetails.budget)}</p>
-                                  </div>
-                              </div>
-                              <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-blue-500" />
-                          </Link>
-                      ))
-                  }
-              </div>
-          </Card>
-
-          <Card className="h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                      <CalendarDays size={16} className={getSecondaryTextColor()} />
-                      <h3 className={cn("font-bold font-serif", getTextColor())}>Today's Tasks</h3>
-                  </div>
-                  <Link to="/reminders" className="text-xs text-blue-500 hover:underline">View Agenda</Link>
-              </div>
-              <div className="space-y-3">
-                  {tasksToday.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No pending tasks.</div> : 
-                      tasksToday.map(task => (
-                          <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded-xl border", theme === 'light' ? "bg-white border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")}>
-                              <div className={cn("mt-0.5 p-1 rounded-full border", theme === 'light' ? "border-slate-300 text-slate-300" : "border-slate-500/50 text-slate-500/50")}><CheckSquare size={12} /></div>
-                              <div className="flex-1 min-w-0">
-                                  <p className={cn("text-sm font-medium line-clamp-1", getTextColor())}>{task.task}</p>
-                                  <p className={cn("text-[10px] opacity-50", getTextColor())}>Due Today</p>
-                              </div>
-                          </div>
-                      ))
-                  }
-              </div>
-          </Card>
-      </div>
     </div>
   );
 };
