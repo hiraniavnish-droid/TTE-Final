@@ -17,20 +17,23 @@ export const DialButton: React.FC<DialButtonProps> = ({ phoneNumber, className }
   const cleanNumber = phoneNumber.replace(/[^+\d]/g, '');
 
   return (
-    <a
-      href={`tel:${cleanNumber}`}
+    <button
+      type="button"
       title={`Call ${phoneNumber}`}
-      onClick={(e) => e.stopPropagation()} // Prevent parent click events (like card navigation)
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        window.location.href = `tel:${cleanNumber}`;
+      }}
       className={cn(
-        "w-11 h-11 rounded-full transition-all duration-200 flex items-center justify-center shrink-0", // Fixed 44px size
-        // Theme-aware default state
-        theme === 'light' 
-          ? 'text-slate-400 hover:bg-green-100 hover:text-green-600' 
+        "w-11 h-11 rounded-full transition-all duration-200 flex items-center justify-center shrink-0",
+        theme === 'light'
+          ? 'text-slate-400 hover:bg-green-100 hover:text-green-600'
           : 'text-white/40 hover:bg-green-500/20 hover:text-green-400',
         className
       )}
     >
       <Phone size={18} />
-    </a>
+    </button>
   );
 };

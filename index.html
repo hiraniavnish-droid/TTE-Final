@@ -44,6 +44,31 @@
 
       /* Prevent layout shift on scrollbar appearance */
       html { overflow-y: scroll; }
+
+      /* Top navigation progress bar */
+      @keyframes topBarSlide {
+        0%   { transform: translateX(-100%); }
+        60%  { transform: translateX(-15%); }
+        100% { transform: translateX(-5%); }
+      }
+      @keyframes topBarShimmer {
+        0%   { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+      .nav-progress-bar {
+        animation: topBarSlide 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+      .nav-progress-shimmer {
+        background: linear-gradient(90deg, #6366f1, #3b82f6, #8b5cf6, #6366f1);
+        background-size: 300% 100%;
+        animation: topBarShimmer 1.5s ease-in-out infinite;
+      }
+
+      /* Page loader dots */
+      @keyframes loaderDot {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+        40%            { transform: scale(1.0); opacity: 1.0; }
+      }
     </style>
     <script type="importmap">
 {

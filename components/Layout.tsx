@@ -32,6 +32,7 @@ import { GridBackground } from './ui/GridBackground';
 import { UserAvatar } from './ui/UserAvatar';
 import { GlobalSearch } from './GlobalSearch';
 import { useReminderNotifications } from '../hooks/useReminderNotifications';
+import { NavigationBar } from './ui/PageLoader';
 
 export const Layout = () => {
   const { theme, setTheme, getTextColor } = useTheme();
@@ -42,6 +43,8 @@ export const Layout = () => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const navTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const MotionDiv = motion.div as any;
   const MotionAside = motion.aside as any;
@@ -53,6 +56,11 @@ export const Layout = () => {
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // Show progress bar briefly on every route change
+    setIsNavigating(true);
+    if (navTimer.current) clearTimeout(navTimer.current);
+    navTimer.current = setTimeout(() => setIsNavigating(false), 600);
+    return () => { if (navTimer.current) clearTimeout(navTimer.current); };
   }, [location.pathname]);
 
   const handleLogout = () => {
@@ -88,6 +96,8 @@ export const Layout = () => {
 
   return (
     <GridBackground className={cn('transition-colors duration-300 ease-in-out font-sans', getBackground())}>
+      {/* Top navigation progress bar — shows on every page transition */}
+      {isNavigating && <NavigationBar />}
       <AddLeadModal />
       <SmartNudge />
       <DraggableFab />
