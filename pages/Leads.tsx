@@ -108,54 +108,55 @@ export const getAgentColor = (name: string | undefined) => {
 
 // --- Visual Component (Shared between Draggable and Overlay) ---
 
-const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean }> = ({ lead, isOverlay, isDragging }) => {
+const tempColors = {
+  Hot: 'bg-rose-500/20 text-rose-200 border-rose-500/30',
+  Warm: 'bg-amber-500/20 text-amber-200 border-amber-500/30',
+  Cold: 'bg-sky-500/20 text-sky-200 border-sky-500/30'
+};
+
+const tempColorsLight = {
+  Hot: 'bg-rose-100 text-rose-700 border-rose-200',
+  Warm: 'bg-amber-100 text-amber-700 border-amber-200',
+  Cold: 'bg-sky-100 text-sky-700 border-sky-200'
+};
+
+const statusAccentMap: Record<string, string> = {
+  'New':           'border-l-4 border-l-sky-300',
+  'Contacted':     'border-l-4 border-l-amber-300',
+  'Proposal Sent': 'border-l-4 border-l-violet-300',
+  'Discussion':    'border-l-4 border-l-indigo-300',
+  'Won':           'border-l-4 border-l-emerald-400',
+  'Lost':          'border-l-4 border-l-slate-300',
+};
+
+const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean }> = React.memo(({ lead, isOverlay, isDragging }) => {
   const { theme, getTextColor, getSecondaryTextColor } = useTheme();
-
-  const tempColors = {
-    Hot: 'bg-rose-500/20 text-rose-200 border-rose-500/30',
-    Warm: 'bg-amber-500/20 text-amber-200 border-amber-500/30',
-    Cold: 'bg-sky-500/20 text-sky-200 border-sky-500/30'
-  };
-
-  const tempColorsLight = {
-      Hot: 'bg-rose-100 text-rose-700 border-rose-200',
-      Warm: 'bg-amber-100 text-amber-700 border-amber-200',
-      Cold: 'bg-sky-100 text-sky-700 border-sky-200'
-  };
 
   const { colorClass: urgencyClass, tooltip: urgencyTooltip } = getLeadUrgency(lead);
 
-  const getServiceIcon = () => {
+  const ServiceIcon = useMemo(() => {
     if (lead.interestedServices.includes('Holiday Package')) return Palmtree;
     if (lead.interestedServices.includes('Flight Booking')) return Plane;
     if (lead.interestedServices.includes('Hotel Booking')) return BedDouble;
     if (lead.interestedServices.includes('Visa Service')) return FileCheck;
     return null;
-  };
-  const ServiceIcon = getServiceIcon();
+  }, [lead.interestedServices]);
 
-  const metadata = [];
-  if (lead.tripDetails.destination) metadata.push(lead.tripDetails.destination);
-  const { adults, children } = lead.tripDetails.paxConfig;
-  const totalPax = adults + children;
-  if (totalPax > 0) {
-      const parts = [];
-      if (adults > 0) parts.push(`${adults}A`);
-      if (children > 0) parts.push(`${children}C`);
-      metadata.push(parts.join(', '));
-  }
-  const budgetStr = formatCompactCurrency(lead.tripDetails.budget);
-  if (budgetStr) metadata.push(budgetStr);
-
-  // Status-based left border accent (only when no urgency class)
-  const statusAccent: Record<string, string> = {
-    'New':           'border-l-4 border-l-sky-300',
-    'Contacted':     'border-l-4 border-l-amber-300',
-    'Proposal Sent': 'border-l-4 border-l-violet-300',
-    'Discussion':    'border-l-4 border-l-indigo-300',
-    'Won':           'border-l-4 border-l-emerald-400',
-    'Lost':          'border-l-4 border-l-slate-300',
-  };
+  const metadata = useMemo(() => {
+    const parts: string[] = [];
+    if (lead.tripDetails.destination) parts.push(lead.tripDetails.destination);
+    const { adults, children } = lead.tripDetails.paxConfig;
+    const totalPax = adults + children;
+    if (totalPax > 0) {
+      const pax: string[] = [];
+      if (adults > 0) pax.push(`${adults}A`);
+      if (children > 0) pax.push(`${children}C`);
+      parts.push(pax.join(', '));
+    }
+    const budgetStr = formatCompactCurrency(lead.tripDetails.budget);
+    if (budgetStr) parts.push(budgetStr);
+    return parts;
+  }, [lead.tripDetails.destination, lead.tripDetails.paxConfig, lead.tripDetails.budget]);
 
   const hotGlow = lead.temperature === 'Hot' && !isOverlay
     ? { boxShadow: theme === 'light' ? '0 0 0 1px rgba(239,68,68,0.15), 0 4px 16px rgba(239,68,68,0.10)' : '0 0 0 1px rgba(239,68,68,0.20), 0 4px 20px rgba(239,68,68,0.15)' }
@@ -170,7 +171,7 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
               : theme === 'ocean' ? 'bg-blue-900/60 border-blue-700/50 hover:bg-blue-800/60 hover:border-blue-600/60 hover:shadow-md' : 'bg-slate-800 border-slate-600/60 hover:bg-slate-700 hover:border-slate-500/60 hover:shadow-md',
             isOverlay ? "shadow-[0_20px_60px_rgba(0,0,0,0.25)] scale-105 rotate-[3deg] cursor-grabbing ring-2 ring-indigo-500/40 ring-offset-2" : "shadow-sm",
             isDragging ? "opacity-20 grayscale scale-95" : "opacity-100",
-            urgencyClass || statusAccent[lead.status] || ''
+            urgencyClass || statusAccentMap[lead.status] || ''
         )}
         style={hotGlow}
         title={urgencyTooltip}
@@ -234,7 +235,7 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
       )}
       </div>
   );
-};
+});
 
 // --- Mobile Lead Card Component ---
 
@@ -243,7 +244,7 @@ interface MobileLeadCardProps {
     onStatusChange?: (id: string, status: LeadStatus) => void;
 }
 
-const MobileLeadCard: React.FC<MobileLeadCardProps> = ({ lead, onStatusChange }) => {
+const MobileLeadCard: React.FC<MobileLeadCardProps> = React.memo(({ lead, onStatusChange }) => {
   const { theme, getTextColor, getSecondaryTextColor } = useTheme();
 
   const statusColors: Record<string, string> = {
@@ -323,12 +324,12 @@ const MobileLeadCard: React.FC<MobileLeadCardProps> = ({ lead, onStatusChange })
        </div>
     </div>
   );
-};
+});
 
 
 // --- DND Components ---
 
-const DraggableCard: React.FC<{ lead: Lead; index?: number }> = ({ lead, index = 0 }) => {
+const DraggableCard: React.FC<{ lead: Lead; index?: number }> = React.memo(({ lead, index = 0 }) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: lead.id });
   const MotionDiv = motion.div as any;
 
@@ -350,7 +351,7 @@ const DraggableCard: React.FC<{ lead: Lead; index?: number }> = ({ lead, index =
       </div>
     </MotionDiv>
   );
-};
+});
 
 // Color accent per kanban column
 const COLUMN_COLORS: Record<string, { accent: string, headerText: string, badge: string, glow: string }> = {

@@ -68,24 +68,27 @@ export const Layout = () => {
     navigate('/login');
   };
 
-  const getBackground = () => {
+  const background = useMemo(() => {
     switch (theme) {
       case 'ocean': return 'bg-gradient-to-br from-blue-950 via-slate-900 to-indigo-950';
       case 'dark':  return 'bg-slate-900 bg-dot-pattern-dark';
       default:      return 'bg-transparent';
     }
-  };
+  }, [theme]);
 
-  const navItems = [
-    { path: '/',              label: 'Dashboard',    icon: LayoutDashboard },
-    { path: '/leads',         label: 'Leads',        icon: Users },
-    { path: '/builder',       label: 'Itinerary Hub',icon: Map },
-    { path: '/blocked-rates', label: 'Blocked Rates',icon: Building2 },
-    { path: '/reminders',     label: 'Tasks',        icon: CalendarCheck },
-    { path: '/suppliers',     label: 'Suppliers',    icon: Handshake },
-    { path: '/customers',     label: 'Customers',    icon: BookUser },
-  ];
-  if (user?.role === 'admin') navItems.push({ path: '/team-settings', label: 'Team Settings', icon: ShieldCheck });
+  const navItems = useMemo(() => {
+    const items = [
+      { path: '/',              label: 'Dashboard',    icon: LayoutDashboard },
+      { path: '/leads',         label: 'Leads',        icon: Users },
+      { path: '/builder',       label: 'Itinerary Hub',icon: Map },
+      { path: '/blocked-rates', label: 'Blocked Rates',icon: Building2 },
+      { path: '/reminders',     label: 'Tasks',        icon: CalendarCheck },
+      { path: '/suppliers',     label: 'Suppliers',    icon: Handshake },
+      { path: '/customers',     label: 'Customers',    icon: BookUser },
+    ];
+    if (user?.role === 'admin') items.push({ path: '/team-settings', label: 'Team Settings', icon: ShieldCheck });
+    return items;
+  }, [user?.role]);
 
   const handleMobileThemeToggle = () => {
     if (theme === 'ocean') setTheme('light');
@@ -95,7 +98,7 @@ export const Layout = () => {
   const MobileThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Droplets;
 
   return (
-    <GridBackground className={cn('transition-colors duration-300 ease-in-out font-sans', getBackground())}>
+    <GridBackground className={cn('transition-colors duration-300 ease-in-out font-sans', background)}>
       {/* Top navigation progress bar — shows on every page transition */}
       {isNavigating && <NavigationBar />}
       <AddLeadModal />

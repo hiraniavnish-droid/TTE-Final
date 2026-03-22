@@ -147,23 +147,34 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const fetchAll = async () => {
       setIsLoading(true);
       try {
-        const [leadsRes, interactionsRes, remindersRes, suppliersRes, logsRes] = await Promise.all([
+        // Fetch critical data first — UI unblocks as soon as these resolve
+        const [leadsRes, interactionsRes, remindersRes, suppliersRes] = await Promise.all([
           supabase.from('leads').select('*').order('created_at', { ascending: false }),
           supabase.from('interactions').select('*').order('timestamp', { ascending: false }),
           supabase.from('reminders').select('*').order('due_date', { ascending: true }),
           supabase.from('suppliers').select('*').order('name', { ascending: true }),
-          supabase.from('activity_logs').select('*').order('timestamp', { ascending: false }).limit(200),
         ]);
 
         if (leadsRes.data) setInternalLeads(leadsRes.data.map(mapLeadFromDB));
         if (interactionsRes.data) setInteractions(interactionsRes.data.map(mapInteractionFromDB));
         if (remindersRes.data) setReminders(remindersRes.data.map(mapReminderFromDB));
         if (suppliersRes.data) setSuppliers(suppliersRes.data.map(mapSupplierFromDB));
-        if (logsRes.data) setActivityLogs(logsRes.data.map(mapActivityLogFromDB));
       } catch (err) {
         console.error('Failed to fetch initial data:', err);
       } finally {
         setIsLoading(false);
+      }
+
+      // Fetch activity logs in background — doesn't block the UI
+      try {
+        const logsRes = await supabase
+          .from('activity_logs')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(200);
+        if (logsRes.data) setActivityLogs(logsRes.data.map(mapActivityLogFromDB));
+      } catch (err) {
+        console.error('Failed to fetch activity logs:', err);
       }
     };
     fetchAll();

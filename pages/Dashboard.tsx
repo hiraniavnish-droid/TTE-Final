@@ -344,7 +344,7 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
         return Object.values(agents).sort((a, b) => b.revenue - a.revenue);
     }, [leads]);
 
-    const pieData = agentStats.map(a => ({ name: a.name, value: a.leads }));
+    const pieData = useMemo(() => agentStats.map(a => ({ name: a.name, value: a.leads })), [agentStats]);
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
     return (
@@ -504,126 +504,105 @@ const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: I
 };
 
 // --- Logic Helpers ---
+const PIPELINE_COLORS: Record<string, string> = {
+    'New': '#38bdf8', 'Contacted': '#fbbf24', 'Proposal Sent': '#a78bfa', 'Discussion': '#818cf8',
+};
+const ACTIVE_STAGES = new Set(['New', 'Contacted', 'Proposal Sent', 'Discussion']);
+const WIP_STAGES = new Set(['Contacted', 'Proposal Sent', 'Discussion']);
+
 const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter) => {
     const now = new Date();
+    const nowMonth = now.getMonth();
+    const nowYear = now.getFullYear();
+    const threeMonthsAgo = new Date(now);
+    threeMonthsAgo.setMonth(now.getMonth() - 3);
+
+    // Single filter pass
     const filteredLeads = leads.filter(l => {
+        if (timeFilter === 'All Time') return true;
         const leadDate = new Date(l.createdAt);
-        if (timeFilter === 'This Month') {
-            return leadDate.getMonth() === now.getMonth() && leadDate.getFullYear() === now.getFullYear();
-        }
-        if (timeFilter === 'Last Quarter') {
-            const threeMonthsAgo = new Date();
-            threeMonthsAgo.setMonth(now.getMonth() - 3);
-            return leadDate >= threeMonthsAgo;
-        }
-        return true;
+        if (timeFilter === 'This Month') return leadDate.getMonth() === nowMonth && leadDate.getFullYear() === nowYear;
+        return leadDate >= threeMonthsAgo; // Last Quarter
     });
 
-    let totalRevenue = 0;
-    let totalNetCost = 0;
-    let wonCount = 0;
-    let lostCount = 0;
-    let pendingCount = 0;
-    
+    // Single accumulation pass
+    let totalRevenue = 0, totalNetCost = 0, wonCount = 0, lostCount = 0, pendingCount = 0, activePipelineCount = 0;
     const revenueByAgent: Record<string, number> = {};
+    const funnelCounts: Record<string, number> = { 'New': 0, 'Contacted': 0, 'Proposal Sent': 0, 'Discussion': 0, 'Won': 0 };
+    const pipelineValues: Record<string, number> = { 'New': 0, 'Contacted': 0, 'Proposal Sent': 0, 'Discussion': 0 };
+    const destMap = new Map<string, any>();
+    const prodMap = new Map<string, any>();
+    const sourceMap: Record<string, { total: number; won: number }> = {};
 
-    filteredLeads.forEach(l => {
+    for (const l of filteredLeads) {
         const agent = l.assignedTo || 'Unassigned';
-        
-        if (l.status === 'Won') {
+        const status = l.status;
+        const isWon = status === 'Won';
+        const isLost = status === 'Lost';
+        const isActive = ACTIVE_STAGES.has(status);
+        const isWip = WIP_STAGES.has(status);
+
+        // Revenue / win-loss
+        if (isWon) {
             wonCount++;
             const rev = l.commercials?.sellingPrice || 0;
-            const cost = l.commercials?.netCost || 0;
             totalRevenue += rev;
-            totalNetCost += cost;
-            
+            totalNetCost += l.commercials?.netCost || 0;
             revenueByAgent[agent] = (revenueByAgent[agent] || 0) + rev;
-        } else if (l.status === 'Lost') {
+        } else if (isLost) {
             lostCount++;
-        } else if (l.status === 'New') {
+        } else if (status === 'New') {
             pendingCount++;
         }
-    });
+
+        // Funnel
+        if (funnelCounts.hasOwnProperty(status)) funnelCounts[status]++;
+
+        // Pipeline
+        if (isActive) {
+            activePipelineCount++;
+            pipelineValues[status] = (pipelineValues[status] || 0) + (l.tripDetails.budget || 0);
+        }
+
+        // Destinations
+        if (l.tripDetails.destination) {
+            const key = l.tripDetails.destination.toLowerCase().trim();
+            if (!destMap.has(key)) destMap.set(key, { name: l.tripDetails.destination, newCount: 0, wipCount: 0, wonCount: 0, revenue: 0 });
+            const d = destMap.get(key)!;
+            if (status === 'New') d.newCount++;
+            else if (isWip) d.wipCount++;
+            else if (isWon) { d.wonCount++; d.revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0); }
+        }
+
+        // Products
+        const serviceType = l.interestedServices.includes('Holiday Package') ? 'Holiday Package'
+            : l.interestedServices.length > 0 ? l.interestedServices[0] : 'Custom';
+        if (!prodMap.has(serviceType)) prodMap.set(serviceType, { name: serviceType, newCount: 0, wipCount: 0, wonCount: 0, revenue: 0 });
+        const p = prodMap.get(serviceType)!;
+        if (status === 'New') p.newCount++;
+        else if (isWip) p.wipCount++;
+        else if (isWon) { p.wonCount++; p.revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0); }
+
+        // Sources
+        const src = l.source || 'Other';
+        if (!sourceMap[src]) sourceMap[src] = { total: 0, won: 0 };
+        sourceMap[src].total++;
+        if (isWon) sourceMap[src].won++;
+    }
 
     const totalClosed = wonCount + lostCount;
     const winRate = totalClosed > 0 ? (wonCount / totalClosed) * 100 : 0;
     const netProfit = totalRevenue - totalNetCost;
 
-    const funnelCounts = { 'New': 0, 'Contacted': 0, 'Proposal Sent': 0, 'Discussion': 0, 'Won': 0 };
-    filteredLeads.forEach(l => {
-        if (funnelCounts.hasOwnProperty(l.status)) {
-            // @ts-ignore
-            funnelCounts[l.status]++;
-        }
-    });
     const funnelData = Object.entries(funnelCounts).map(([name, value]) => ({ name, value }));
-
-    const destMap = new Map<string, any>();
-    const prodMap = new Map<string, any>();
-
-    filteredLeads.forEach(l => {
-        if (l.tripDetails.destination) {
-            const dest = l.tripDetails.destination;
-            const key = dest.toLowerCase().trim();
-            if (!destMap.has(key)) destMap.set(key, { name: dest, newCount: 0, wipCount: 0, wonCount: 0, revenue: 0 });
-            const data = destMap.get(key)!;
-            if (l.status === 'New') data.newCount++;
-            else if (['Contacted', 'Proposal Sent', 'Discussion'].includes(l.status)) data.wipCount++;
-            else if (l.status === 'Won') {
-                data.wonCount++;
-                data.revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0);
-            }
-        }
-        let serviceType = 'Custom';
-        if (l.interestedServices.includes('Holiday Package')) serviceType = 'Holiday Package';
-        else if (l.interestedServices.length > 0) serviceType = l.interestedServices[0];
-
-        if (!prodMap.has(serviceType)) prodMap.set(serviceType, { name: serviceType, newCount: 0, wipCount: 0, wonCount: 0, revenue: 0 });
-        const pData = prodMap.get(serviceType)!;
-        if (l.status === 'New') pData.newCount++;
-        else if (['Contacted', 'Proposal Sent', 'Discussion'].includes(l.status)) pData.wipCount++;
-        else if (l.status === 'Won') {
-            pData.wonCount++;
-            pData.revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0);
-        }
-    });
-
-    const topDestinations = Array.from(destMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-    const productStats = Array.from(prodMap.values()).sort((a, b) => (b.newCount + b.wipCount + b.wonCount) - (a.newCount + a.wipCount + a.wonCount));
-
-    // Pipeline value by active stage
-    const ACTIVE_STAGES = ['New', 'Contacted', 'Proposal Sent', 'Discussion'] as const;
-    const PIPELINE_COLORS: Record<string, string> = {
-        'New': '#38bdf8',
-        'Contacted': '#fbbf24',
-        'Proposal Sent': '#a78bfa',
-        'Discussion': '#818cf8',
-    };
-    const pipelineByStage = ACTIVE_STAGES.map(stage => ({
-        name: stage,
-        value: filteredLeads
-            .filter(l => l.status === stage)
-            .reduce((sum, l) => sum + (l.tripDetails.budget || 0), 0),
-        fill: PIPELINE_COLORS[stage],
+    const pipelineByStage = ['New', 'Contacted', 'Proposal Sent', 'Discussion'].map(stage => ({
+        name: stage, value: pipelineValues[stage] || 0, fill: PIPELINE_COLORS[stage],
     }));
     const totalPipelineValue = pipelineByStage.reduce((s, d) => s + d.value, 0);
-    const activePipelineCount = filteredLeads.filter(l => ACTIVE_STAGES.includes(l.status as any)).length;
-
-    // Lead source performance
-    const sourceMap: Record<string, { total: number; won: number }> = {};
-    filteredLeads.forEach(l => {
-        const src = l.source || 'Other';
-        if (!sourceMap[src]) sourceMap[src] = { total: 0, won: 0 };
-        sourceMap[src].total++;
-        if (l.status === 'Won') sourceMap[src].won++;
-    });
+    const topDestinations = Array.from(destMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    const productStats = Array.from(prodMap.values()).sort((a, b) => (b.newCount + b.wipCount + b.wonCount) - (a.newCount + a.wipCount + a.wonCount));
     const sourceData = Object.entries(sourceMap)
-        .map(([name, d]) => ({
-            name,
-            Total: d.total,
-            Won: d.won,
-            rate: d.total > 0 ? Math.round((d.won / d.total) * 100) : 0,
-        }))
+        .map(([name, d]) => ({ name, Total: d.total, Won: d.won, rate: d.total > 0 ? Math.round((d.won / d.total) * 100) : 0 }))
         .sort((a, b) => b.Total - a.Total);
 
     return { totalRevenue, netProfit, winRate, pendingCount, funnelData, topDestinations, productStats, revenueByAgent, pipelineByStage, totalPipelineValue, activePipelineCount, sourceData };
@@ -703,16 +682,18 @@ export const Dashboard = () => {
 
   const handleNav = (path: string) => navigate(path);
 
-  const hotLeads = dashboardLeads
+  const hotLeads = useMemo(() => dashboardLeads
         .filter((l) => l.temperature === 'Hot' && l.status !== 'Won' && l.status !== 'Lost')
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 5);
-        
-  const tasksToday = reminders.filter((r) => {
+        .slice(0, 5), [dashboardLeads]);
+
+  const tasksToday = useMemo(() => {
     const today = new Date().toDateString();
-    const due = new Date(r.dueDate).toDateString();
-    return today === due && !r.isCompleted;
-  }).slice(0, 5);
+    return reminders.filter((r) => {
+      const due = new Date(r.dueDate).toDateString();
+      return today === due && !r.isCompleted;
+    }).slice(0, 5);
+  }, [reminders]);
 
   // Today's Focus data
   const focusNow = new Date();
