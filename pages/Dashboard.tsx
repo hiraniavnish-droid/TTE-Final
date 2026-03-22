@@ -205,7 +205,7 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
             <div className="overflow-x-auto">
                 <table className={cn("w-full text-left text-sm", getTextColor())}>
                     <thead>
-                        <tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50">
+                        <tr className={cn("border-b border-gray-500/10 text-xs uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75')}>
                             <th className="pb-3 pl-2">Agent</th>
                             <th className="pb-3 text-center">Created</th>
                             <th className="pb-3 text-center">Proposals</th>
@@ -360,7 +360,7 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left text-sm", getTextColor())}>
                         <thead>
-                            <tr className="border-b border-gray-500/10 text-xs uppercase tracking-widest opacity-40">
+                            <tr className={cn("border-b border-gray-500/10 text-xs uppercase tracking-widest", theme === 'light' ? 'opacity-40' : 'opacity-70')}>
                                 <th className="pb-3 pl-3">Agent</th>
                                 <th className="pb-3 text-center">Trend</th>
                                 <th className="pb-3 text-center">Total Leads</th>
@@ -738,18 +738,18 @@ export const Dashboard = () => {
 
   const bannerStyle: React.CSSProperties = theme === 'light'
     ? {
-        backgroundImage: 'linear-gradient(135deg, #eef2ff, #dbeafe, #f0f9ff, #ffffff, #e0f2fe, #eef2ff)',
+        backgroundImage: 'linear-gradient(135deg, #fffbeb, #fef3c7, #fff7ed, #fefce8, #fef9c3, #fffbeb)',
         backgroundSize: '300% 300%',
-        animation: 'shimmerGradient 12s ease infinite',
+        animation: 'shimmerGradient 14s ease infinite',
       }
     : theme === 'ocean'
     ? {
-        backgroundImage: 'linear-gradient(135deg, #172554, #1e1b4b, #0f172a, #1e1b4b, #1e3a8a, #172554)',
+        backgroundImage: 'linear-gradient(135deg, #1c1a14, #2a2310, #1f1c10, #2d2512, #1c1a14)',
         backgroundSize: '300% 300%',
         animation: 'shimmerGradient 18s ease infinite',
       }
     : {
-        backgroundImage: 'linear-gradient(135deg, #1e293b, #1e293b, #312e81, #1e293b, #0f172a, #1e293b)',
+        backgroundImage: 'linear-gradient(135deg, #1c1a14, #211e10, #1a1810, #272210, #1c1a14)',
         backgroundSize: '300% 300%',
         animation: 'shimmerGradient 18s ease infinite',
       };
@@ -950,7 +950,7 @@ export const Dashboard = () => {
                 <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-teal-500/10 text-teal-500")}><Package size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Product Matrix</h3></div>
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left text-sm", getTextColor())}>
-                        <thead><tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50"><th className="pb-3 font-bold pl-2">Service</th><th className="pb-3 font-bold text-center">Activity</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
+                        <thead><tr className={cn("border-b border-gray-500/10 text-xs uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75')}><th className="pb-3 font-bold pl-2">Service</th><th className="pb-3 font-bold text-center">Activity</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
                         <tbody className="divide-y divide-gray-500/10">
                             {stats.productStats.map((prod, idx) => (
                                 <tr key={prod.name} className="group hover:bg-gray-500/5 transition-colors">
@@ -969,7 +969,7 @@ export const Dashboard = () => {
                 <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-purple-500/10 text-purple-500")}><MapPin size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Destination Matrix</h3></div>
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left text-sm", getTextColor())}>
-                        <thead><tr className="border-b border-gray-500/10 text-xs uppercase tracking-wider opacity-50"><th className="pb-3 font-bold pl-2">Dest</th><th className="pb-3 font-bold text-center">Trend</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
+                        <thead><tr className={cn("border-b border-gray-500/10 text-xs uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75')}><th className="pb-3 font-bold pl-2">Dest</th><th className="pb-3 font-bold text-center">Trend</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
                         <tbody className="divide-y divide-gray-500/10">
                             {stats.topDestinations.map((dest, idx) => (
                                 <tr key={dest.name} className="group hover:bg-gray-500/5 transition-colors">
@@ -1024,45 +1024,40 @@ export const Dashboard = () => {
           className={cn(
             "relative overflow-hidden rounded-2xl p-5 md:p-6 flex-1",
             theme === 'light'
-              ? "border border-indigo-100 shadow-sm"
+              ? "border border-amber-200/80 shadow-sm"
               : theme === 'ocean'
-                ? "border border-blue-800/40"
-                : "border border-slate-700/60"
+                ? "border border-amber-900/40"
+                : "border border-amber-900/30"
           )}
           style={bannerStyle}
         >
-          <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-sky-200/50' : 'bg-indigo-500/10')} />
+          <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-amber-200/60' : 'bg-amber-500/10')} />
 
           {/* Travel theme: flight path + plane */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 600 110" fill="none">
             <path
               d="M -10 95 Q 220 10 580 48"
-              stroke={theme === 'light' ? '#6366f1' : '#818cf8'}
+              stroke='#d97706'
               strokeWidth="1.5"
               strokeDasharray="9 6"
-              opacity={theme === 'light' ? '0.18' : '0.15'}
+              opacity={theme === 'light' ? '0.20' : '0.12'}
             />
-            <circle cx="0"   cy="95" r="3"   fill={theme === 'light' ? '#6366f1' : '#818cf8'} opacity={theme === 'light' ? '0.22' : '0.18'} />
-            <circle cx="220" cy="22" r="2.5" fill={theme === 'light' ? '#6366f1' : '#818cf8'} opacity={theme === 'light' ? '0.18' : '0.14'} />
-            <circle cx="580" cy="48" r="3"   fill={theme === 'light' ? '#6366f1' : '#818cf8'} opacity={theme === 'light' ? '0.22' : '0.18'} />
+            <circle cx="0"   cy="95" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
+            <circle cx="220" cy="22" r="2.5" fill='#d97706' opacity={theme === 'light' ? '0.20' : '0.12'} />
+            <circle cx="580" cy="48" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
           </svg>
           <div
             className="absolute pointer-events-none select-none"
-            style={{ right: '16px', top: '50%', transform: 'translateY(-50%) rotate(-10deg)', opacity: theme === 'light' ? 0.07 : 0.08 }}
+            style={{ right: '16px', top: '50%', transform: 'translateY(-50%) rotate(-10deg)', opacity: theme === 'light' ? 0.08 : 0.06 }}
           >
-            <PlaneTakeoff size={115} strokeWidth={0.75} className={theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'} />
+            <PlaneTakeoff size={115} strokeWidth={0.75} className="text-amber-700" />
           </div>
 
           <div className="relative">
-            <h1 className={cn(
-              "text-xl md:text-3xl font-extrabold leading-tight",
-              theme === 'light'
-                ? "bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-transparent"
-                : "bg-gradient-to-r from-indigo-300 via-blue-200 to-slate-200 bg-clip-text text-transparent"
-            )}>
+            <h1 className="text-xl md:text-3xl font-extrabold leading-tight bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 bg-clip-text text-transparent">
                 {getGreeting(user?.name || 'Expert')}
             </h1>
-            <p className={cn("text-sm italic mt-1 font-medium line-clamp-1 md:line-clamp-none", theme === 'light' ? 'text-slate-500' : 'text-indigo-300/70')}>
+            <p className={cn("text-sm italic mt-1 font-medium line-clamp-1 md:line-clamp-none", theme === 'light' ? 'text-amber-800/60' : 'text-amber-200/50')}>
                 "{quote}"
             </p>
           </div>

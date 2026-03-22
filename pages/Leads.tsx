@@ -167,7 +167,7 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
             "relative px-3 py-2 rounded-xl border transition-all duration-200 select-none group cursor-pointer",
             theme === 'light'
               ? (lead.status === 'Won' ? 'bg-emerald-50/60 border-emerald-100 hover:border-emerald-200' : lead.status === 'Lost' ? 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100' : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5')
-              : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40 hover:bg-blue-900/50 hover:border-blue-700/50 hover:shadow-md' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700/60 hover:border-slate-600/70 hover:shadow-md',
+              : theme === 'ocean' ? 'bg-blue-900/60 border-blue-700/50 hover:bg-blue-800/60 hover:border-blue-600/60 hover:shadow-md' : 'bg-slate-800 border-slate-600/60 hover:bg-slate-700 hover:border-slate-500/60 hover:shadow-md',
             isOverlay ? "shadow-[0_20px_60px_rgba(0,0,0,0.25)] scale-105 rotate-[3deg] cursor-grabbing ring-2 ring-indigo-500/40 ring-offset-2" : "shadow-sm",
             isDragging ? "opacity-20 grayscale scale-95" : "opacity-100",
             urgencyClass || statusAccent[lead.status] || ''
@@ -186,7 +186,7 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
                 </div>
                 {/* Row 2: metadata + agent badge inline */}
                 <div className="flex items-center gap-1.5">
-                    <span className={cn("text-[11px] opacity-60 truncate min-w-0 flex-1", getSecondaryTextColor())}>
+                    <span className={cn("text-[11px] truncate min-w-0 flex-1", theme === 'light' ? 'opacity-60' : 'opacity-80', getSecondaryTextColor())}>
                         {metadata.length > 0 ? metadata.join(' · ') : <span className="italic opacity-50">No details</span>}
                     </span>
                     {(() => {
@@ -211,7 +211,7 @@ const LeadCard: React.FC<{ lead: Lead, isOverlay?: boolean, isDragging?: boolean
                     {lead.temperature}
                 </span>
                 <div className="flex items-center gap-1">
-                    <span className={cn("text-[9px] opacity-30 whitespace-nowrap", getSecondaryTextColor())}>
+                    <span className={cn("text-[9px] whitespace-nowrap", theme === 'light' ? 'opacity-30' : 'opacity-50', getSecondaryTextColor())}>
                         {timeAgo(lead.createdAt)}
                     </span>
                     <div onClick={(e) => e.stopPropagation()}>
@@ -306,17 +306,17 @@ const MobileLeadCard: React.FC<MobileLeadCardProps> = ({ lead, onStatusChange })
        <div className="grid grid-cols-2 gap-3 mt-2">
            <a href={`tel:${lead.contact.phone}`} className={cn(
                "flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-colors border w-full",
-               theme === 'light' 
-                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' 
-                : 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20'
+               theme === 'light'
+                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                : 'bg-green-500/20 text-green-300 border-green-500/30 hover:bg-green-500/30'
            )}>
                <Phone size={16} /> Call
            </a>
            <a href={waLink} target="_blank" rel="noreferrer" className={cn(
                "flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-colors border w-full",
-               theme === 'light' 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
-                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+               theme === 'light'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
            )}>
                <MessageCircle size={16} /> WhatsApp
            </a>
@@ -376,10 +376,10 @@ const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> =
         colColors.accent,
         theme === 'light'
           ? (isOver ? `bg-white ring-2 ${colColors.glow} shadow-lg` : 'bg-slate-50 border border-slate-200/80 border-t-[4px] shadow-sm')
-          : (isOver ? `bg-blue-800/20 ring-2 ${colColors.glow} shadow-inner` : theme === 'ocean' ? 'bg-blue-950/40' : 'bg-slate-800/40')
+          : (isOver ? `ring-2 ${colColors.glow} shadow-inner ${theme === 'ocean' ? 'bg-blue-800/30' : 'bg-slate-700/40'}` : theme === 'ocean' ? 'bg-blue-950/70 border border-blue-800/50' : 'bg-slate-800/80 border border-slate-700/60')
     )}>
       <div className="flex justify-between items-center mb-2 px-1">
-        <h3 className={cn("font-bold text-sm uppercase tracking-wide", isOver ? colColors.headerText : (theme === 'light' ? 'text-slate-600' : 'text-white/70'))}>
+        <h3 className={cn("font-bold text-sm uppercase tracking-wide", isOver ? colColors.headerText : (theme === 'light' ? 'text-slate-600' : 'text-white/90'))}>
             {status}
         </h3>
         <span className={cn(
@@ -388,7 +388,7 @@ const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> =
             ? colColors.badge
             : theme === 'light'
               ? "bg-white text-slate-500 border border-slate-200 shadow-sm"
-              : theme === 'ocean' ? "bg-blue-900/60 text-blue-200/80 border border-blue-700/40" : "bg-slate-700/60 text-slate-300 border border-slate-600/50"
+              : theme === 'ocean' ? "bg-blue-800/80 text-blue-100 border border-blue-600/50" : "bg-slate-700 text-slate-200 border border-slate-500/60"
         )}>
             {count}
         </span>
@@ -731,8 +731,10 @@ export const Leads = () => {
       {/* Header and Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-            <h1 className={cn("text-2xl md:text-3xl font-extrabold mb-0.5 bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent")}>Leads</h1>
-            <p className={cn("text-sm opacity-60", getTextColor())}>Manage and track your opportunities</p>
+            <h1 className={cn("text-2xl md:text-3xl font-extrabold mb-0.5 bg-gradient-to-r bg-clip-text text-transparent",
+              theme === 'light' ? 'from-indigo-600 to-blue-500' : theme === 'ocean' ? 'from-blue-300 to-indigo-300' : 'from-indigo-300 to-slate-100'
+            )}>Leads</h1>
+            <p className={cn("text-sm", getSecondaryTextColor())}>Manage and track your opportunities</p>
         </div>
         
         <div className="flex items-center gap-3 flex-wrap w-full md:w-auto h-12 md:h-auto">
@@ -754,7 +756,11 @@ export const Leads = () => {
 
             {/* Filter */}
             <div className="relative group z-30 h-10 md:h-11">
-                <Button variant="secondary" className="gap-2 h-full border border-slate-200 shadow-none bg-white hover:bg-slate-50 text-slate-600 relative">
+                <Button variant="secondary" className={cn("gap-2 h-full shadow-none relative",
+                  theme === 'light' ? 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                    : theme === 'ocean' ? 'border border-blue-700/50 bg-blue-950/80 hover:bg-blue-900/60 text-slate-200'
+                    : 'border border-slate-600/50 bg-slate-800 hover:bg-slate-700 text-slate-200'
+                )}>
                     <Filter size={18} /> Filter
                     {hasActiveFilters && (
                       <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">

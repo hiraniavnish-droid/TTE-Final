@@ -144,15 +144,15 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
             transition={{ duration: 0.3 }}
             className={cn(
                 "group relative flex items-center gap-4 py-3 px-4 transition-all duration-300 border-b min-h-[72px]",
-                theme === 'light' ? 'bg-white border-slate-100 hover:bg-slate-50' : 'bg-white/5 border-white/5 hover:bg-white/10',
-                isOverdue && "bg-rose-50/50 border-l-4 border-l-rose-500", // Red Zone urgency
+                theme === 'light' ? 'bg-white border-slate-100 hover:bg-slate-50' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/30 hover:bg-blue-800/60' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700/80',
+                isOverdue && (theme === 'light' ? "bg-rose-50/50 border-l-4 border-l-rose-500" : "bg-rose-900/20 border-l-4 border-l-rose-500"), // Red Zone urgency
                 isCompleting && "opacity-50 grayscale"
             )}
         >
             {/* LEFT: Task-Specific Iconography */}
             <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110", 
-                iconColor,
+                "w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
+                theme === 'light' ? iconColor : iconColor.replace('-100', '-900/40').replace('-600', '-400').replace('-500', '-400'),
                 isCompleting && "bg-emerald-100 text-emerald-600 scale-125 rotate-12"
             )}>
                 {isCompleting ? <Check size={20} strokeWidth={3} /> : <TaskIcon size={18} />}
@@ -176,12 +176,12 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                 <div className={cn("flex items-center gap-2 text-[11px] font-medium opacity-70", theme === 'light' ? 'text-slate-500' : 'text-slate-400')}>
                     {lead && (
                         <>
-                            <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">
+                            <span className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded border", theme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-200' : theme === 'ocean' ? 'bg-blue-800/50 text-blue-200 border-blue-600/40' : 'bg-slate-700/60 text-slate-300 border-slate-600/50')}>
                                 <MapPin size={10} /> {destDisplay}
                             </span>
                             <span className="hidden sm:inline text-slate-300">•</span>
                             {budgetDisplay && (
-                                <span className="hidden sm:inline font-mono text-emerald-600 dark:text-emerald-400 font-bold">{budgetDisplay}</span>
+                                <span className={cn("hidden sm:inline font-mono font-bold", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>{budgetDisplay}</span>
                             )}
                             <span className="text-slate-300">•</span>
                         </>
@@ -216,7 +216,7 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                     
                     {/* Call Button */}
                     {lead?.contact?.phone && (
-                        <DialButton phoneNumber={lead.contact.phone} className="w-10 h-10 shadow-sm border border-green-200 bg-green-50 text-green-600 hover:bg-green-100" />
+                        <DialButton phoneNumber={lead.contact.phone} className={cn("w-10 h-10 shadow-sm border", theme === 'light' ? 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100' : 'border-green-500/30 bg-green-500/20 text-green-400 hover:bg-green-500/30')} />
                     )}
 
                     {/* WhatsApp Button */}
@@ -225,7 +225,7 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                             href={waLink} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 hover:scale-105 transition-all shadow-sm"
+                            className={cn("w-10 h-10 flex items-center justify-center rounded-full hover:scale-105 transition-all shadow-sm border", theme === 'light' ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30')}
                             title="WhatsApp"
                         >
                             <MessageSquare size={16} />
@@ -236,7 +236,7 @@ const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: an
                     <div className="relative">
                         <button 
                             onClick={(e) => { e.stopPropagation(); setShowSnooze(!showSnooze); }}
-                            className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition-all shadow-sm"
+                            className={cn("w-10 h-10 flex items-center justify-center rounded-full transition-all shadow-sm border", theme === 'light' ? 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-blue-600' : 'bg-slate-700/60 text-slate-400 border-slate-600/50 hover:bg-slate-600/60 hover:text-blue-400')}
                             title="Snooze"
                         >
                             <Clock size={16} />
@@ -271,14 +271,14 @@ const BucketSection = ({ title, icon: Icon, colorClass, tasks, leads, onToggle, 
                 theme === 'light' 
                     ? 'bg-slate-50/95 text-slate-500 border-slate-200' 
                     : 'bg-slate-900/95 text-slate-300 border-white/10',
-                isOverdueBucket && "bg-rose-50/95 text-rose-600 border-rose-200"
+                isOverdueBucket && (theme === 'light' ? "bg-rose-50/95 text-rose-600 border-rose-200" : "bg-rose-900/40 text-rose-400 border-rose-800/50")
             )}>
                 <Icon size={14} className={cn(colorClass, isOverdueBucket && "animate-pulse")} />
                 {isOverdueBucket && <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse shrink-0" />}
                 <span>{title}</span>
                 <span className={cn(
                     "ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center",
-                    isOverdueBucket ? "bg-rose-500 text-white animate-pulse" : "bg-slate-200 text-slate-600"
+                    isOverdueBucket ? "bg-rose-500 text-white animate-pulse" : theme === 'light' ? "bg-slate-200 text-slate-600" : "bg-slate-700 text-slate-200"
                 )}>
                     {tasks.length}
                 </span>
@@ -286,8 +286,8 @@ const BucketSection = ({ title, icon: Icon, colorClass, tasks, leads, onToggle, 
 
             {/* List Body */}
             <div className={cn(
-                "bg-white rounded-b-2xl border-x border-b overflow-hidden shadow-sm",
-                theme === 'light' ? 'border-slate-200' : 'bg-transparent border-white/10'
+                "rounded-b-2xl border-x border-b overflow-hidden shadow-sm",
+                theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-950/30 border-blue-700/30' : 'bg-slate-900/40 border-slate-700/50'
             )}>
                 <AnimatePresence>
                     {tasks.map((task: any) => (
@@ -386,21 +386,21 @@ export const Reminders = () => {
       <div className="mb-8 pt-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 className={cn("text-3xl font-bold font-serif", getTextColor())}>Action Center</h1>
-            <p className={cn("text-sm opacity-60 mt-1 max-w-md", getTextColor())}>
+            <p className={cn("text-sm mt-1 max-w-md", theme === 'light' ? 'opacity-60' : 'opacity-75', getTextColor())}>
                 Focus on high-priority actions. Clear the red zone first.
             </p>
         </div>
         <div className={cn(
             "flex items-center gap-3 px-4 py-2 rounded-xl border shadow-sm", 
-            theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'
+            theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-900/40 border-blue-700/40' : 'bg-slate-800/80 border-slate-600/50'
         )}>
             <div className="text-right">
-                <p className={cn("text-[10px] font-bold uppercase tracking-wider opacity-50", getTextColor())}>Tasks Pending</p>
+                <p className={cn("text-[10px] font-bold uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75', getTextColor())}>Tasks Pending</p>
                 <p className={cn("text-xl font-bold leading-none text-blue-600")}>{pendingTasks.length}</p>
             </div>
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
             <div className="text-right">
-                <p className={cn("text-[10px] font-bold uppercase tracking-wider opacity-50", getTextColor())}>Urgent</p>
+                <p className={cn("text-[10px] font-bold uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75', getTextColor())}>Urgent</p>
                 <p className={cn("text-xl font-bold leading-none text-rose-500")}>{buckets.overdue.length}</p>
             </div>
         </div>

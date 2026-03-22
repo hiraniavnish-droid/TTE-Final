@@ -24,14 +24,29 @@ const DEFAULT_USERS: User[] = [
   { id: '3', name: 'Vraj', role: 'agent', passcode: 'vraj123' }
 ];
 
+// Synchronously read session from localStorage so first render is already authenticated
+const getStoredUser = (): User | null => {
+  try {
+    const isAuth = localStorage.getItem('is_authenticated') === 'true';
+    const storedUser = localStorage.getItem('voyageos_user');
+    const expiry = localStorage.getItem('auth_expiry');
+    const now = new Date().getTime();
+    if (isAuth && storedUser && expiry && parseInt(expiry) > now) {
+      return JSON.parse(storedUser);
+    }
+  } catch {}
+  return null;
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // Lazy initializer — runs synchronously before first render, no login flash
+  const [user, setUser] = useState<User | null>(getStoredUser);
   const [users, setUsers] = useState<User[]>(DEFAULT_USERS);
 
-  // Initialize: Load users from Supabase, restore session from localStorage
+  // Initialize: Load users from Supabase (session already restored above)
   useEffect(() => {
     const init = async () => {
-      // 1. Load Users from Supabase
+      // Load Users from Supabase
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -57,21 +72,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         );
         setUsers(DEFAULT_USERS);
       }
-
-      // 2. Restore Session from localStorage
-      const isAuth = localStorage.getItem('is_authenticated') === 'true';
-      const storedUser = localStorage.getItem('voyageos_user');
-      const expiry = localStorage.getItem('auth_expiry');
-      const now = new Date().getTime();
-
-      if (isAuth && storedUser && expiry && parseInt(expiry) > now) {
-        setUser(JSON.parse(storedUser));
-      } else {
-        localStorage.removeItem('voyageos_user');
-        localStorage.removeItem('is_authenticated');
-        localStorage.removeItem('auth_expiry');
-        setUser(null);
-      }
     };
 
     init();
@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const matchedUser = users.find(u => u.passcode === passcode);
     if (matchedUser) {
       setUser(matchedUser);
-      const expiryTime = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
+      const expiryTime = new Date().getTime() + 30 * 24 * 60 * 60 * 1000;
       localStorage.setItem('voyageos_user', JSON.stringify(matchedUser));
       localStorage.setItem('is_authenticated', 'true');
       localStorage.setItem('auth_expiry', expiryTime.toString());

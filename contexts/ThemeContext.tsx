@@ -22,8 +22,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // bg-white border border-slate-200 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] ring-1 ring-slate-900/5
 
   const getGlassClass = (opacity = '10') => {
-    if (theme === 'ocean') return `bg-blue-950/60 backdrop-blur-xl border border-blue-600/20 shadow-2xl shadow-blue-950/40 rounded-2xl`;
-    if (theme === 'dark') return `bg-slate-800/80 backdrop-blur-md border border-slate-700/50 shadow-xl shadow-black/20 rounded-2xl`;
+    if (theme === 'ocean') return `bg-blue-900/60 backdrop-blur-xl border border-blue-600/30 shadow-2xl shadow-black/40 rounded-2xl`;
+    if (theme === 'dark') return `bg-slate-800/90 backdrop-blur-md border border-slate-600/50 shadow-xl shadow-black/30 rounded-2xl`;
     // Light: elevated card with subtle depth
     return `bg-white/90 backdrop-blur-sm border border-slate-200/80 shadow-[0_2px_12px_0_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 rounded-2xl`;
   };
@@ -35,14 +35,14 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const getSecondaryTextColor = () => {
-    if (theme === 'ocean') return 'text-blue-200/80';
-    if (theme === 'dark') return 'text-slate-400';
+    if (theme === 'ocean') return 'text-slate-300';
+    if (theme === 'dark') return 'text-slate-300';
     return 'text-slate-500 font-normal';
   };
 
   const getCardBg = () => {
-    if (theme === 'ocean') return 'bg-blue-950/60 hover:bg-blue-900/50 border border-blue-800/40 rounded-xl';
-    if (theme === 'dark') return 'bg-slate-800 hover:bg-slate-700/80 border border-slate-700/50 rounded-xl';
+    if (theme === 'ocean') return 'bg-blue-900/50 hover:bg-blue-800/60 border border-blue-600/30 rounded-xl';
+    if (theme === 'dark') return 'bg-slate-800 hover:bg-slate-700 border border-slate-600/60 rounded-xl';
 
     // Technical Luxury Interactive Card
     // Uses the Double Ring border
