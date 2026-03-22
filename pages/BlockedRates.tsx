@@ -25,6 +25,30 @@ const FEATURED_CITIES = [
   'Manali', 'Darjeeling', 'Varanasi', 'Mysore', 'Ooty',
 ];
 
+const CITY_EMOJI: Record<string, string> = {
+  'Agra': '🕌', 'Jaipur': '🌸', 'Goa': '🌊', 'Udaipur': '🏰', 'Shimla': '🏔️',
+  'Manali': '❄️', 'Darjeeling': '🍵', 'Varanasi': '🪔', 'Mysore': '👑', 'Ooty': '🌿',
+};
+
+const CITY_GRADIENT: string[] = [
+  'from-amber-500 to-orange-500',   // #1
+  'from-slate-400 to-slate-600',    // #2
+  'from-orange-400 to-red-400',     // #3
+  'from-blue-500 to-indigo-500',
+  'from-emerald-500 to-teal-500',
+  'from-purple-500 to-pink-500',
+  'from-rose-400 to-pink-500',
+  'from-cyan-500 to-blue-500',
+  'from-violet-500 to-purple-500',
+  'from-teal-400 to-emerald-500',
+];
+
+const getPriceTier = (rate: number): { label: string; light: string; dark: string } => {
+  if (rate < 2000)  return { label: 'Budget',   light: 'bg-green-100 text-green-700 border-green-200',   dark: 'bg-green-500/20 text-green-400 border-green-500/30' };
+  if (rate < 6000)  return { label: 'Standard',  light: 'bg-blue-100 text-blue-700 border-blue-200',      dark: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+  return             { label: 'Premium',  light: 'bg-purple-100 text-purple-700 border-purple-200', dark: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface HotelRate {
@@ -134,7 +158,7 @@ const HotelView: React.FC<{ hotelName: string; rows: HotelRate[]; onBack: () => 
       <div className="flex items-start gap-3">
         <button onClick={onBack}
           className={cn('mt-1 p-2 rounded-xl border transition-colors shrink-0',
-            theme === 'light' ? 'bg-white border-slate-200 hover:bg-slate-50' : 'bg-white/5 border-white/10 hover:bg-white/10')}>
+            theme === 'light' ? 'bg-white border-slate-200 hover:bg-slate-50' : theme === 'ocean' ? 'bg-blue-900/40 border-blue-700/40 hover:bg-blue-800/50' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700')}>
           <ArrowLeft size={16} className={getSecondaryTextColor()} />
         </button>
         <div className="flex-1 min-w-0">
@@ -165,9 +189,9 @@ const HotelView: React.FC<{ hotelName: string; rows: HotelRate[]; onBack: () => 
       )}
 
       {/* Quote Calculator — compact, theme-aware */}
-      <div className={cn('rounded-2xl border', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+      <div className={cn('rounded-2xl border', theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/40' : 'bg-slate-800 border-slate-700/50')}>
         {/* Title row */}
-        <div className={cn('flex items-center gap-2 px-4 py-3 border-b', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
+        <div className={cn('flex items-center gap-2 px-4 py-3 border-b', theme === 'light' ? 'border-slate-100' : theme === 'ocean' ? 'border-blue-700/30' : 'border-slate-700/50')}>
           <Calculator size={14} className="text-blue-500" />
           <span className={cn('text-xs font-bold', getTextColor())}>Quote Calculator</span>
           <span className={cn('text-[10px] ml-1 opacity-40', getSecondaryTextColor())}>— select dates to estimate total cost</span>
@@ -355,7 +379,7 @@ const FilterPill: React.FC<{ active: boolean; onClick: () => void; children: Rea
           ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
           : theme === 'light'
             ? 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600'
-            : 'bg-white/5 border-white/10 text-white/50 hover:border-blue-400/40 hover:text-white'
+            : theme === 'ocean' ? 'bg-blue-800/40 border-blue-600/30 text-blue-200/70 hover:border-blue-400 hover:text-blue-100' : 'bg-slate-700/50 border-slate-600/50 text-slate-300 hover:border-blue-400/60 hover:text-white'
       )}>
       {children}
     </button>
@@ -375,8 +399,8 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     <button onClick={handle}
       className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all',
         copied
-          ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-          : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600'
+          ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+          : 'bg-slate-100/60 border-slate-300/60 text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 dark:bg-white/5 dark:border-white/10 dark:text-white/50 dark:hover:bg-blue-500/10 dark:hover:text-blue-300'
       )}>
       {copied ? <><Check size={10} /> Copied</> : <><Copy size={10} /> Copy</>}
     </button>
@@ -443,7 +467,9 @@ const CityView: React.FC<{
 
   const cardBg = theme === 'light'
     ? 'bg-white border-slate-200'
-    : 'bg-white/5 border-white/10';
+    : theme === 'ocean'
+    ? 'bg-blue-900/50 border-blue-700/40'
+    : 'bg-slate-800 border-slate-700/50';
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -452,7 +478,7 @@ const CityView: React.FC<{
       <div className="flex items-center gap-3">
         <button onClick={onBack}
           className={cn('p-2 rounded-xl border transition-colors shrink-0',
-            theme === 'light' ? 'bg-white border-slate-200 hover:bg-slate-50' : 'bg-white/5 border-white/10 hover:bg-white/10')}>
+            theme === 'light' ? 'bg-white border-slate-200 hover:bg-slate-50' : theme === 'ocean' ? 'bg-blue-900/40 border-blue-700/40 hover:bg-blue-800/50' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700')}>
           <ArrowLeft size={16} className={getSecondaryTextColor()} />
         </button>
         <div className="flex-1 min-w-0">
@@ -465,7 +491,7 @@ const CityView: React.FC<{
       </div>
 
       {/* Filter Panel */}
-      <div className={cn('rounded-2xl border p-4 space-y-3', theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/3 border-white/10')}>
+      <div className={cn('rounded-2xl border p-4 space-y-3', theme === 'light' ? 'bg-slate-50 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-700/40' : 'bg-slate-800/60 border-slate-700/50')}>
         <div className="flex items-center gap-2 mb-1">
           <Filter size={12} className="text-blue-500" />
           <span className={cn('text-[10px] font-mono uppercase tracking-widest font-bold opacity-50', getTextColor())}>Filter Rates</span>
@@ -723,10 +749,10 @@ export const BlockedRates = () => {
   const goToHotel = (city: string, name: string, label: string) => { setSelCity(city); setSelHotel(name); setBackLabel(label); setView('hotel'); setSearch(''); };
   const goHome    = () => { setView('home'); setHotelLimit(HOTELS_PAGE_SIZE); };
 
-  const headerBg = theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : 'bg-slate-900 border-white/10';
-  const inputBg  = theme === 'light' ? 'bg-slate-50 border-slate-200 focus-within:border-blue-400 focus-within:bg-white' : 'bg-white/5 border-white/10 focus-within:border-blue-400';
-  const cityCard = theme === 'light' ? 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md' : 'bg-white/5 border-white/10 hover:border-blue-400/40 hover:bg-white/8';
-  const hotelCard = theme === 'light' ? 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md' : 'bg-white/5 border-white/10 hover:border-blue-400/40 hover:bg-white/8';
+  const headerBg = theme === 'light' ? 'bg-white border-slate-100 shadow-sm' : theme === 'ocean' ? 'bg-blue-900/60 border-blue-700/40 shadow-xl shadow-black/20' : 'bg-slate-800/90 border-slate-700/50 shadow-xl shadow-black/20';
+  const inputBg  = theme === 'light' ? 'bg-slate-50 border-slate-200 focus-within:border-blue-400 focus-within:bg-white' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/40 focus-within:border-blue-400' : 'bg-slate-800 border-slate-700/50 focus-within:border-blue-400';
+  const cityCard = theme === 'light' ? 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/40 hover:border-blue-500/70 hover:bg-blue-800/60 hover:shadow-lg' : 'bg-slate-800 border-slate-700/50 hover:border-blue-500/50 hover:bg-slate-700 hover:shadow-lg';
+  const hotelCard = theme === 'light' ? 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/40 hover:border-blue-500/60 hover:bg-blue-800/60 hover:shadow-md' : 'bg-slate-800 border-slate-700/50 hover:border-blue-500/40 hover:bg-slate-700 hover:shadow-md';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-400 pb-20 max-w-6xl mx-auto">
@@ -738,7 +764,9 @@ export const BlockedRates = () => {
             <Building2 size={19} />
           </div>
           <div>
-            <h1 className={cn('text-lg font-bold font-serif', getTextColor())}>Blocked Hotel Rates</h1>
+            <h1 className={cn('text-lg font-bold bg-gradient-to-r bg-clip-text text-transparent',
+            theme === 'light' ? 'from-slate-800 to-slate-600' : theme === 'ocean' ? 'from-blue-200 to-indigo-300' : 'from-slate-100 to-slate-300'
+          )}>Blocked Hotel Rates</h1>
             <p className={cn('text-[11px] mt-0.5', getSecondaryTextColor())}>
               {loading ? 'Syncing from Google Sheets…' : `${allHotels.length} hotels · ${allCities.length} cities${fromCache ? ' · cached' : ''}`}
             </p>
@@ -844,27 +872,29 @@ export const BlockedRates = () => {
                       const cheapest = getCheapestRateInfo(rates.filter(r => r.City === city));
                       return (
                         <button key={city} onClick={() => goToCity(city)}
-                          className={cn('group text-left p-4 rounded-xl border transition-all duration-200 relative overflow-hidden hover:-translate-y-0.5 hover:shadow-lg', cityCard)}>
-                          {i < 3 && (
-                            <span className={cn('absolute top-2.5 right-2.5 text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold border',
-                              i === 0 ? 'bg-amber-100 text-amber-700 border-amber-300' :
-                              i === 1 ? 'bg-slate-100 text-slate-600 border-slate-300' :
-                                        'bg-orange-100 text-orange-700 border-orange-200'
-                            )}>
-                              #{i + 1}
-                            </span>
-                          )}
-                          <div className={cn('absolute left-0 top-0 bottom-0 w-1 rounded-l-xl',
-                            i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-slate-400' : i === 2 ? 'bg-orange-400' : 'bg-blue-300'
-                          )} />
-                          <MapPin size={14} className="text-blue-500 mb-2" />
-                          <p className={cn('font-bold text-sm', getTextColor())}>{city}</p>
-                          <p className={cn('text-[10px] mt-1 opacity-50', getSecondaryTextColor())}>{count} hotel{count !== 1 ? 's' : ''}</p>
-                          {cheapest && (
-                            <p className="text-[11px] font-mono font-bold text-emerald-600 mt-1">
-                              ₹{cheapest.rate.toLocaleString('en-IN')}+
-                            </p>
-                          )}
+                          className={cn('group text-left p-3.5 rounded-xl border transition-all duration-200 relative overflow-hidden hover:-translate-y-1 hover:shadow-xl', cityCard)}>
+                          {/* Gradient accent bar */}
+                          <div className={cn('absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl bg-gradient-to-b', CITY_GRADIENT[i] || 'from-blue-400 to-indigo-400')} />
+                          {/* Rank badge */}
+                          <span className={cn('absolute top-2 right-2 text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold border',
+                            i === 0 ? 'bg-amber-100 text-amber-700 border-amber-300' :
+                            i === 1 ? 'bg-slate-200 text-slate-600 border-slate-300' :
+                            i === 2 ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                            theme === 'light' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-white/10 text-white/50 border-white/10'
+                          )}>
+                            #{i + 1}
+                          </span>
+                          {/* City emoji */}
+                          <div className="text-2xl mb-1.5 ml-1.5">{CITY_EMOJI[city] || '📍'}</div>
+                          <p className={cn('font-bold text-sm ml-1.5', getTextColor())}>{city}</p>
+                          <div className="flex items-center gap-2 ml-1.5 mt-1">
+                            <p className={cn('text-[10px] opacity-55', getSecondaryTextColor())}>{count} hotels</p>
+                            {cheapest && (
+                              <p className={cn('text-[11px] font-mono font-bold', theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>
+                                ₹{cheapest.rate.toLocaleString('en-IN')}+
+                              </p>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -898,9 +928,12 @@ export const BlockedRates = () => {
                               </div>
                               <div className={cn('flex items-center gap-2 mt-0.5 text-[11px]', getSecondaryTextColor())}>
                                 <span className="flex items-center gap-0.5 opacity-50"><MapPin size={9} />{hotel.city}</span>
-                                {hotel.cheapestInfo
-                                  ? <span className="font-bold font-mono text-emerald-600">₹{hotel.cheapestInfo.rate.toLocaleString('en-IN')}</span>
-                                  : <span className="italic opacity-30">On request</span>}
+                                {hotel.cheapestInfo ? (
+                                  <>
+                                    <span className={cn('font-bold font-mono', theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>₹{hotel.cheapestInfo.rate.toLocaleString('en-IN')}</span>
+                                    {(() => { const t = getPriceTier(hotel.cheapestInfo.rate); return <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full border', theme === 'light' ? t.light : t.dark)}>{t.label}</span>; })()}
+                                  </>
+                                ) : <span className="italic opacity-30">On request</span>}
                               </div>
                             </div>
                             <ChevronRight size={13} className="opacity-20 shrink-0 group-hover:opacity-60 group-hover:translate-x-0.5 transition-all" />
@@ -935,7 +968,7 @@ export const BlockedRates = () => {
 const SectionLabel: React.FC<{ icon: React.ReactNode; label: string; getTextColor: () => string }> = ({ icon, label, getTextColor }) => (
   <div className="flex items-center gap-2">
     {icon}
-    <p className={cn('text-[10px] font-mono uppercase tracking-widest font-bold opacity-40', getTextColor())}>{label}</p>
+    <p className={cn('text-[10px] font-mono uppercase tracking-widest font-bold opacity-65', getTextColor())}>{label}</p>
     <div className="flex-1 h-px bg-current opacity-5" />
   </div>
 );
