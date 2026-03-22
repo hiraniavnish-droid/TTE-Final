@@ -1000,95 +1000,90 @@ export const Dashboard = () => {
     <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-20 px-2 md:px-0">
 
       {/* Header — always first */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div
-          className={cn(
-            "relative overflow-hidden rounded-2xl p-5 md:p-6 flex-1",
-            theme === 'light'
-              ? "border border-amber-200/80 shadow-sm"
-              : theme === 'ocean'
-                ? "border border-amber-900/40"
-                : "border border-amber-900/30"
-          )}
-          style={bannerStyle}
-        >
-          <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-amber-200/60' : 'bg-amber-500/10')} />
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-2xl p-5 md:p-6",
+          theme === 'light'
+            ? "border border-amber-200/80 shadow-sm"
+            : theme === 'ocean'
+              ? "border border-amber-900/40"
+              : "border border-amber-900/30"
+        )}
+        style={bannerStyle}
+      >
+        <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-amber-200/60' : 'bg-amber-500/10')} />
 
-          {/* Travel theme: flight path + plane */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 600 110" fill="none">
-            <path
-              d="M -10 95 Q 220 10 580 48"
-              stroke='#d97706'
-              strokeWidth="1.5"
-              strokeDasharray="9 6"
-              opacity={theme === 'light' ? '0.20' : '0.12'}
-            />
-            <circle cx="0"   cy="95" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
-            <circle cx="220" cy="22" r="2.5" fill='#d97706' opacity={theme === 'light' ? '0.20' : '0.12'} />
-            <circle cx="580" cy="48" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
-          </svg>
-          <div
-            className="absolute pointer-events-none select-none"
-            style={{ right: '16px', top: '50%', transform: 'translateY(-50%) rotate(-10deg)', opacity: theme === 'light' ? 0.08 : 0.06 }}
-          >
-            <PlaneTakeoff size={115} strokeWidth={0.75} className="text-amber-700" />
-          </div>
-
-          <div className="relative">
-            <h1 className="text-xl md:text-3xl font-extrabold leading-tight bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 bg-clip-text text-transparent">
-                {getGreeting(user?.name || 'Expert')}
-            </h1>
-            <p className={cn("text-sm italic mt-1 font-medium line-clamp-1 md:line-clamp-none", theme === 'light' ? 'text-amber-800/60' : 'text-amber-200/50')}>
-                "{quote}"
-            </p>
-          </div>
+        {/* Travel theme: flight path + plane */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 600 110" fill="none">
+          <path d="M -10 95 Q 220 10 580 48" stroke='#d97706' strokeWidth="1.5" strokeDasharray="9 6" opacity={theme === 'light' ? '0.20' : '0.12'} />
+          <circle cx="0"   cy="95" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
+          <circle cx="220" cy="22" r="2.5" fill='#d97706' opacity={theme === 'light' ? '0.20' : '0.12'} />
+          <circle cx="580" cy="48" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
+        </svg>
+        <div className="absolute pointer-events-none select-none" style={{ right: '16px', top: '50%', transform: 'translateY(-50%) rotate(-10deg)', opacity: theme === 'light' ? 0.08 : 0.06 }}>
+          <PlaneTakeoff size={115} strokeWidth={0.75} className="text-amber-700" />
         </div>
 
-        <div className="flex flex-wrap md:flex-col items-end gap-2 self-end md:self-auto">
+        {/* Greeting + controls in one row */}
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h1 className="text-xl md:text-3xl font-extrabold leading-tight bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 bg-clip-text text-transparent">
+              {getGreeting(user?.name || 'Expert')}
+            </h1>
+            <p className={cn("text-sm italic mt-1 font-medium line-clamp-1 md:line-clamp-none", theme === 'light' ? 'text-amber-800/60' : 'text-amber-200/50')}>
+              "{quote}"
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {/* CEO Mode Switcher */}
             {user?.role === 'admin' && (
-                <div className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all",
-                    viewAsAgent !== 'all'
-                      ? "bg-amber-50 border-amber-200"
-                      : (theme === 'light' ? "bg-white border-slate-200" : theme === 'ocean' ? "bg-blue-950/60 border-blue-800/40" : "bg-slate-800 border-slate-700/50")
-                )}>
-                    <Eye size={13} className={viewAsAgent !== 'all' ? "text-amber-600" : "opacity-50"} />
-                    <span className={cn("text-xs font-bold uppercase tracking-wider opacity-70 hidden md:inline", viewAsAgent !== 'all' && "text-amber-700")}>Viewing:</span>
-                    <select
-                        value={viewAsAgent}
-                        onChange={(e) => setViewAsAgent(e.target.value)}
-                        className={cn(
-                            "bg-transparent outline-none text-sm font-bold cursor-pointer",
-                            viewAsAgent !== 'all' ? "text-amber-700" : getTextColor(),
-                            "[&>option]:text-black"
-                        )}
-                    >
-                        <option value="all">Global</option>
-                        {users.filter(u => u.role === 'agent').map(u => (
-                            <option key={u.id} value={u.name}>{u.name}</option>
-                        ))}
-                    </select>
-                </div>
+              <div className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all backdrop-blur-sm",
+                viewAsAgent !== 'all'
+                  ? "bg-amber-50/80 border-amber-300"
+                  : (theme === 'light' ? "bg-white/70 border-amber-200/60" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")
+              )}>
+                <Eye size={13} className={viewAsAgent !== 'all' ? "text-amber-600" : "opacity-50"} />
+                <span className={cn("text-xs font-bold uppercase tracking-wider opacity-70 hidden md:inline", viewAsAgent !== 'all' && "text-amber-700")}>Viewing:</span>
+                <select
+                  value={viewAsAgent}
+                  onChange={(e) => setViewAsAgent(e.target.value)}
+                  className={cn(
+                    "bg-transparent outline-none text-sm font-bold cursor-pointer",
+                    viewAsAgent !== 'all' ? "text-amber-700" : getTextColor(),
+                    "[&>option]:text-black"
+                  )}
+                >
+                  <option value="all">Global</option>
+                  {users.filter(u => u.role === 'agent').map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
             )}
 
             {/* Time Filter */}
-            <div className={cn("relative p-1 rounded-xl flex gap-1", theme === 'light' ? "bg-slate-100 border border-slate-200" : theme === 'ocean' ? "bg-blue-950/60 border border-blue-800/40" : "bg-slate-800 border border-slate-700/50")}>
-                {(['This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
-                    <button
-                        key={tf}
-                        onClick={() => setTimeFilter(tf)}
-                        className={cn(
-                            "px-2 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap",
-                            timeFilter === tf
-                                ? (theme === 'light' ? "bg-white shadow text-indigo-600 border border-indigo-100" : theme === 'ocean' ? "bg-blue-900 text-indigo-300 shadow" : "bg-slate-700 text-indigo-300 shadow")
-                                : (theme === 'light' ? "text-slate-500 hover:text-slate-700" : "text-white/50 hover:text-white/80")
-                        )}
-                    >
-                        {tf}
-                    </button>
-                ))}
+            <div className={cn(
+              "relative p-1 rounded-xl flex gap-1 backdrop-blur-sm",
+              theme === 'light' ? "bg-white/70 border border-amber-200/60" : theme === 'ocean' ? "bg-blue-950/50 border border-blue-800/40" : "bg-slate-800/60 border border-slate-700/50"
+            )}>
+              {(['This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => setTimeFilter(tf)}
+                  className={cn(
+                    "px-2 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap",
+                    timeFilter === tf
+                      ? (theme === 'light' ? "bg-amber-500 shadow text-white" : theme === 'ocean' ? "bg-blue-900 text-indigo-300 shadow" : "bg-slate-700 text-indigo-300 shadow")
+                      : (theme === 'light' ? "text-amber-800/60 hover:text-amber-900" : "text-white/50 hover:text-white/80")
+                  )}
+                >
+                  {tf}
+                </button>
+              ))}
             </div>
+          </div>
         </div>
       </div>
 
