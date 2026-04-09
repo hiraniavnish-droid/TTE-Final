@@ -23,6 +23,7 @@ const GroupTourDetails = React.lazy(() => import('./pages/GroupTourDetails').the
 const DirectPackages = React.lazy(() => import('./pages/DirectPackages').then(module => ({ default: module.DirectPackages })));
 const DirectPackageDetails = React.lazy(() => import('./pages/DirectPackageDetails').then(module => ({ default: module.DirectPackageDetails })));
 const BlockedRates = React.lazy(() => import('./pages/BlockedRates').then(module => ({ default: module.BlockedRates })));
+const GujaratDmcConsole = React.lazy(() => import('./components/gujarat/GujaratDmcConsole').then(module => ({ default: module.GujaratDmcConsole })));
 
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
@@ -65,6 +66,7 @@ function App() {
                       <Route path="group-tours/:id" element={<GroupTourDetails />} />
                       <Route path="direct-packages" element={<DirectPackages />} />
                       <Route path="direct-packages/:id" element={<DirectPackageDetails />} />
+                      <Route path="gujarat-dmc" element={<GujaratDmcConsole />} />
                       <Route path="blocked-rates" element={<BlockedRates />} />
                       <Route path="suppliers" element={<Suppliers />} />
                       <Route path="customers" element={<Customers />} />

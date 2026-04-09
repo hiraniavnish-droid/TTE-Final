@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../utils/helpers';
-import { Lock, ArrowRight, Map, Globe, Users, Plane, CalendarCheck } from 'lucide-react';
+import { Lock, ArrowRight, Map, Globe, Users, Plane, CalendarCheck, Compass, MapPin } from 'lucide-react';
 
 interface DestinationGalleryProps {
   onSelect: (id: string) => void;
@@ -23,7 +23,7 @@ export const DestinationGallery: React.FC<DestinationGalleryProps> = ({ onSelect
         <p className="text-sm opacity-60 max-w-md mx-auto">Choose between a customized individual journey, fixed group batches, or flexible independent packages.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Card 1: Direct Packages (New/Prominent) */}
         <button
@@ -151,6 +151,58 @@ export const DestinationGallery: React.FC<DestinationGalleryProps> = ({ onSelect
                   <ArrowRight size={18} />
               </span>
               Browse Collections
+            </div>
+          </div>
+        </button>
+
+        {/* Card 4: Gujarat DMC Console */}
+        <button
+          onClick={() => onSelect('gujarat-dmc')}
+          className={cn(
+            "group relative h-96 w-full rounded-[2rem] overflow-hidden text-left shadow-2xl transition-all duration-500 hover:scale-[1.02] hover:shadow-amber-900/20",
+            "border border-white/20 outline-none focus:ring-4 focus:ring-amber-500/20"
+          )}
+        >
+          {/* Background Image */}
+          <div className="absolute inset-0 bg-amber-950">
+            <img
+              src="https://images.unsplash.com/photo-1609948543911-7280795f813d?auto=format&fit=crop&w=800&q=80"
+              alt="Gujarat"
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-70"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-amber-950/90 via-amber-900/40 to-transparent" />
+          </div>
+
+          {/* Icon Overlay */}
+          <div className="absolute top-6 left-6 z-10">
+             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white">
+                <Compass size={24} />
+             </div>
+          </div>
+
+          {/* Badge */}
+          <div className="absolute top-6 right-6 z-10">
+            <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/30 text-white text-xs font-bold rounded-full shadow-lg flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              DMC Console
+            </span>
+          </div>
+
+          {/* Content */}
+          <div className="absolute bottom-0 left-0 p-8 w-full z-10">
+            <div className="flex items-center gap-2 text-amber-300 font-bold text-[10px] uppercase tracking-[0.2em] mb-2">
+                <MapPin size={12} /> 9 Destinations
+            </div>
+            <h2 className="text-3xl font-bold text-white font-serif mb-2 leading-tight">Gujarat Package</h2>
+            <p className="text-white/80 text-xs mb-6 line-clamp-2 leading-relaxed">
+              Full DMC console — ready packages, hotel rates, sightseeing & instant quotes for Gujarat.
+            </p>
+
+            <div className="flex items-center gap-3 text-white font-bold text-sm opacity-0 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-75">
+              <span className="w-10 h-10 rounded-full bg-white text-amber-900 flex items-center justify-center">
+                  <ArrowRight size={18} />
+              </span>
+              Open Console
             </div>
           </div>
         </button>

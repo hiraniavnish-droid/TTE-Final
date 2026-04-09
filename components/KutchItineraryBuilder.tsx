@@ -380,6 +380,8 @@ export const KutchItineraryBuilder = () => {
             navigate('/group-tours');
         } else if (dest === 'direct-packages') {
             navigate('/direct-packages');
+        } else if (dest === 'gujarat-dmc') {
+            navigate('/gujarat-dmc');
         } else {
             setSelectedDest(dest);
         }
