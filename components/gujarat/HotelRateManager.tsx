@@ -19,7 +19,7 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
   const { theme, getTextColor, getInputClass } = useTheme();
   const [selectedCity, setSelectedCity] = useState(GUJARAT_CITIES[0]);
   const [expandedHotel, setExpandedHotel] = useState<string | null>(null);
-  const [editingRate, setEditingRate] = useState<{ hotelName: string; roomIdx: number } | null>(null);
+  const [editingRate, setEditingRate] = useState<{ hotelName: string; roomIdx: number; field: 'rate' | 'mapRate' | 'apRate' } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editingImage, setEditingImage] = useState<string | null>(null);
   const [editImageValue, setEditImageValue] = useState('');
@@ -33,8 +33,8 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
 
   const cityHotels = hotelData[selectedCity] || [];
 
-  const handleRateEdit = (hotelName: string, roomIdx: number, currentRate: number) => {
-    setEditingRate({ hotelName, roomIdx });
+  const handleRateEdit = (hotelName: string, roomIdx: number, currentRate: number, field: 'rate' | 'mapRate' | 'apRate' = 'rate') => {
+    setEditingRate({ hotelName, roomIdx, field });
     setEditValue(String(currentRate));
   };
 
@@ -50,14 +50,15 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
       if (hIdx >= 0) {
         const hotel = { ...hotels[hIdx] };
         const rooms = [...hotel.roomTypes];
-        rooms[editingRate.roomIdx] = { ...rooms[editingRate.roomIdx], rate: newRate };
+        rooms[editingRate.roomIdx] = { ...rooms[editingRate.roomIdx], [editingRate.field]: newRate };
         hotel.roomTypes = rooms;
         hotels[hIdx] = hotel;
       }
       updated[selectedCity] = hotels;
       return updated;
     });
-    toast.success(`Rate updated to ${formatCurrency(newRate)}`);
+    const label = editingRate.field === 'mapRate' ? 'MAP' : editingRate.field === 'apRate' ? 'AP' : 'CP';
+    toast.success(`${label} rate updated to ${formatCurrency(newRate)}`);
     setEditingRate(null);
   };
 
@@ -264,7 +265,7 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
                             />
                             <p className="text-[10px] opacity-50 mt-0.5">Capacity: {room.capacity} pax</p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap justify-end">
                             {editingRate?.hotelName === hotel.name && editingRate?.roomIdx === roomIdx ? (
                               <div className="flex items-center gap-1">
                                 <input
@@ -279,13 +280,36 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
                                 <button onClick={() => setEditingRate(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X size={14} /></button>
                               </div>
                             ) : (
-                              <button
-                                onClick={() => handleRateEdit(hotel.name, roomIdx, room.rate)}
-                                className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-mono font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5"
-                              >
-                                {formatCurrency(room.rate)}
-                                <Edit3 size={10} className="opacity-50" />
-                              </button>
+                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                <button
+                                  onClick={() => handleRateEdit(hotel.name, roomIdx, room.rate, 'rate')}
+                                  className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-mono font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
+                                  title="CP Rate (Breakfast)"
+                                >
+                                  <span className="opacity-50 text-[10px]">CP</span> {formatCurrency(room.rate)}
+                                  <Edit3 size={9} className="opacity-40" />
+                                </button>
+                                {room.mapRate !== undefined && (
+                                  <button
+                                    onClick={() => handleRateEdit(hotel.name, roomIdx, room.mapRate!, 'mapRate')}
+                                    className="px-2 py-1 bg-green-50 hover:bg-green-100 text-green-700 font-mono font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
+                                    title="MAP Rate (Breakfast + Dinner)"
+                                  >
+                                    <span className="opacity-50 text-[10px]">MAP</span> {formatCurrency(room.mapRate)}
+                                    <Edit3 size={9} className="opacity-40" />
+                                  </button>
+                                )}
+                                {room.apRate !== undefined && (
+                                  <button
+                                    onClick={() => handleRateEdit(hotel.name, roomIdx, room.apRate!, 'apRate')}
+                                    className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 font-mono font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
+                                    title="AP Rate (All Meals)"
+                                  >
+                                    <span className="opacity-50 text-[10px]">AP</span> {formatCurrency(room.apRate)}
+                                    <Edit3 size={9} className="opacity-40" />
+                                  </button>
+                                )}
+                              </div>
                             )}
                             {hotel.roomTypes.length > 1 && (
                               <button onClick={() => handleDeleteRoomType(hotel.name, roomIdx)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
@@ -332,136 +356,183 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
       </Modal>
 
       {/* Add Hotel Modal */}
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title={`Add Hotel to ${selectedCity}`}>
-        <div className="space-y-4 p-1">
+      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title={`Add Hotel — ${selectedCity}`}>
+        <div className="space-y-5">
+
+          {/* Hotel Name */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-1 block">Hotel Name</label>
+            <label className="text-[11px] font-bold uppercase tracking-widest opacity-50 mb-2 block">Hotel Name</label>
             <input
               type="text"
               value={newHotel.name}
               onChange={(e) => setNewHotel(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="e.g. Taj Hotel"
-              className={cn("w-full px-4 py-2.5 rounded-xl border text-sm font-medium", getInputClass())}
+              placeholder="e.g. Taj Vivanta, Lemon Tree…"
+              className={cn("w-full px-4 py-3 rounded-2xl border text-sm font-medium focus:ring-2 focus:ring-amber-400 outline-none transition-all", getInputClass())}
+              autoFocus
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          {/* Tier + Meal Plan */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-1 block">Tier</label>
-              <select
-                value={newHotel.tier}
-                onChange={(e) => setNewHotel(prev => ({ ...prev, tier: e.target.value as 'Budget' | 'Premium' }))}
-                className={cn("w-full px-4 py-2.5 rounded-xl border text-sm font-medium", getInputClass())}
-              >
-                <option value="Budget">Budget</option>
-                <option value="Premium">Premium</option>
-              </select>
+              <label className="text-[11px] font-bold uppercase tracking-widest opacity-50 mb-2 block">Category</label>
+              <div className="flex gap-2">
+                {(['Budget', 'Premium'] as const).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setNewHotel(prev => ({ ...prev, tier: t }))}
+                    className={cn(
+                      "flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border",
+                      newHotel.tier === t
+                        ? t === 'Premium'
+                          ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200"
+                          : "bg-slate-700 text-white border-slate-700 shadow-sm"
+                        : theme === 'light'
+                          ? "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                          : "bg-white/5 text-white/50 border-white/10 hover:bg-white/10"
+                    )}
+                  >{t}</button>
+                ))}
+              </div>
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-1 block">Meal Plan</label>
+              <label className="text-[11px] font-bold uppercase tracking-widest opacity-50 mb-2 block">Default Plan</label>
               <select
                 value={newHotel.type}
                 onChange={(e) => setNewHotel(prev => ({ ...prev, type: e.target.value }))}
-                className={cn("w-full px-4 py-2.5 rounded-xl border text-sm font-medium", getInputClass())}
+                className={cn("w-full px-3 py-2.5 rounded-xl border text-sm font-medium focus:ring-2 focus:ring-amber-400 outline-none", getInputClass())}
               >
-                <option value="CPAI">CP (Breakfast)</option>
-                <option value="MAPAI">MAP (Bfast + Dinner)</option>
-                <option value="APAI">AP (All Meals)</option>
+                <option value="CPAI">CP — Breakfast</option>
+                <option value="MAPAI">MAP — Bfast + Dinner</option>
+                <option value="APAI">AP — All Meals</option>
               </select>
             </div>
           </div>
+
+          {/* Room Types */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold uppercase tracking-wider opacity-60">Room Types</label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-[11px] font-bold uppercase tracking-widest opacity-50">Room Types & Rates</label>
               <button
                 type="button"
                 onClick={() => setNewHotel(prev => ({ ...prev, roomTypes: [...prev.roomTypes, { name: '', capacity: 2, rate: 2500, mapRate: 3000, apRate: 3500 }] }))}
-                className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors"
               >
-                <Plus size={12} /> Add Row
+                <Plus size={13} /> Add Room Type
               </button>
             </div>
-            <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_60px_80px_80px_80px_28px] gap-2 px-1">
-                <span className="text-[10px] font-bold uppercase opacity-40">Name</span>
-                <span className="text-[10px] font-bold uppercase opacity-40">Pax</span>
-                <span className="text-[10px] font-bold uppercase text-blue-500">CP ₹</span>
-                <span className="text-[10px] font-bold uppercase text-green-600">MAP ₹</span>
-                <span className="text-[10px] font-bold uppercase text-amber-600">AP ₹</span>
-                <span />
-              </div>
+
+            <div className="space-y-3">
               {newHotel.roomTypes.map((rt, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_60px_80px_80px_80px_28px] gap-2 items-center">
-                  <input
-                    type="text"
-                    value={rt.name}
-                    onChange={(e) => setNewHotel(prev => {
-                      const rooms = [...prev.roomTypes];
-                      rooms[idx] = { ...rooms[idx], name: e.target.value };
-                      return { ...prev, roomTypes: rooms };
-                    })}
-                    placeholder="e.g. Deluxe Double"
-                    className={cn("px-3 py-2 rounded-xl border text-sm", getInputClass())}
-                  />
-                  <input
-                    type="number"
-                    value={rt.capacity}
-                    onChange={(e) => setNewHotel(prev => {
-                      const rooms = [...prev.roomTypes];
-                      rooms[idx] = { ...rooms[idx], capacity: parseInt(e.target.value) || 2 };
-                      return { ...prev, roomTypes: rooms };
-                    })}
-                    placeholder="2"
-                    className={cn("px-3 py-2 rounded-xl border text-sm", getInputClass())}
-                  />
-                  <input
-                    type="number"
-                    value={rt.rate}
-                    onChange={(e) => setNewHotel(prev => {
-                      const rooms = [...prev.roomTypes];
-                      rooms[idx] = { ...rooms[idx], rate: parseInt(e.target.value) || 0 };
-                      return { ...prev, roomTypes: rooms };
-                    })}
-                    placeholder="CP"
-                    className={cn("px-3 py-2 rounded-xl border text-sm border-blue-200 focus:ring-blue-400", getInputClass())}
-                  />
-                  <input
-                    type="number"
-                    value={rt.mapRate ?? ''}
-                    onChange={(e) => setNewHotel(prev => {
-                      const rooms = [...prev.roomTypes];
-                      rooms[idx] = { ...rooms[idx], mapRate: parseInt(e.target.value) || undefined };
-                      return { ...prev, roomTypes: rooms };
-                    })}
-                    placeholder="MAP"
-                    className={cn("px-3 py-2 rounded-xl border text-sm border-green-200 focus:ring-green-400", getInputClass())}
-                  />
-                  <input
-                    type="number"
-                    value={rt.apRate ?? ''}
-                    onChange={(e) => setNewHotel(prev => {
-                      const rooms = [...prev.roomTypes];
-                      rooms[idx] = { ...rooms[idx], apRate: parseInt(e.target.value) || undefined };
-                      return { ...prev, roomTypes: rooms };
-                    })}
-                    placeholder="AP"
-                    className={cn("px-3 py-2 rounded-xl border text-sm border-amber-200 focus:ring-amber-400", getInputClass())}
-                  />
-                  {newHotel.roomTypes.length > 1 ? (
+                <div key={idx} className={cn("rounded-2xl border p-4 space-y-3 relative", theme === 'light' ? "bg-slate-50 border-slate-200" : "bg-white/5 border-white/10")}>
+                  {newHotel.roomTypes.length > 1 && (
                     <button
                       type="button"
                       onClick={() => setNewHotel(prev => ({ ...prev, roomTypes: prev.roomTypes.filter((_, i) => i !== idx) }))}
-                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="absolute top-3 right-3 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       <Trash2 size={13} />
                     </button>
-                  ) : <span />}
+                  )}
+
+                  {/* Room name + capacity */}
+                  <div className="grid grid-cols-[1fr_100px] gap-3 pr-6">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase opacity-40 mb-1 block">Room Name</label>
+                      <input
+                        type="text"
+                        value={rt.name}
+                        onChange={(e) => setNewHotel(prev => {
+                          const rooms = [...prev.roomTypes];
+                          rooms[idx] = { ...rooms[idx], name: e.target.value };
+                          return { ...prev, roomTypes: rooms };
+                        })}
+                        placeholder="Deluxe Double"
+                        className={cn("w-full px-3 py-2 rounded-xl border text-sm font-medium outline-none focus:ring-2 focus:ring-amber-400", getInputClass())}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase opacity-40 mb-1 block">Max Pax</label>
+                      <input
+                        type="number"
+                        value={rt.capacity}
+                        min={1}
+                        onChange={(e) => setNewHotel(prev => {
+                          const rooms = [...prev.roomTypes];
+                          rooms[idx] = { ...rooms[idx], capacity: parseInt(e.target.value) || 2 };
+                          return { ...prev, roomTypes: rooms };
+                        })}
+                        className={cn("w-full px-3 py-2 rounded-xl border text-sm font-medium outline-none focus:ring-2 focus:ring-amber-400", getInputClass())}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Rates row */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase mb-1 block text-blue-500">CP Rate</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-40">₹</span>
+                        <input
+                          type="number"
+                          value={rt.rate}
+                          onChange={(e) => setNewHotel(prev => {
+                            const rooms = [...prev.roomTypes];
+                            rooms[idx] = { ...rooms[idx], rate: parseInt(e.target.value) || 0 };
+                            return { ...prev, roomTypes: rooms };
+                          })}
+                          placeholder="0"
+                          className={cn("w-full pl-7 pr-3 py-2 rounded-xl border text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-blue-300 border-blue-200", getInputClass())}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase mb-1 block text-green-600">MAP Rate</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-40">₹</span>
+                        <input
+                          type="number"
+                          value={rt.mapRate ?? ''}
+                          onChange={(e) => setNewHotel(prev => {
+                            const rooms = [...prev.roomTypes];
+                            rooms[idx] = { ...rooms[idx], mapRate: parseInt(e.target.value) || undefined };
+                            return { ...prev, roomTypes: rooms };
+                          })}
+                          placeholder="0"
+                          className={cn("w-full pl-7 pr-3 py-2 rounded-xl border text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-green-300 border-green-200", getInputClass())}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase mb-1 block text-amber-600">AP Rate</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-40">₹</span>
+                        <input
+                          type="number"
+                          value={rt.apRate ?? ''}
+                          onChange={(e) => setNewHotel(prev => {
+                            const rooms = [...prev.roomTypes];
+                            rooms[idx] = { ...rooms[idx], apRate: parseInt(e.target.value) || undefined };
+                            return { ...prev, roomTypes: rooms };
+                          })}
+                          placeholder="0"
+                          className={cn("w-full pl-7 pr-3 py-2 rounded-xl border text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-300 border-amber-200", getInputClass())}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="flex gap-3 pt-2">
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-1">
             <Button variant="secondary" size="sm" onClick={() => setIsAddModalOpen(false)} className="flex-1">Cancel</Button>
-            <Button variant="primary" size="sm" onClick={handleAddHotel} className="flex-1">Add Hotel</Button>
+            <Button variant="primary" size="sm" onClick={handleAddHotel} className="flex-1 bg-amber-500 hover:bg-amber-600 border-amber-500">
+              <Plus size={14} /> Add Hotel
+            </Button>
           </div>
         </div>
       </Modal>

@@ -42,6 +42,7 @@ export const GujaratPackageFlow: React.FC<GujaratPackageFlowProps> = ({
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [markupType, setMarkupType] = useState<'percent' | 'fixed'>('percent');
   const [markupValue, setMarkupValue] = useState<number>(0);
+  const [mealPlan, setMealPlan] = useState<'CP' | 'MAP' | 'AP'>('CP');
   const [swapModal, setSwapModal] = useState<{ dayIndex: number; city: string } | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
@@ -60,6 +61,12 @@ export const GujaratPackageFlow: React.FC<GujaratPackageFlowProps> = ({
   }, [pax, isManualFleet]);
 
   // --- PRICING LOGIC ---
+  const getRoomRate = (rt: RoomType, plan: 'CP' | 'MAP' | 'AP'): number => {
+    if (plan === 'MAP' && rt.mapRate !== undefined) return rt.mapRate;
+    if (plan === 'AP' && rt.apRate !== undefined) return rt.apRate;
+    return rt.rate; // CP or fallback
+  };
+
   const calculatePrice = (pkg: ItineraryPackage, tier: 'Budget' | 'Premium', overrides: Record<number, { hotel: Hotel, roomType: RoomType }> = {}) => {
     let transportCost = 0;
     fleet.forEach(item => {
@@ -72,14 +79,15 @@ export const GujaratPackageFlow: React.FC<GujaratPackageFlowProps> = ({
       let rate = 0;
       let capacity = 2;
       if (override) {
-        rate = override.roomType.rate;
+        rate = getRoomRate(override.roomType, mealPlan);
         capacity = override.roomType.capacity;
       } else {
         const cityHotels = hotelData[city] || [];
         const hotel = cityHotels.find(h => h.tier === tier) || cityHotels[0];
         if (hotel) {
-          rate = hotel.roomTypes[0]?.rate || 0;
-          capacity = hotel.roomTypes[0]?.capacity || 2;
+          const rt = hotel.roomTypes[0];
+          rate = rt ? getRoomRate(rt, mealPlan) : 0;
+          capacity = rt?.capacity || 2;
         }
       }
       const roomsNeeded = useRoomCalculator(pax, capacity);
@@ -98,7 +106,7 @@ export const GujaratPackageFlow: React.FC<GujaratPackageFlowProps> = ({
     if (markupType === 'percent') finalTotal = netTotal * (1 + markupValue / 100);
     else finalTotal = netTotal + markupValue;
     return { netTotal, finalTotal, perPerson: pax > 0 ? Math.round(finalTotal / pax) : 0 };
-  }, [activePackage, baseTier, hotelOverrides, fleet, pax, markupType, markupValue, vehicleData]);
+  }, [activePackage, baseTier, hotelOverrides, fleet, pax, markupType, markupValue, vehicleData, mealPlan]);
 
   // --- HANDLERS ---
   const handleAddVehicle = () => { setIsManualFleet(true); setFleet([...fleet, { id: generateId(), name: 'Sedan (Dzire)', count: 1 }]); };
@@ -155,7 +163,9 @@ export const GujaratPackageFlow: React.FC<GujaratPackageFlowProps> = ({
     text += `👥 *Pax:* ${pax} Adults\n`;
     text += `⏳ *Duration:* ${activePackage.days - 1} Nights / ${activePackage.days} Days\n`;
     text += `🗓 *Dates:* ${formatDate(startDate)} - ${endDateStr}\n`;
-    text += `🚗 *Transport:* ${vehicleStr}\n\n`;
+    text += `🚗 *Transport:* ${vehicleStr}\n`;
+    const mealPlanLabel = mealPlan === 'CP' ? 'CP (Breakfast)' : mealPlan === 'MAP' ? 'MAP (Breakfast + Dinner)' : 'AP (All Meals)';
+    text += `🍽 *Meal Plan:* ${mealPlanLabel}\n\n`;
     text += `--- *Daily Itinerary* ---\n\n`;
 
     activePackage.route.forEach((city, index) => {
@@ -306,6 +316,26 @@ export const GujaratPackageFlow: React.FC<GujaratPackageFlowProps> = ({
       {/* --- VIEW 2: EDITOR --- */}
       {view === 'editor' && activePackage && editorPricing && (
         <div className="flex flex-col h-full">
+          {/* Meal Plan Selector */}
+          <div className="shrink-0 flex items-center gap-2 px-4 md:px-6 py-2 border-b bg-white">
+            <span className="text-xs font-bold uppercase tracking-wider opacity-50 mr-1">Meal Plan:</span>
+            {(['CP', 'MAP', 'AP'] as const).map(plan => (
+              <button
+                key={plan}
+                onClick={() => setMealPlan(plan)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  mealPlan === plan
+                    ? plan === 'CP' ? 'bg-blue-500 text-white shadow-sm'
+                      : plan === 'MAP' ? 'bg-green-500 text-white shadow-sm'
+                      : 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                {plan === 'CP' ? 'CP (Bfast)' : plan === 'MAP' ? 'MAP (Bfast+Dinner)' : 'AP (All Meals)'}
+              </button>
+            ))}
+          </div>
+
           <div className="shrink-0 z-30 shadow-sm relative bg-slate-50">
             <PricingControlDeck
               pricing={editorPricing}
