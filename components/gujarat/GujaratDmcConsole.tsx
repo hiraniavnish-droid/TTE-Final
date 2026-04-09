@@ -25,13 +25,27 @@ export const GujaratDmcConsole: React.FC = () => {
   const { theme, getTextColor } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('packages');
 
-  // Shared mutable data (starts from constants, can be edited in Hotel/Sightseeing managers)
-  const [hotelData, setHotelData] = useState<Record<string, Hotel[]>>(
-    () => JSON.parse(JSON.stringify(GUJARAT_HOTELS))
-  );
-  const [sightseeingData, setSightseeingData] = useState<Record<string, Sightseeing[]>>(
-    () => JSON.parse(JSON.stringify(GUJARAT_SIGHTSEEING))
-  );
+  // Shared mutable data — persisted to localStorage so edits survive refresh
+  const [hotelData, setHotelData] = useState<Record<string, Hotel[]>>(() => {
+    try {
+      const saved = localStorage.getItem('gujarat_hotel_data');
+      return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(GUJARAT_HOTELS));
+    } catch { return JSON.parse(JSON.stringify(GUJARAT_HOTELS)); }
+  });
+  const [sightseeingData, setSightseeingData] = useState<Record<string, Sightseeing[]>>(() => {
+    try {
+      const saved = localStorage.getItem('gujarat_sightseeing_data');
+      return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(GUJARAT_SIGHTSEEING));
+    } catch { return JSON.parse(JSON.stringify(GUJARAT_SIGHTSEEING)); }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('gujarat_hotel_data', JSON.stringify(hotelData));
+  }, [hotelData]);
+
+  useEffect(() => {
+    localStorage.setItem('gujarat_sightseeing_data', JSON.stringify(sightseeingData));
+  }, [sightseeingData]);
 
   return (
     <div className="fixed top-0 bottom-0 right-0 left-0 md:left-64 z-30 flex flex-col overflow-hidden transition-all duration-300 animate-in fade-in bg-slate-50">
