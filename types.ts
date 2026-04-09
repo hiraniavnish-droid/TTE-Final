@@ -128,7 +128,9 @@ export interface ActivityLog {
 export interface RoomType {
   name: string;
   capacity: number; // 2 for Double, 4 for Quad
-  rate: number; // Rate per Room per Night
+  rate: number;    // CP rate (Breakfast only) — used as base/fallback
+  mapRate?: number; // MAP rate (Breakfast + Dinner)
+  apRate?: number;  // AP rate (All Meals)
 }
 
 export interface Hotel {

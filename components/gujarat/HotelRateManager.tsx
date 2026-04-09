@@ -28,7 +28,7 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
   // Add Hotel form state
   const [newHotel, setNewHotel] = useState({
     name: '', tier: 'Budget' as 'Budget' | 'Premium', type: 'CPAI',
-    roomTypes: [{ name: 'Deluxe Double', capacity: 2, rate: 2500 }]
+    roomTypes: [{ name: 'Deluxe Double', capacity: 2, rate: 2500, mapRate: 3000, apRate: 3500 }]
   });
 
   const cityHotels = hotelData[selectedCity] || [];
@@ -107,7 +107,7 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
       return updated;
     });
     toast.success(`${hotel.name} added to ${selectedCity}`);
-    setNewHotel({ name: '', tier: 'Budget', type: 'CPAI', roomTypes: [{ name: '', capacity: 2, rate: 2500 }] });
+    setNewHotel({ name: '', tier: 'Budget', type: 'CPAI', roomTypes: [{ name: '', capacity: 2, rate: 2500, mapRate: 3000, apRate: 3500 }] });
     setIsAddModalOpen(false);
   };
 
@@ -374,21 +374,23 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
               <label className="text-xs font-bold uppercase tracking-wider opacity-60">Room Types</label>
               <button
                 type="button"
-                onClick={() => setNewHotel(prev => ({ ...prev, roomTypes: [...prev.roomTypes, { name: '', capacity: 2, rate: 2500 }] }))}
+                onClick={() => setNewHotel(prev => ({ ...prev, roomTypes: [...prev.roomTypes, { name: '', capacity: 2, rate: 2500, mapRate: 3000, apRate: 3500 }] }))}
                 className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
               >
                 <Plus size={12} /> Add Row
               </button>
             </div>
             <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_80px_90px_28px] gap-2 px-1">
+              <div className="grid grid-cols-[1fr_60px_80px_80px_80px_28px] gap-2 px-1">
                 <span className="text-[10px] font-bold uppercase opacity-40">Name</span>
                 <span className="text-[10px] font-bold uppercase opacity-40">Pax</span>
-                <span className="text-[10px] font-bold uppercase opacity-40">Rate (₹)</span>
+                <span className="text-[10px] font-bold uppercase text-blue-500">CP ₹</span>
+                <span className="text-[10px] font-bold uppercase text-green-600">MAP ₹</span>
+                <span className="text-[10px] font-bold uppercase text-amber-600">AP ₹</span>
                 <span />
               </div>
               {newHotel.roomTypes.map((rt, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_80px_90px_28px] gap-2 items-center">
+                <div key={idx} className="grid grid-cols-[1fr_60px_80px_80px_80px_28px] gap-2 items-center">
                   <input
                     type="text"
                     value={rt.name}
@@ -419,8 +421,30 @@ export const HotelRateManager: React.FC<HotelRateManagerProps> = ({ hotelData, s
                       rooms[idx] = { ...rooms[idx], rate: parseInt(e.target.value) || 0 };
                       return { ...prev, roomTypes: rooms };
                     })}
-                    placeholder="2500"
-                    className={cn("px-3 py-2 rounded-xl border text-sm", getInputClass())}
+                    placeholder="CP"
+                    className={cn("px-3 py-2 rounded-xl border text-sm border-blue-200 focus:ring-blue-400", getInputClass())}
+                  />
+                  <input
+                    type="number"
+                    value={rt.mapRate ?? ''}
+                    onChange={(e) => setNewHotel(prev => {
+                      const rooms = [...prev.roomTypes];
+                      rooms[idx] = { ...rooms[idx], mapRate: parseInt(e.target.value) || undefined };
+                      return { ...prev, roomTypes: rooms };
+                    })}
+                    placeholder="MAP"
+                    className={cn("px-3 py-2 rounded-xl border text-sm border-green-200 focus:ring-green-400", getInputClass())}
+                  />
+                  <input
+                    type="number"
+                    value={rt.apRate ?? ''}
+                    onChange={(e) => setNewHotel(prev => {
+                      const rooms = [...prev.roomTypes];
+                      rooms[idx] = { ...rooms[idx], apRate: parseInt(e.target.value) || undefined };
+                      return { ...prev, roomTypes: rooms };
+                    })}
+                    placeholder="AP"
+                    className={cn("px-3 py-2 rounded-xl border text-sm border-amber-200 focus:ring-amber-400", getInputClass())}
                   />
                   {newHotel.roomTypes.length > 1 ? (
                     <button
