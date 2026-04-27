@@ -1091,10 +1091,10 @@ export const Dashboard = () => {
       {isAdminGlobalView ? (
         <>
           {[
+            kpiSection,
             <ActivityMonitor logs={activityLogs} />,
             <ActivityHeatmap logs={activityLogs} />,
             <div className="mb-8"><AdminLeaderboard leads={dashboardLeads} /></div>,
-            kpiSection,
             pipelineSection,
             analyticsSection,
             sourcesSection,
