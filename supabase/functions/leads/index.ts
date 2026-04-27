@@ -52,7 +52,7 @@ serve(async (req) => {
   const budget = Number(payload.budget) || 0;
   const travelDate = payload.travel_date ? String(payload.travel_date) : new Date().toISOString();
   const pax = Number(payload.pax) || 2;
-  const assignedTo = payload.assigned_to ? String(payload.assigned_to) : "admin";
+  const assignedTo = payload.assigned_to ? String(payload.assigned_to) : "Sonali";
 
   const row = {
     name: name || email,
