@@ -850,15 +850,16 @@ export const Dashboard = () => {
   // Comparison agents data when compareMode is on
   const comparisonRows = useMemo(() => {
       if (!compareMode || user?.role !== 'admin' || viewAsAgent !== 'all') return null;
-      const byAgent = new Map<string, { name: string; leads: number; won: number; revenue: number }>();
+      const byAgent = new Map<string, { name: string; leads: number; won: number; revenue: number; cost: number }>();
       dashboardLeads.forEach(l => {
           const a = l.assignedTo || 'Unassigned';
-          if (!byAgent.has(a)) byAgent.set(a, { name: a, leads: 0, won: 0, revenue: 0 });
+          if (!byAgent.has(a)) byAgent.set(a, { name: a, leads: 0, won: 0, revenue: 0, cost: 0 });
           const r = byAgent.get(a)!;
           r.leads++;
           if (l.status === 'Won') {
               r.won++;
               r.revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0);
+              r.cost += (l.commercials?.netCost || 0);
           }
       });
       return Array.from(byAgent.values()).sort((a, b) => b.revenue - a.revenue);
@@ -1202,12 +1203,18 @@ export const Dashboard = () => {
                               <span className={cn("font-bold text-sm", getTextColor())}>{r.name}</span>
                               {idx === 0 && <span className="text-xs">🥇</span>}
                           </div>
-                          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-                              <span className="opacity-60">Leads</span><span className="text-right font-mono font-bold">{r.leads}</span>
-                              <span className="opacity-60">Won</span><span className="text-right font-mono font-bold text-emerald-500">{r.won}</span>
-                              <span className="opacity-60">Win %</span><span className="text-right font-mono font-bold">{conv.toFixed(1)}%</span>
-                              <span className="opacity-60">Revenue</span><span className="text-right font-mono font-bold">{formatCompactCurrency(r.revenue)}</span>
-                          </div>
+                          {(() => {
+                              const profit = r.revenue - r.cost;
+                              return (
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                                      <span className="opacity-60">Leads</span><span className="text-right font-mono font-bold">{r.leads}</span>
+                                      <span className="opacity-60">Won</span><span className="text-right font-mono font-bold text-emerald-500">{r.won}</span>
+                                      <span className="opacity-60">Win %</span><span className="text-right font-mono font-bold">{conv.toFixed(1)}%</span>
+                                      <span className="opacity-60">Revenue</span><span className="text-right font-mono font-bold">{formatCompactCurrency(r.revenue)}</span>
+                                      <span className="opacity-60">Profit</span><span className={cn("text-right font-mono font-bold", profit > 0 ? 'text-emerald-500' : profit < 0 ? 'text-rose-500' : 'opacity-60')}>{formatCompactCurrency(profit)}</span>
+                                  </div>
+                              );
+                          })()}
                       </div>
                   );
               })}
