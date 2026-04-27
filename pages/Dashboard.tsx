@@ -54,13 +54,13 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Lead, ActivityLog } from '../types';
 import { getAgentColor } from './Leads';
 
 // --- Shared Helpers ---
 
-type TimeFilter = 'This Month' | 'Last Quarter' | 'All Time';
+type TimeFilter = 'Today' | 'This Week' | 'This Month' | 'Last Quarter' | 'All Time';
 type OpTab = 'Ongoing Now' | 'Starts Tomorrow' | 'This Week' | 'Next Week' | 'This Month';
 type ActivityRange = 'Today' | 'Yesterday' | 'This Week' | 'Custom Range';
 
@@ -71,6 +71,56 @@ const QUOTES = [
   'Turning dreams into itineraries.',
   'Let’s make someone’s holiday perfect today.'
 ];
+
+// Date-seeded picker so quote stays stable for the day
+const pickQuoteForToday = (): string => {
+    const seed = new Date().toDateString();
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+    return QUOTES[Math.abs(hash) % QUOTES.length];
+};
+
+// Compute [start, end] for a TimeFilter and the prior comparable window
+const getPeriodRange = (tf: TimeFilter, ref: Date = new Date()): { start: Date | null; end: Date | null; prevStart: Date | null; prevEnd: Date | null; label: string } => {
+    const start = new Date(ref); start.setHours(0,0,0,0);
+    const end = new Date(ref); end.setHours(23,59,59,999);
+    if (tf === 'Today') {
+        const ps = new Date(start); ps.setDate(ps.getDate() - 1);
+        const pe = new Date(end);   pe.setDate(pe.getDate() - 1);
+        return { start, end, prevStart: ps, prevEnd: pe, label: 'yesterday' };
+    }
+    if (tf === 'This Week') {
+        const day = ref.getDay() || 7; // Mon=1
+        const s = new Date(start); s.setDate(start.getDate() - (day - 1));
+        const ps = new Date(s); ps.setDate(ps.getDate() - 7);
+        const pe = new Date(s); pe.setDate(pe.getDate() - 1); pe.setHours(23,59,59,999);
+        return { start: s, end, prevStart: ps, prevEnd: pe, label: 'last week' };
+    }
+    if (tf === 'This Month') {
+        const s = new Date(ref.getFullYear(), ref.getMonth(), 1);
+        const ps = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
+        const pe = new Date(ref.getFullYear(), ref.getMonth(), 0, 23, 59, 59, 999);
+        return { start: s, end, prevStart: ps, prevEnd: pe, label: 'last month' };
+    }
+    if (tf === 'Last Quarter') {
+        const s = new Date(ref); s.setMonth(s.getMonth() - 3); s.setHours(0,0,0,0);
+        const ps = new Date(s); ps.setMonth(ps.getMonth() - 3);
+        const pe = new Date(s); pe.setDate(pe.getDate() - 1); pe.setHours(23,59,59,999);
+        return { start: s, end, prevStart: ps, prevEnd: pe, label: 'prior 3 months' };
+    }
+    return { start: null, end: null, prevStart: null, prevEnd: null, label: '' };
+};
+
+const formatDelta = (curr: number, prev: number): { text: string; isUp: boolean | null } => {
+    if (prev === 0) {
+        if (curr === 0) return { text: 'no change', isUp: null };
+        return { text: 'new', isUp: true };
+    }
+    const pct = ((curr - prev) / Math.abs(prev)) * 100;
+    if (Math.abs(pct) < 0.5) return { text: '0%', isUp: null };
+    const sign = pct > 0 ? '↑' : '↓';
+    return { text: `${sign} ${Math.abs(pct).toFixed(0)}%`, isUp: pct > 0 };
+};
 
 const getGreeting = (name: string) => {
     const hour = new Date().getHours();
@@ -324,16 +374,19 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
 
 // --- Admin Components ---
 
+type LeaderSortKey = 'revenue' | 'leads' | 'winrate';
+
 const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
     const { theme, getTextColor } = useTheme();
-    
+    const [sortBy, setSortBy] = useState<LeaderSortKey>('revenue');
+
     const agentStats = useMemo(() => {
         const agents: Record<string, { name: string, leads: number, won: number, revenue: number }> = {};
-        
+
         leads.forEach(l => {
             const agent = l.assignedTo || 'Unassigned';
             if (!agents[agent]) agents[agent] = { name: agent, leads: 0, won: 0, revenue: 0 };
-            
+
             agents[agent].leads++;
             if (l.status === 'Won') {
                 agents[agent].won++;
@@ -341,8 +394,18 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
             }
         });
 
-        return Object.values(agents).sort((a, b) => b.revenue - a.revenue);
-    }, [leads]);
+        const arr = Object.values(agents);
+        arr.sort((a, b) => {
+            if (sortBy === 'leads') return b.leads - a.leads;
+            if (sortBy === 'winrate') {
+                const ar = a.leads ? a.won / a.leads : 0;
+                const br = b.leads ? b.won / b.leads : 0;
+                return br - ar;
+            }
+            return b.revenue - a.revenue;
+        });
+        return arr;
+    }, [leads, sortBy]);
 
     const pieData = useMemo(() => agentStats.map(a => ({ name: a.name, value: a.leads })), [agentStats]);
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -350,11 +413,21 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2">
-                <div className="flex items-center gap-2 mb-6">
-                    <div className={cn("p-1.5 rounded bg-amber-500/10 text-amber-500")}>
-                        <Crown size={18} />
+                <div className="flex items-center justify-between gap-2 mb-6">
+                    <div className="flex items-center gap-2">
+                        <div className={cn("p-1.5 rounded bg-amber-500/10 text-amber-500")}>
+                            <Crown size={18} />
+                        </div>
+                        <h3 className={cn("font-bold font-serif", getTextColor())}>Team Leaderboard</h3>
                     </div>
-                    <h3 className={cn("font-bold font-serif", getTextColor())}>Team Leaderboard</h3>
+                    <div className={cn("flex items-center rounded-lg p-0.5 border text-[10px] font-bold", theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/60 border-slate-700/40')}>
+                        {(['revenue', 'leads', 'winrate'] as LeaderSortKey[]).map(k => (
+                            <button key={k} onClick={() => setSortBy(k)} className={cn(
+                                "px-2.5 py-1 rounded-md transition-colors uppercase tracking-wide",
+                                sortBy === k ? (theme === 'light' ? 'bg-white text-blue-600 shadow-sm' : 'bg-slate-700 text-indigo-300') : 'opacity-50 hover:opacity-100'
+                            )}>{k === 'winrate' ? 'Win %' : k}</button>
+                        ))}
+                    </div>
                 </div>
                 
                 <div className="overflow-x-auto">
@@ -461,26 +534,26 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
 
 // --- Standard Agent Dashboard Components ---
 
-const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick }: any) => {
+const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick, delta, deltaLabel, emptyHint }: any) => {
     const { getTextColor, getCardBg, theme } = useTheme();
     const animated = useCountUp(typeof rawValue === 'number' ? rawValue : 0, 1200);
     const displayValue = (typeof rawValue === 'number' && formatFn)
       ? formatFn(animated)
       : value;
 
+    const isEmpty = (typeof rawValue === 'number' && rawValue === 0);
+
     return (
         <div
             onClick={onClick}
             className={cn(
-                "p-4 md:p-5 rounded-xl border transition-all duration-300 group cursor-pointer relative overflow-hidden",
-                "hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]",
+                "p-4 md:p-5 rounded-xl border transition-all duration-300 group relative overflow-hidden",
+                onClick ? "cursor-pointer hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]" : "",
                 getCardBg(),
                 theme === 'light' ? "border-slate-100 shadow-sm" : ""
             )}
         >
-            {/* Colored top accent */}
             <div className={cn("absolute top-0 left-0 right-0 h-[3px] rounded-t-xl", colorClass)} />
-            {/* Subtle color glow in bg corner */}
             <div className={cn("absolute -bottom-4 -right-4 w-20 h-20 rounded-full blur-2xl opacity-20 pointer-events-none", colorClass)} />
             <div className="flex justify-between items-start mb-2 mt-1">
                 <div className={cn("p-2 rounded-lg", colorClass)}>
@@ -491,12 +564,24 @@ const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: I
             <div className="mt-1 relative z-10">
                 <p className={cn("text-[10px] md:text-xs font-bold uppercase tracking-wider opacity-60 mb-0.5", getTextColor())}>{title}</p>
                 <h3 className={cn("text-xl md:text-2xl font-bold font-mono tracking-tight tabular-nums", getTextColor())}>{displayValue}</h3>
+                {delta && (
+                    <div className="flex items-center gap-1 mt-1">
+                        <span className={cn(
+                            "text-[10px] font-bold font-mono",
+                            delta.isUp === true ? 'text-emerald-500' : delta.isUp === false ? 'text-rose-500' : 'opacity-40'
+                        )}>{delta.text}</span>
+                        {deltaLabel && <span className={cn("text-[10px] opacity-50", getTextColor())}>vs {deltaLabel}</span>}
+                    </div>
+                )}
                 {breakdown ? (
                     <div className={cn("text-[9px] md:text-[10px] mt-2 pt-2 border-t border-dashed border-gray-500/20 font-mono opacity-80", getTextColor())}>
                         {breakdown}
                     </div>
                 ) : (
                     subtext && <p className={cn("text-[9px] md:text-[10px] mt-1 opacity-50 truncate", getTextColor())}>{subtext}</p>
+                )}
+                {isEmpty && emptyHint && (
+                    <p className={cn("text-[9px] md:text-[10px] mt-1 italic opacity-50", getTextColor())}>{emptyHint}</p>
                 )}
             </div>
         </div>
@@ -507,22 +592,27 @@ const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: I
 const PIPELINE_COLORS: Record<string, string> = {
     'New': '#38bdf8', 'Contacted': '#fbbf24', 'Proposal Sent': '#a78bfa', 'Discussion': '#818cf8',
 };
+
+// Stable tooltip styles per theme — keeps Recharts from re-rendering on hover/scroll
+const TOOLTIP_STYLES: Record<string, React.CSSProperties> = {
+    light: { backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: '#0f172a', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+    ocean: { backgroundColor: 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: '#e2e8f0' },
+    dark:  { backgroundColor: 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: '#e2e8f0' },
+};
+const tooltipStyle = (t: string) => TOOLTIP_STYLES[t] || TOOLTIP_STYLES.light;
+const TOOLTIP_TRANSPARENT_CURSOR = { fill: 'transparent' };
 const ACTIVE_STAGES = new Set(['New', 'Contacted', 'Proposal Sent', 'Discussion']);
 const WIP_STAGES = new Set(['Contacted', 'Proposal Sent', 'Discussion']);
 
-const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter) => {
-    const now = new Date();
-    const nowMonth = now.getMonth();
-    const nowYear = now.getFullYear();
-    const threeMonthsAgo = new Date(now);
-    threeMonthsAgo.setMonth(now.getMonth() - 3);
+const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter, override?: { start: Date | null; end: Date | null }) => {
+    const range = override ?? getPeriodRange(timeFilter);
+    const startMs = range.start ? range.start.getTime() : null;
+    const endMs = range.end ? range.end.getTime() : null;
 
-    // Single filter pass
     const filteredLeads = leads.filter(l => {
-        if (timeFilter === 'All Time') return true;
-        const leadDate = new Date(l.createdAt);
-        if (timeFilter === 'This Month') return leadDate.getMonth() === nowMonth && leadDate.getFullYear() === nowYear;
-        return leadDate >= threeMonthsAgo; // Last Quarter
+        if (startMs === null) return true;
+        const t = new Date(l.createdAt).getTime();
+        return t >= startMs && (endMs === null || t <= endMs);
     });
 
     // Single accumulation pass
@@ -656,20 +746,34 @@ const getOperationalLeads = (leads: Lead[], tab: OpTab) => {
 // --- Main Page Component ---
 
 export const Dashboard = () => {
-  const { leads, allLeads, reminders, activityLogs } = useLeads(); 
+  const { leads, allLeads, reminders, activityLogs } = useLeads();
   const { user, users } = useAuth();
   const { theme, getTextColor, getSecondaryTextColor, getGlassClass } = useTheme();
   const navigate = useNavigate();
-  
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('This Month');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const initialTf = (searchParams.get('period') as TimeFilter) || 'This Month';
+  const initialAgent = searchParams.get('as') || 'all';
+  const initialCompare = searchParams.get('compare') === '1';
+
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>(initialTf);
   const [opTab, setOpTab] = useState<OpTab>('Ongoing Now');
-  const [viewAsAgent, setViewAsAgent] = useState<string>('all');
-  
-  const [quote, setQuote] = useState('');
-  
+  const [viewAsAgent, setViewAsAgent] = useState<string>(initialAgent);
+  const [compareMode, setCompareMode] = useState<boolean>(initialCompare);
+  const [mobileAnalyticsTab, setMobileAnalyticsTab] = useState<'pipeline' | 'funnel' | 'sources'>('pipeline');
+
+  // Sticky quote — same all day
+  const quote = useMemo(() => pickQuoteForToday(), []);
+
+  // Sync state -> URL
   useEffect(() => {
-      setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
-  }, []);
+      const next = new URLSearchParams(searchParams);
+      if (timeFilter !== 'This Month') next.set('period', timeFilter); else next.delete('period');
+      if (viewAsAgent !== 'all') next.set('as', viewAsAgent); else next.delete('as');
+      if (compareMode) next.set('compare', '1'); else next.delete('compare');
+      setSearchParams(next, { replace: true });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeFilter, viewAsAgent, compareMode]);
 
   const dashboardLeads = useMemo(() => {
       if (user?.role !== 'admin') return leads;
@@ -678,6 +782,15 @@ export const Dashboard = () => {
   }, [user, leads, allLeads, viewAsAgent]);
 
   const stats = useMemo(() => getDashboardStats(dashboardLeads, timeFilter), [dashboardLeads, timeFilter]);
+
+  const prevStats = useMemo(() => {
+      const r = getPeriodRange(timeFilter);
+      if (!r.prevStart || !r.prevEnd) return null;
+      return getDashboardStats(dashboardLeads, timeFilter, { start: r.prevStart, end: r.prevEnd });
+  }, [dashboardLeads, timeFilter]);
+
+  const periodLabel = useMemo(() => getPeriodRange(timeFilter).label, [timeFilter]);
+
   const opLeads = useMemo(() => getOperationalLeads(dashboardLeads, opTab), [dashboardLeads, opTab]);
 
   const handleNav = (path: string) => navigate(path);
@@ -695,27 +808,70 @@ export const Dashboard = () => {
     }).slice(0, 5);
   }, [reminders]);
 
-  // Today's Focus data
-  const focusNow = new Date();
-  const focusSevenDaysLater = new Date(focusNow.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const overdueReminders = reminders.filter(r => !r.isCompleted && new Date(r.dueDate) < focusNow);
-  const staleLeads = dashboardLeads.filter(l =>
-    !['Won', 'Lost'].includes(l.status) &&
-    new Date(l.lastStatusUpdate || l.createdAt).getTime() < focusNow.getTime() - 24 * 60 * 60 * 1000
-  );
-  const departingLeads = dashboardLeads.filter(l =>
-    l.tripDetails.startDate &&
-    new Date(l.tripDetails.startDate) >= focusNow &&
-    new Date(l.tripDetails.startDate) <= focusSevenDaysLater
-  );
-  const hasFocusItems = overdueReminders.length > 0 || staleLeads.length > 0 || departingLeads.length > 0;
+  // Today's Focus — memoized so theme/hover doesn't recompute
+  const focusData = useMemo(() => {
+      const focusNow = new Date();
+      const focusSevenDaysLater = new Date(focusNow.getTime() + 7 * 86400000);
+      const overdueReminders = reminders.filter(r => !r.isCompleted && new Date(r.dueDate) < focusNow);
+      const staleLeads = dashboardLeads.filter(l =>
+          !['Won', 'Lost'].includes(l.status) &&
+          new Date(l.lastStatusUpdate || l.createdAt).getTime() < focusNow.getTime() - 86400000
+      );
+      const departingLeads = dashboardLeads.filter(l =>
+          l.tripDetails.startDate &&
+          new Date(l.tripDetails.startDate) >= focusNow &&
+          new Date(l.tripDetails.startDate) <= focusSevenDaysLater
+      );
+      return {
+          overdueReminders, staleLeads, departingLeads,
+          hasFocusItems: overdueReminders.length > 0 || staleLeads.length > 0 || departingLeads.length > 0,
+      };
+  }, [reminders, dashboardLeads]);
+  const { overdueReminders, staleLeads, departingLeads, hasFocusItems } = focusData;
 
-  const getRevenueBreakdown = () => {
+  const revenueBreakdown = useMemo(() => {
       if (user?.role !== 'admin' || viewAsAgent !== 'all') return null;
       const sorted = Object.entries(stats.revenueByAgent as Record<string, number>).sort((a, b) => b[1] - a[1]).slice(0, 3);
       if (sorted.length === 0) return null;
       return sorted.map(([name, val]) => `${name}: ${formatCompactCurrency(val)}`).join(' | ');
-  };
+  }, [user, viewAsAgent, stats.revenueByAgent]);
+
+  // Period-over-period deltas for KPIs
+  const deltas = useMemo(() => {
+      if (!prevStats) return null;
+      return {
+          revenue: formatDelta(stats.totalRevenue, prevStats.totalRevenue),
+          profit: formatDelta(stats.netProfit, prevStats.netProfit),
+          winRate: formatDelta(stats.winRate, prevStats.winRate),
+          pending: formatDelta(stats.pendingCount, prevStats.pendingCount),
+      };
+  }, [stats, prevStats]);
+
+  // Comparison agents data when compareMode is on
+  const comparisonRows = useMemo(() => {
+      if (!compareMode || user?.role !== 'admin' || viewAsAgent !== 'all') return null;
+      const byAgent = new Map<string, { name: string; leads: number; won: number; revenue: number }>();
+      dashboardLeads.forEach(l => {
+          const a = l.assignedTo || 'Unassigned';
+          if (!byAgent.has(a)) byAgent.set(a, { name: a, leads: 0, won: 0, revenue: 0 });
+          const r = byAgent.get(a)!;
+          r.leads++;
+          if (l.status === 'Won') {
+              r.won++;
+              r.revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0);
+          }
+      });
+      return Array.from(byAgent.values()).sort((a, b) => b.revenue - a.revenue);
+  }, [compareMode, user, viewAsAgent, dashboardLeads]);
+
+  // Stale active leads (Contacted/Proposal Sent/Discussion not touched in 24h+)
+  const staleActiveCount = useMemo(() => {
+      const cutoff = Date.now() - 86400000;
+      return dashboardLeads.filter(l =>
+          ['Contacted', 'Proposal Sent', 'Discussion'].includes(l.status) &&
+          new Date(l.lastStatusUpdate || l.createdAt).getTime() < cutoff
+      ).length;
+  }, [dashboardLeads]);
 
   const bannerStyle: React.CSSProperties = theme === 'light'
     ? {
@@ -874,10 +1030,49 @@ export const Dashboard = () => {
 
   const kpiSection = (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <KPICard title={isAdminGlobalView ? "Total Revenue" : "Revenue"} value={formatCurrency(stats.totalRevenue)} rawValue={stats.totalRevenue} formatFn={formatCurrency} subtext="Closed Won Deals" breakdown={getRevenueBreakdown()} icon={DollarSign} colorClass="bg-emerald-500" />
-        <KPICard title="Net Profit" value={formatCurrency(stats.netProfit)} rawValue={stats.netProfit} formatFn={formatCurrency} subtext="Revenue - Net Cost" icon={TrendingUp} colorClass="bg-blue-500" />
-        <RadialGauge value={stats.winRate} label="Win Rate" subtext="Won vs Total Closed" />
-        <KPICard title="Pending Leads" value={stats.pendingCount} rawValue={stats.pendingCount} formatFn={(n: number) => String(n)} subtext="Status: New" icon={Clock} colorClass="bg-rose-500" onClick={() => handleNav('/leads?status=New')} />
+        <KPICard
+            title={isAdminGlobalView ? "Total Revenue" : "Revenue"}
+            value={formatCurrency(stats.totalRevenue)}
+            rawValue={stats.totalRevenue}
+            formatFn={formatCurrency}
+            subtext="Closed Won Deals"
+            breakdown={revenueBreakdown}
+            icon={DollarSign}
+            colorClass="bg-emerald-500"
+            delta={deltas?.revenue}
+            deltaLabel={periodLabel}
+            emptyHint="Add a lead and close it to start tracking revenue"
+            onClick={() => handleNav('/leads?status=Won')}
+        />
+        <KPICard
+            title="Net Profit"
+            value={formatCurrency(stats.netProfit)}
+            rawValue={stats.netProfit}
+            formatFn={formatCurrency}
+            subtext="Revenue - Net Cost"
+            icon={TrendingUp}
+            colorClass="bg-blue-500"
+            delta={deltas?.profit}
+            deltaLabel={periodLabel}
+            emptyHint="No closed deals yet"
+            onClick={() => handleNav('/leads?status=Won')}
+        />
+        <div onClick={() => handleNav('/leads?status=Won,Lost')} className="cursor-pointer">
+            <RadialGauge value={stats.winRate} label="Win Rate" subtext={deltas?.winRate ? `${deltas.winRate.text} vs ${periodLabel}` : "Won vs Total Closed"} />
+        </div>
+        <KPICard
+            title="New Leads"
+            value={stats.pendingCount}
+            rawValue={stats.pendingCount}
+            formatFn={(n: number) => String(n)}
+            subtext={staleActiveCount > 0 ? `+ ${staleActiveCount} stale active` : "Untouched, status: New"}
+            icon={Clock}
+            colorClass="bg-rose-500"
+            delta={deltas?.pending}
+            deltaLabel={periodLabel}
+            emptyHint="No new leads in this period"
+            onClick={() => handleNav('/leads?status=New')}
+        />
     </div>
   );
 
@@ -896,7 +1091,7 @@ export const Dashboard = () => {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
-                    <Tooltip formatter={(val: number) => [formatCompactCurrency(val), 'Budget']} contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }} cursor={{ fill: 'transparent' }} />
+                    <Tooltip formatter={(val: number) => [formatCompactCurrency(val), 'Budget']} contentStyle={tooltipStyle(theme)} cursor={TOOLTIP_TRANSPARENT_CURSOR} />
                     <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
                         <LabelList dataKey="value" position="top" formatter={(v: number) => formatCompactCurrency(v)} style={{ fontSize: '9px', fontWeight: 700, fill: theme === 'light' ? '#64748b' : '#94a3b8' }} />
                         {stats.pipelineByStage.map((entry, i) => (<Cell key={i} fill={entry.fill} opacity={0.85} />))}
@@ -917,7 +1112,7 @@ export const Dashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.10)'} />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={80} tick={{ fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(22, 30, 50, 0.97)', borderRadius: '8px', border: 'none', color: theme === 'light' ? '#0f172a' : '#e2e8f0', fontSize: '12px' }} />
+                  <Tooltip cursor={TOOLTIP_TRANSPARENT_CURSOR} contentStyle={tooltipStyle(theme)} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20} onClick={(data) => handleNav(`/leads?status=${data.name}`)}>
                       <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fill: theme === 'light' ? '#64748b' : '#94a3b8', fontWeight: 'bold' }} />
                       {stats.funnelData.map((entry, index) => (<Cell key={`cell-${index}`} fill={theme === 'light' ? '#3b82f6' : '#60a5fa'} className="cursor-pointer hover:opacity-80 transition-opacity" />))}
@@ -969,6 +1164,57 @@ export const Dashboard = () => {
     </div>
   );
 
+  const mobileAnalyticsBar = (
+      <div className={cn("md:hidden flex items-center rounded-xl p-1 border text-xs font-bold",
+          theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800/60 border-slate-700/50'
+      )}>
+          {([
+              ['pipeline', 'Pipeline'],
+              ['funnel', 'Funnel'],
+              ['sources', 'Sources'],
+          ] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setMobileAnalyticsTab(k)} className={cn(
+                  "flex-1 px-2 py-1.5 rounded-lg transition-colors",
+                  mobileAnalyticsTab === k ? (theme === 'light' ? 'bg-blue-100 text-blue-600' : 'bg-blue-500/20 text-indigo-300') : 'opacity-50'
+              )}>{label}</button>
+          ))}
+      </div>
+  );
+  const showOnMobile = (key: 'pipeline' | 'funnel' | 'sources') =>
+      mobileAnalyticsTab === key ? '' : 'hidden md:block';
+
+  const compareSection = compareMode && comparisonRows && comparisonRows.length > 0 ? (
+      <Card className="">
+          <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                  <div className={cn("p-1.5 rounded bg-amber-500/10 text-amber-500")}><Crown size={16} /></div>
+                  <h3 className={cn("font-bold font-serif", getTextColor())}>Agent Comparison</h3>
+              </div>
+              <button onClick={() => setCompareMode(false)} className="text-xs opacity-60 hover:opacity-100">Hide</button>
+          </div>
+          <div className={cn("grid gap-3", comparisonRows.length === 2 ? 'grid-cols-2' : comparisonRows.length === 3 ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-4')}>
+              {comparisonRows.slice(0, 4).map((r, idx) => {
+                  const conv = r.leads ? (r.won / r.leads) * 100 : 0;
+                  return (
+                      <div key={r.name} className={cn("p-3 rounded-lg border", theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/40 border-slate-700/40')}>
+                          <div className="flex items-center gap-2 mb-2">
+                              <UserAvatar name={r.name} size={26} animate={false} />
+                              <span className={cn("font-bold text-sm", getTextColor())}>{r.name}</span>
+                              {idx === 0 && <span className="text-xs">🥇</span>}
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                              <span className="opacity-60">Leads</span><span className="text-right font-mono font-bold">{r.leads}</span>
+                              <span className="opacity-60">Won</span><span className="text-right font-mono font-bold text-emerald-500">{r.won}</span>
+                              <span className="opacity-60">Win %</span><span className="text-right font-mono font-bold">{conv.toFixed(1)}%</span>
+                              <span className="opacity-60">Revenue</span><span className="text-right font-mono font-bold">{formatCompactCurrency(r.revenue)}</span>
+                          </div>
+                      </div>
+                  );
+              })}
+          </div>
+      </Card>
+  ) : null;
+
   const sourcesSection = stats.sourceData.length > 0 ? (
     <Card className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
@@ -982,7 +1228,7 @@ export const Dashboard = () => {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.07)'} />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.5)', fontWeight: 600 }} axisLine={false} tickLine={false} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: theme === 'light' ? '#94a3b8' : 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(22,30,50,0.97)', borderRadius: '8px', border: 'none', fontSize: '12px', color: theme === 'light' ? '#0f172a' : '#e2e8f0' }} cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)' }} formatter={(val: number, name: string, props: any) => { const item = props.payload; if (name === 'Won') return [`${val} (${item.rate}% conv.)`, 'Won']; return [val, name]; }} />
+                    <Tooltip contentStyle={tooltipStyle(theme)} cursor={TOOLTIP_TRANSPARENT_CURSOR} formatter={(val: number, name: string, props: any) => { const item = props.payload; if (name === 'Won') return [`${val} (${item.rate}% conv.)`, 'Won']; return [val, name]; }} />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
                     <Bar dataKey="Total" fill={theme === 'light' ? '#94a3b8' : '#475569'} radius={[3, 3, 0, 0]} barSize={18} />
                     <Bar dataKey="Won" fill="#10b981" radius={[3, 3, 0, 0]} barSize={18}>
@@ -990,6 +1236,25 @@ export const Dashboard = () => {
                     </Bar>
                 </BarChart>
             </ResponsiveContainer>
+        </div>
+        {/* Conversion rate breakdown */}
+        <div className={cn("grid gap-2 pt-3 border-t", theme === 'light' ? 'border-slate-100' : 'border-slate-700/30',
+            stats.sourceData.length === 1 ? 'grid-cols-1' :
+            stats.sourceData.length === 2 ? 'grid-cols-2' :
+            stats.sourceData.length === 3 ? 'grid-cols-3' : 'grid-cols-4')}>
+            {stats.sourceData.slice(0, 4).map(s => (
+                <div key={s.name} className="flex flex-col items-center text-center">
+                    <span className={cn("text-[10px] font-bold uppercase tracking-wider opacity-50", getTextColor())}>{s.name}</span>
+                    <span className={cn(
+                        "text-sm font-bold font-mono",
+                        s.rate >= 30 ? 'text-emerald-500' : s.rate > 0 ? 'text-amber-500' : 'opacity-40'
+                    )}>{s.rate}%</span>
+                    <div className="w-full h-1 mt-1 rounded-full bg-gray-200/50 overflow-hidden">
+                        <div className={cn("h-full rounded-full", s.rate >= 30 ? 'bg-emerald-400' : s.rate > 0 ? 'bg-amber-400' : 'bg-slate-300')}
+                            style={{ width: `${Math.min(s.rate, 100)}%` }} />
+                    </div>
+                </div>
+            ))}
         </div>
     </Card>
   ) : null;
@@ -1063,12 +1328,28 @@ export const Dashboard = () => {
               </div>
             )}
 
+            {/* Compare toggle (admin global only) */}
+            {user?.role === 'admin' && viewAsAgent === 'all' && (
+                <button
+                    onClick={() => setCompareMode(v => !v)}
+                    className={cn(
+                        "px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all backdrop-blur-sm shadow-sm",
+                        compareMode
+                            ? "bg-amber-500 border-amber-500 text-white"
+                            : (theme === 'light' ? "bg-white/70 border-amber-200/60 text-amber-800/70 hover:text-amber-900" : "bg-slate-800/60 border-slate-700/50 text-white/60 hover:text-white/90")
+                    )}
+                    title="Compare agents side-by-side"
+                >
+                    Compare
+                </button>
+            )}
+
             {/* Time Filter */}
             <div className={cn(
               "relative p-1 rounded-xl flex gap-1 backdrop-blur-sm",
               theme === 'light' ? "bg-white/70 border border-amber-200/60" : theme === 'ocean' ? "bg-blue-950/50 border border-blue-800/40" : "bg-slate-800/60 border border-slate-700/50"
             )}>
-              {(['This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
+              {(['Today', 'This Week', 'This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
                 <button
                   key={tf}
                   onClick={() => setTimeFilter(tf)}
@@ -1092,12 +1373,14 @@ export const Dashboard = () => {
         <>
           {[
             kpiSection,
+            compareSection,
             <ActivityMonitor logs={activityLogs} />,
             <ActivityHeatmap logs={activityLogs} />,
             <div className="mb-8"><AdminLeaderboard leads={dashboardLeads} /></div>,
-            pipelineSection,
-            analyticsSection,
-            sourcesSection,
+            mobileAnalyticsBar,
+            pipelineSection ? <div className={showOnMobile('pipeline')}>{pipelineSection}</div> : null,
+            <div className={showOnMobile('funnel')}>{analyticsSection}</div>,
+            sourcesSection ? <div className={showOnMobile('sources')}>{sourcesSection}</div> : null,
             todaysFocusSection,
             operationsSection,
             priorityGridSection,
@@ -1106,7 +1389,7 @@ export const Dashboard = () => {
               key={i}
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+              transition={{ duration: 0.28, delay: Math.min(i, 4) * 0.04, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               {section}
             </motion.div>
@@ -1119,15 +1402,16 @@ export const Dashboard = () => {
             operationsSection,
             priorityGridSection,
             kpiSection,
-            pipelineSection,
-            analyticsSection,
-            sourcesSection,
+            mobileAnalyticsBar,
+            pipelineSection ? <div className={showOnMobile('pipeline')}>{pipelineSection}</div> : null,
+            <div className={showOnMobile('funnel')}>{analyticsSection}</div>,
+            sourcesSection ? <div className={showOnMobile('sources')}>{sourcesSection}</div> : null,
           ].filter(Boolean).map((section, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+              transition={{ duration: 0.28, delay: Math.min(i, 4) * 0.04, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               {section}
             </motion.div>

@@ -320,6 +320,25 @@ export const ActivityHeatmap: React.FC<Props> = ({ logs }) => {
           Today
         </div>
       )}
+
+      {/* Floating hover tooltip */}
+      {hoveredCell && hoveredData && !hoveredData.isFuture && (
+        <div
+          className={cn(
+            "fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-lg shadow-lg text-[11px] font-medium",
+            theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
+          )}
+          style={{ left: hoveredCell.x + 18, top: hoveredCell.y - 8 }}
+        >
+          <div className="font-bold">
+            {hoveredData.date.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}
+          </div>
+          <div className="opacity-80">
+            {hoveredData.count} action{hoveredData.count !== 1 ? 's' : ''}
+            {hoveredData.isToday && ' · today'}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -47,11 +47,12 @@ serve(async (req) => {
   }
 
   const source = String(payload.source ?? "Website").trim() || "Website";
-  const destination = payload.destination ? String(payload.destination) : "";
+  const destination = payload.destination ? String(payload.destination) : "Not specified";
   const message = payload.message ? String(payload.message) : "";
   const budget = Number(payload.budget) || 0;
-  const travelDate = payload.travel_date ? String(payload.travel_date) : null;
-  const pax = Number(payload.pax) || 0;
+  const travelDate = payload.travel_date ? String(payload.travel_date) : new Date().toISOString();
+  const pax = Number(payload.pax) || 2;
+  const assignedTo = payload.assigned_to ? String(payload.assigned_to) : "admin";
 
   const row = {
     name: name || email,
@@ -69,13 +70,16 @@ serve(async (req) => {
       destination,
       startDate: travelDate,
       budget,
-      paxConfig: { adults: pax, children: 0 },
+      paxConfig: { adults: pax, children: 0, childAges: [] },
       notes: message,
     },
     preferences: {},
+    commercials: null,
     vendors: [],
     tags: ["website"],
     interested_services: [],
+    reference_name: null,
+    assigned_to: assignedTo,
     notes: message,
   };
 
