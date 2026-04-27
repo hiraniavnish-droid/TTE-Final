@@ -29,11 +29,11 @@ import {
   defaultDropAnimationSideEffects,
   DropAnimation
 } from '@dnd-kit/core';
-import { 
-  LayoutList, 
-  LayoutGrid, 
-  Plus, 
-  Filter, 
+import {
+  LayoutList,
+  LayoutGrid,
+  Plus,
+  Filter,
   UploadCloud,
   MapPin,
   DollarSign,
@@ -52,6 +52,18 @@ import {
   CheckCircle2,
   User,
   Tag,
+  Search,
+  X,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  Save,
+  Trash2,
+  Settings2,
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  Flame,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { VendorManagementModal } from '../components/VendorManagementModal';
@@ -407,12 +419,59 @@ const DroppableColumn: React.FC<{ status: string, children: React.ReactNode }> =
 
 // --- Main Page ---
 
+type SortKey = 'name' | 'agent' | 'status' | 'temp' | 'destination' | 'budget' | 'createdAt';
+type SortDir = 'asc' | 'desc';
+
+const SortableTh: React.FC<{ label: string; k: SortKey; sortKey: SortKey; sortDir: SortDir; onClick: (k: SortKey) => void }> = ({ label, k, sortKey, sortDir, onClick }) => {
+    const active = sortKey === k;
+    const Icon = !active ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
+    return (
+        <th className="p-5 font-bold font-serif text-sm">
+            <button onClick={() => onClick(k)} className={cn("inline-flex items-center gap-1 hover:text-blue-500 transition-colors", active && "text-blue-500")}>
+                {label}
+                <Icon size={12} className={cn(!active && "opacity-40")} />
+            </button>
+        </th>
+    );
+};
+
+interface FilterState {
+    search: string;
+    source: string;
+    temp: string;
+    tags: string[];
+    agents: string[];
+    statuses: string[];
+    destination: string;
+    budgetMin: string;
+    budgetMax: string;
+    createdFrom: string;
+    createdTo: string;
+    tripFrom: string;
+    tripTo: string;
+    needsAttention: boolean;
+}
+
+const EMPTY_FILTERS: FilterState = {
+    search: '', source: '', temp: '', tags: [], agents: [], statuses: [],
+    destination: '', budgetMin: '', budgetMax: '', createdFrom: '', createdTo: '',
+    tripFrom: '', tripTo: '', needsAttention: false,
+};
+
+const PRESETS_KEY = 'tte_leads_presets_v1';
+const COLS_KEY = 'tte_leads_cols_v1';
+type ColumnKey = 'name' | 'agent' | 'status' | 'temp' | 'destination' | 'budget' | 'createdAt' | 'tags';
+const DEFAULT_COLS: Record<ColumnKey, boolean> = {
+    name: true, agent: true, status: true, temp: true, destination: true, budget: true, createdAt: false, tags: false,
+};
+
 export const Leads = () => {
-  const { leads, addLead, addLeads, updateLead, updateLeadStatus } = useLeads();
+  const { leads, addLead, addLeads, updateLead, updateLeadStatus, deleteLead } = useLeads();
   const { theme, getTextColor, getInputClass, getBorderClass, getSecondaryTextColor } = useTheme();
-  const { user } = useAuth(); // Add user auth
-  
-  const [view, setView] = useState<'kanban' | 'list'>('kanban');
+  const { user, users } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [view, setView] = useState<'kanban' | 'list'>(() => (searchParams.get('view') === 'list' ? 'list' : 'kanban'));
   const [activeMobileStatus, setActiveMobileStatus] = useState<LeadStatus>('New');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -429,11 +488,91 @@ export const Leads = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showToast, setShowToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
-  const [filters, setFilters] = useState({
-      source: '',
-      temp: '',
-      tags: [] as string[],
+  // ---- Filter / sort / pagination / bulk / columns state ----
+  const initFiltersFromUrl = (): FilterState => {
+      const f = { ...EMPTY_FILTERS };
+      const get = (k: string) => searchParams.get(k) || '';
+      const getList = (k: string) => (searchParams.get(k) || '').split(',').filter(Boolean);
+      f.search = get('q');
+      f.source = get('source');
+      f.temp = get('temp');
+      f.tags = getList('tags');
+      f.agents = getList('agents');
+      f.statuses = getList('status');
+      f.destination = get('dest');
+      f.budgetMin = get('bmin');
+      f.budgetMax = get('bmax');
+      f.createdFrom = get('cfrom');
+      f.createdTo = get('cto');
+      f.tripFrom = get('tfrom');
+      f.tripTo = get('tto');
+      f.needsAttention = searchParams.get('attn') === '1';
+      return f;
+  };
+
+  const [filters, setFilters] = useState<FilterState>(initFiltersFromUrl);
+  const [sortKey, setSortKey] = useState<SortKey>(() => (searchParams.get('sort') as SortKey) || 'createdAt');
+  const [sortDir, setSortDir] = useState<SortDir>(() => (searchParams.get('dir') as SortDir) || 'desc');
+  const [page, setPage] = useState<number>(() => parseInt(searchParams.get('page') || '1', 10) || 1);
+  const [pageSize, setPageSize] = useState<number>(() => parseInt(searchParams.get('ps') || '25', 10) || 25);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showColMenu, setShowColMenu] = useState(false);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const [bulkAgent, setBulkAgent] = useState('');
+  const [bulkTag, setBulkTag] = useState('');
+  const [columns, setColumns] = useState<Record<ColumnKey, boolean>>(() => {
+      try {
+          const stored = localStorage.getItem(COLS_KEY);
+          if (stored) return { ...DEFAULT_COLS, ...JSON.parse(stored) };
+      } catch {}
+      return DEFAULT_COLS;
   });
+  const [presets, setPresets] = useState<{ name: string; filters: FilterState }[]>(() => {
+      try {
+          const stored = localStorage.getItem(PRESETS_KEY);
+          if (stored) return JSON.parse(stored);
+      } catch {}
+      return [];
+  });
+
+  // Persist columns
+  useEffect(() => {
+      try { localStorage.setItem(COLS_KEY, JSON.stringify(columns)); } catch {}
+  }, [columns]);
+
+  // Persist presets
+  useEffect(() => {
+      try { localStorage.setItem(PRESETS_KEY, JSON.stringify(presets)); } catch {}
+  }, [presets]);
+
+  // Sync state -> URL
+  useEffect(() => {
+      const next = new URLSearchParams();
+      if (view === 'list') next.set('view', 'list');
+      if (filters.search) next.set('q', filters.search);
+      if (filters.source) next.set('source', filters.source);
+      if (filters.temp) next.set('temp', filters.temp);
+      if (filters.tags.length) next.set('tags', filters.tags.join(','));
+      if (filters.agents.length) next.set('agents', filters.agents.join(','));
+      if (filters.statuses.length) next.set('status', filters.statuses.join(','));
+      if (filters.destination) next.set('dest', filters.destination);
+      if (filters.budgetMin) next.set('bmin', filters.budgetMin);
+      if (filters.budgetMax) next.set('bmax', filters.budgetMax);
+      if (filters.createdFrom) next.set('cfrom', filters.createdFrom);
+      if (filters.createdTo) next.set('cto', filters.createdTo);
+      if (filters.tripFrom) next.set('tfrom', filters.tripFrom);
+      if (filters.tripTo) next.set('tto', filters.tripTo);
+      if (filters.needsAttention) next.set('attn', '1');
+      if (sortKey !== 'createdAt') next.set('sort', sortKey);
+      if (sortDir !== 'desc') next.set('dir', sortDir);
+      if (page !== 1) next.set('page', String(page));
+      if (pageSize !== 25) next.set('ps', String(pageSize));
+      setSearchParams(next, { replace: true });
+  }, [view, filters, sortKey, sortDir, page, pageSize, setSearchParams]);
+
+  // Reset page when filters/sort change
+  useEffect(() => { setPage(1); }, [filters, sortKey, sortDir, pageSize]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -484,14 +623,205 @@ export const Leads = () => {
       return Array.from(tagSet).sort();
   }, [leads]);
 
-  const filteredLeads = leads.filter(l => {
-      if (filters.source && l.source !== filters.source) return false;
-      if (filters.temp && l.temperature !== filters.temp) return false;
-      if (filters.tags.length > 0 && !filters.tags.every(t => l.tags?.includes(t))) return false;
-      return true;
-  });
+  const allDestinations = useMemo(() => {
+      const set = new Set<string>();
+      leads.forEach(l => { if (l.tripDetails.destination) set.add(l.tripDetails.destination); });
+      return Array.from(set).sort();
+  }, [leads]);
 
-  const hasActiveFilters = filters.source || filters.temp || filters.tags.length > 0;
+  const allAgents = useMemo(() => {
+      const set = new Set<string>();
+      users.forEach(u => set.add(u.name));
+      leads.forEach(l => { if (l.assignedTo) set.add(l.assignedTo); });
+      set.add('Unassigned');
+      return Array.from(set).sort();
+  }, [users, leads]);
+
+  const filteredLeads = useMemo(() => {
+      const q = filters.search.trim().toLowerCase();
+      const min = filters.budgetMin ? parseFloat(filters.budgetMin) : null;
+      const max = filters.budgetMax ? parseFloat(filters.budgetMax) : null;
+      const cFrom = filters.createdFrom ? new Date(filters.createdFrom).getTime() : null;
+      const cTo = filters.createdTo ? new Date(filters.createdTo).getTime() + 86_400_000 : null;
+      const tFrom = filters.tripFrom ? new Date(filters.tripFrom).getTime() : null;
+      const tTo = filters.tripTo ? new Date(filters.tripTo).getTime() + 86_400_000 : null;
+
+      return leads.filter(l => {
+          if (filters.source && l.source !== filters.source) return false;
+          if (filters.temp && l.temperature !== filters.temp) return false;
+          if (filters.tags.length > 0 && !filters.tags.every(t => l.tags?.includes(t))) return false;
+          if (filters.statuses.length > 0 && !filters.statuses.includes(l.status)) return false;
+          if (filters.agents.length > 0) {
+              const a = l.assignedTo || 'Unassigned';
+              if (!filters.agents.includes(a)) return false;
+          }
+          if (filters.destination && l.tripDetails.destination !== filters.destination) return false;
+          if (min !== null && (l.tripDetails.budget || 0) < min) return false;
+          if (max !== null && (l.tripDetails.budget || 0) > max) return false;
+          if (cFrom !== null || cTo !== null) {
+              const t = new Date(l.createdAt).getTime();
+              if (cFrom !== null && t < cFrom) return false;
+              if (cTo !== null && t > cTo) return false;
+          }
+          if (tFrom !== null || tTo !== null) {
+              if (!l.tripDetails.startDate) return false;
+              const t = new Date(l.tripDetails.startDate).getTime();
+              if (tFrom !== null && t < tFrom) return false;
+              if (tTo !== null && t > tTo) return false;
+          }
+          if (filters.needsAttention) {
+              const u = getLeadUrgency(l);
+              if (!u.colorClass) return false;
+          }
+          if (q) {
+              const hay = `${l.name} ${l.contact?.phone || ''} ${l.tripDetails.destination || ''} ${l.tags?.join(' ') || ''}`.toLowerCase();
+              if (!hay.includes(q)) return false;
+          }
+          return true;
+      });
+  }, [leads, filters]);
+
+  const sortedLeads = useMemo(() => {
+      const arr = [...filteredLeads];
+      const dir = sortDir === 'asc' ? 1 : -1;
+      const cmp = (a: Lead, b: Lead): number => {
+          switch (sortKey) {
+              case 'name': return a.name.localeCompare(b.name) * dir;
+              case 'agent': return (a.assignedTo || 'Unassigned').localeCompare(b.assignedTo || 'Unassigned') * dir;
+              case 'status': return a.status.localeCompare(b.status) * dir;
+              case 'temp': return (a.temperature || '').localeCompare(b.temperature || '') * dir;
+              case 'destination': return (a.tripDetails.destination || '').localeCompare(b.tripDetails.destination || '') * dir;
+              case 'budget': return ((a.tripDetails.budget || 0) - (b.tripDetails.budget || 0)) * dir;
+              case 'createdAt':
+              default: return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
+          }
+      };
+      arr.sort(cmp);
+      return arr;
+  }, [filteredLeads, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedLeads.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedLeads = useMemo(() =>
+      view === 'list' ? sortedLeads.slice((safePage - 1) * pageSize, safePage * pageSize) : sortedLeads,
+  [sortedLeads, safePage, pageSize, view]);
+
+  const hasActiveFilters = !!(
+      filters.search || filters.source || filters.temp || filters.tags.length ||
+      filters.agents.length || filters.statuses.length || filters.destination ||
+      filters.budgetMin || filters.budgetMax || filters.createdFrom || filters.createdTo ||
+      filters.tripFrom || filters.tripTo || filters.needsAttention
+  );
+
+  const activeFilterCount =
+      (filters.search ? 1 : 0) + (filters.source ? 1 : 0) + (filters.temp ? 1 : 0) +
+      filters.tags.length + filters.agents.length + filters.statuses.length +
+      (filters.destination ? 1 : 0) + (filters.budgetMin || filters.budgetMax ? 1 : 0) +
+      (filters.createdFrom || filters.createdTo ? 1 : 0) +
+      (filters.tripFrom || filters.tripTo ? 1 : 0) + (filters.needsAttention ? 1 : 0);
+
+  const toggleSort = (k: SortKey) => {
+      if (sortKey === k) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+      else { setSortKey(k); setSortDir('asc'); }
+  };
+
+  const toggleListItem = (key: 'agents' | 'statuses' | 'tags', value: string) => {
+      setFilters(p => {
+          const arr = p[key];
+          return { ...p, [key]: arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value] };
+      });
+  };
+
+  const clearFilters = () => setFilters(EMPTY_FILTERS);
+
+  const exportCsv = () => {
+      const rows = sortedLeads.map(l => ({
+          Name: l.name,
+          Phone: l.contact?.phone || '',
+          Email: l.contact?.email || '',
+          Agent: l.assignedTo || 'Unassigned',
+          Status: l.status,
+          Temperature: l.temperature,
+          Source: l.source,
+          Destination: l.tripDetails.destination,
+          Budget: l.tripDetails.budget,
+          'Trip Start': l.tripDetails.startDate,
+          Tags: (l.tags || []).join('; '),
+          Created: l.createdAt,
+      }));
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+  };
+
+  // ---- Bulk actions ----
+  const visibleIds = useMemo(() => pagedLeads.map(l => l.id), [pagedLeads]);
+  const allOnPageSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
+  const togglePageSelect = () => {
+      setSelectedIds(prev => {
+          const next = new Set(prev);
+          if (allOnPageSelected) visibleIds.forEach(id => next.delete(id));
+          else visibleIds.forEach(id => next.add(id));
+          return next;
+      });
+  };
+  const toggleOne = (id: string) => {
+      setSelectedIds(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+      });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const bulkAssign = async (agent: string) => {
+      if (!agent) return;
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id => updateLead(id, { assignedTo: agent === 'Unassigned' ? undefined : agent })));
+      setShowToast({ message: `Assigned ${ids.length} lead(s) to ${agent}`, type: 'success' });
+      setTimeout(() => setShowToast(null), 2500);
+      clearSelection();
+  };
+  const bulkAddTag = async (tag: string) => {
+      if (!tag.trim()) return;
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id => {
+          const l = leads.find(x => x.id === id); if (!l) return Promise.resolve();
+          const nextTags = Array.from(new Set([...(l.tags || []), tag.trim()]));
+          return updateLead(id, { tags: nextTags });
+      }));
+      setShowToast({ message: `Tagged ${ids.length} lead(s)`, type: 'success' });
+      setTimeout(() => setShowToast(null), 2500);
+      setBulkTag('');
+      clearSelection();
+  };
+  const bulkDelete = async () => {
+      const ids = Array.from(selectedIds);
+      if (!ids.length) return;
+      if (!confirm(`Delete ${ids.length} lead(s)? This cannot be undone.`)) return;
+      await Promise.all(ids.map(id => deleteLead(id)));
+      setShowToast({ message: `Deleted ${ids.length} lead(s)`, type: 'success' });
+      setTimeout(() => setShowToast(null), 2500);
+      clearSelection();
+  };
+
+  // ---- Presets ----
+  const savePreset = () => {
+      const name = prompt('Save current filters as preset. Name?');
+      if (!name) return;
+      setPresets(p => [...p.filter(x => x.name !== name), { name, filters }]);
+  };
+  const applyPreset = (name: string) => {
+      const p = presets.find(x => x.name === name);
+      if (p) setFilters(p.filters);
+      setShowPresetMenu(false);
+  };
+  const deletePreset = (name: string) => setPresets(p => p.filter(x => x.name !== name));
   const activeLead = activeId ? leads.find(l => l.id === activeId) : null;
 
   const handleOpenModal = () => {
@@ -738,7 +1068,27 @@ export const Leads = () => {
             <p className={cn("text-sm", getSecondaryTextColor())}>Manage and track your opportunities</p>
         </div>
         
-        <div className="flex items-center gap-3 flex-wrap w-full md:w-auto h-12 md:h-auto">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap w-full md:w-auto">
+            {/* Search */}
+            <div className={cn("relative h-10 md:h-11 flex-1 md:flex-none md:w-64", )}>
+                <Search size={16} className={cn("absolute left-3 top-1/2 -translate-y-1/2", getSecondaryTextColor())} />
+                <input
+                    type="text"
+                    value={filters.search}
+                    onChange={e => setFilters(p => ({...p, search: e.target.value}))}
+                    placeholder="Search name, phone, destination..."
+                    className={cn(
+                        "w-full h-full rounded-xl pl-9 pr-8 text-sm outline-none transition-all border",
+                        theme === 'light' ? 'bg-white border-slate-200 focus:border-blue-400' : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40 text-white focus:border-blue-500' : 'bg-slate-800 border-slate-700/50 text-white focus:border-indigo-500'
+                    )}
+                />
+                {filters.search && (
+                    <button onClick={() => setFilters(p => ({...p, search: ''}))} className={cn("absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-500/10", getSecondaryTextColor())}>
+                        <X size={14} />
+                    </button>
+                )}
+            </div>
+
             {/* View Toggles */}
             <div className={cn("flex items-center rounded-xl p-1 border h-10 md:h-11 flex-shrink-0", theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-950/60 border-blue-800/40' : 'bg-slate-800 border-slate-700/50')}>
                 <button
@@ -756,87 +1106,208 @@ export const Leads = () => {
             </div>
 
             {/* Filter */}
-            <div className="relative group z-30 h-10 md:h-11">
-                <Button variant="secondary" className={cn("gap-2 h-full shadow-none relative",
+            <div className="relative z-30 h-10 md:h-11">
+                <Button variant="secondary" onClick={() => { setShowFilterMenu(v => !v); setShowColMenu(false); setShowPresetMenu(false); }} className={cn("gap-2 h-full shadow-none relative",
                   theme === 'light' ? 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
                     : theme === 'ocean' ? 'border border-blue-700/50 bg-blue-950/80 hover:bg-blue-900/60 text-slate-200'
                     : 'border border-slate-600/50 bg-slate-800 hover:bg-slate-700 text-slate-200'
                 )}>
                     <Filter size={18} /> Filter
-                    {hasActiveFilters && (
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                        {(filters.source ? 1 : 0) + (filters.temp ? 1 : 0) + filters.tags.length}
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {activeFilterCount}
                       </span>
                     )}
                 </Button>
-                {/* Filter Dropdown */}
+                {showFilterMenu && (
                 <div className={cn(
-                    "absolute top-full right-0 mt-2 w-56 rounded-xl shadow-2xl p-3 hidden group-hover:block backdrop-blur-xl border",
-                     theme === 'light' ? 'bg-white/90 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/95 border-blue-800/40' : 'bg-slate-900/95 border-slate-700/50'
+                    "absolute top-full right-0 mt-2 w-[360px] max-h-[70vh] overflow-y-auto custom-scrollbar rounded-xl shadow-2xl p-4 backdrop-blur-xl border z-40",
+                     theme === 'light' ? 'bg-white/95 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/95 border-blue-800/40' : 'bg-slate-900/95 border-slate-700/50'
                 )}>
-                    <div className={cn("text-xs font-bold uppercase tracking-wider mb-2 opacity-50", getTextColor())}>Temperature</div>
-                    {['Hot', 'Warm', 'Cold'].map(t => (
-                        <div key={t} 
-                            onClick={() => setFilters(p => ({...p, temp: p.temp === t ? '' : t}))}
-                            className={cn(
-                                "px-3 py-2 rounded-lg cursor-pointer text-sm mb-1 transition-colors flex items-center justify-between min-h-[44px]", 
-                                filters.temp === t 
-                                    ? 'bg-blue-500/20 text-blue-500 font-bold' 
-                                    : cn('hover:bg-white/10', getTextColor())
-                            )}
-                        >
-                            {t}
-                            {filters.temp === t && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                        </div>
-                    ))}
-                    <div className="h-px bg-gray-500/20 my-2"></div>
-                    <div className={cn("text-xs font-bold uppercase tracking-wider mb-2 opacity-50", getTextColor())}>Source</div>
-                     {['Instagram', 'Referral', 'Website'].map(s => (
-                        <div key={s}
-                            onClick={() => setFilters(p => ({...p, source: p.source === s ? '' : s}))}
-                            className={cn(
-                                "px-3 py-2 rounded-lg cursor-pointer text-sm mb-1 transition-colors flex items-center justify-between min-h-[44px]",
-                                filters.source === s
-                                    ? 'bg-blue-500/20 text-blue-500 font-bold'
-                                    : cn('hover:bg-white/10', getTextColor())
-                            )}
-                        >
-                            {s}
-                            {filters.source === s && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                        </div>
-                    ))}
-                    {allTags.length > 0 && (
-                      <>
-                        <div className="h-px bg-gray-500/20 my-2"></div>
-                        <div className={cn("text-xs font-bold uppercase tracking-wider mb-2 opacity-50 flex items-center gap-1", getTextColor())}>
-                          <Tag size={10} /> Tags
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 pb-1">
-                          {allTags.map(tag => {
-                            const active = filters.tags.includes(tag);
+                    {/* Quick: Needs attention */}
+                    <button
+                        onClick={() => setFilters(p => ({...p, needsAttention: !p.needsAttention}))}
+                        className={cn(
+                            "w-full mb-3 px-3 py-2 rounded-lg text-sm font-semibold border flex items-center gap-2 justify-center transition-colors",
+                            filters.needsAttention
+                                ? 'bg-rose-500/15 text-rose-500 border-rose-500/30'
+                                : (theme === 'light' ? 'border-slate-200 hover:bg-slate-50' : 'border-slate-600/50 hover:bg-white/5')
+                        )}
+                    >
+                        <Flame size={14} /> Needs attention {filters.needsAttention && <span className="text-[10px] opacity-70">(stale)</span>}
+                    </button>
+
+                    {/* Stages */}
+                    <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Stage</div>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                        {STATUS_COLUMNS.map(s => {
+                            const active = filters.statuses.includes(s);
                             return (
-                              <button
-                                key={tag}
-                                onClick={() => setFilters(p => ({
-                                  ...p,
-                                  tags: active ? p.tags.filter(t => t !== tag) : [...p.tags, tag]
-                                }))}
-                                className={cn(
-                                  "px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-all",
-                                  active
-                                    ? 'bg-blue-500/20 text-blue-500 border-blue-500/40'
-                                    : cn('border-transparent hover:border-gray-400/30', getTextColor(), 'opacity-60 hover:opacity-100')
-                                )}
-                              >
-                                {tag}
-                              </button>
+                                <button key={s} onClick={() => toggleListItem('statuses', s)} className={cn(
+                                    "px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all",
+                                    active ? 'bg-blue-500/15 text-blue-500 border-blue-500/40' : (theme === 'light' ? 'bg-white border-slate-200 hover:border-slate-300' : 'border-slate-600/50 hover:border-slate-400')
+                                )}>{s}</button>
                             );
-                          })}
+                        })}
+                    </div>
+
+                    {/* Agents */}
+                    <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Assigned to</div>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                        {allAgents.map(a => {
+                            const active = filters.agents.includes(a);
+                            return (
+                                <button key={a} onClick={() => toggleListItem('agents', a)} className={cn(
+                                    "px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all",
+                                    active ? 'bg-blue-500/15 text-blue-500 border-blue-500/40' : (theme === 'light' ? 'bg-white border-slate-200 hover:border-slate-300' : 'border-slate-600/50 hover:border-slate-400')
+                                )}>{a}</button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Temperature */}
+                    <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Temperature</div>
+                    <div className="flex gap-1.5 mb-3">
+                        {['Hot', 'Warm', 'Cold'].map(t => (
+                            <button key={t} onClick={() => setFilters(p => ({...p, temp: p.temp === t ? '' : t}))} className={cn(
+                                "flex-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold border transition-all",
+                                filters.temp === t ? 'bg-blue-500/15 text-blue-500 border-blue-500/40' : (theme === 'light' ? 'bg-white border-slate-200 hover:border-slate-300' : 'border-slate-600/50 hover:border-slate-400')
+                            )}>{t}</button>
+                        ))}
+                    </div>
+
+                    {/* Source */}
+                    <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Source</div>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                        {['Instagram', 'Referral', 'Website', 'Walk-in', 'Other'].map(s => (
+                            <button key={s} onClick={() => setFilters(p => ({...p, source: p.source === s ? '' : s}))} className={cn(
+                                "px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all",
+                                filters.source === s ? 'bg-blue-500/15 text-blue-500 border-blue-500/40' : (theme === 'light' ? 'bg-white border-slate-200 hover:border-slate-300' : 'border-slate-600/50 hover:border-slate-400')
+                            )}>{s}</button>
+                        ))}
+                    </div>
+
+                    {/* Destination */}
+                    {allDestinations.length > 0 && (
+                        <>
+                            <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Destination</div>
+                            <select
+                                value={filters.destination}
+                                onChange={e => setFilters(p => ({...p, destination: e.target.value}))}
+                                className={cn("w-full mb-3 rounded-md px-2.5 py-1.5 text-[11px] border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')}
+                            >
+                                <option value="">All destinations</option>
+                                {allDestinations.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                        </>
+                    )}
+
+                    {/* Budget range */}
+                    <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Budget (₹)</div>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <input type="number" placeholder="Min" value={filters.budgetMin} onChange={e => setFilters(p => ({...p, budgetMin: e.target.value}))}
+                            className={cn("rounded-md px-2 py-1.5 text-[11px] border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')} />
+                        <input type="number" placeholder="Max" value={filters.budgetMax} onChange={e => setFilters(p => ({...p, budgetMax: e.target.value}))}
+                            className={cn("rounded-md px-2 py-1.5 text-[11px] border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')} />
+                    </div>
+
+                    {/* Created date range */}
+                    <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Created date</div>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <input type="date" value={filters.createdFrom} onChange={e => setFilters(p => ({...p, createdFrom: e.target.value}))}
+                            className={cn("rounded-md px-2 py-1.5 text-[11px] border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')} />
+                        <input type="date" value={filters.createdTo} onChange={e => setFilters(p => ({...p, createdTo: e.target.value}))}
+                            className={cn("rounded-md px-2 py-1.5 text-[11px] border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')} />
+                    </div>
+
+                    {/* Trip date range */}
+                    <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60", getTextColor())}>Trip start</div>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <input type="date" value={filters.tripFrom} onChange={e => setFilters(p => ({...p, tripFrom: e.target.value}))}
+                            className={cn("rounded-md px-2 py-1.5 text-[11px] border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')} />
+                        <input type="date" value={filters.tripTo} onChange={e => setFilters(p => ({...p, tripTo: e.target.value}))}
+                            className={cn("rounded-md px-2 py-1.5 text-[11px] border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')} />
+                    </div>
+
+                    {/* Tags */}
+                    {allTags.length > 0 && (
+                        <>
+                            <div className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-60 flex items-center gap-1", getTextColor())}>
+                                <Tag size={10} /> Tags
+                            </div>
+                            <div className="flex flex-wrap gap-1 mb-3">
+                                {allTags.map(tag => {
+                                    const active = filters.tags.includes(tag);
+                                    return (
+                                        <button key={tag} onClick={() => toggleListItem('tags', tag)} className={cn(
+                                            "px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all",
+                                            active ? 'bg-blue-500/20 text-blue-500 border-blue-500/40' : cn('border-transparent hover:border-gray-400/30', getTextColor(), 'opacity-60 hover:opacity-100')
+                                        )}>{tag}</button>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+
+                    <div className="flex gap-2 mt-2 pt-3 border-t border-gray-500/15">
+                        <Button variant="secondary" onClick={clearFilters} className="flex-1 text-xs h-8">Clear all</Button>
+                        <Button onClick={savePreset} className="flex-1 text-xs h-8 gap-1"><Save size={12} /> Save preset</Button>
+                    </div>
+                </div>
+                )}
+            </div>
+
+            {/* Presets */}
+            {presets.length > 0 && (
+                <div className="relative h-10 md:h-11">
+                    <Button variant="secondary" onClick={() => { setShowPresetMenu(v => !v); setShowFilterMenu(false); setShowColMenu(false); }} className={cn("gap-2 h-full shadow-none",
+                      theme === 'light' ? 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600' : 'border border-slate-600/50 bg-slate-800 hover:bg-slate-700 text-slate-200'
+                    )}>
+                        <Bookmark size={16} /> Presets
+                    </Button>
+                    {showPresetMenu && (
+                        <div className={cn("absolute top-full right-0 mt-2 w-56 rounded-xl shadow-2xl border z-40 overflow-hidden",
+                            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700/50'
+                        )}>
+                            {presets.map(p => (
+                                <div key={p.name} className={cn("flex items-center justify-between px-3 py-2 hover:bg-blue-500/10", getTextColor())}>
+                                    <button onClick={() => applyPreset(p.name)} className="flex-1 text-left text-sm">{p.name}</button>
+                                    <button onClick={() => deletePreset(p.name)} className="opacity-50 hover:opacity-100 hover:text-rose-500"><Trash2 size={14} /></button>
+                                </div>
+                            ))}
                         </div>
-                      </>
                     )}
                 </div>
-            </div>
+            )}
+
+            {/* Columns (list view only) */}
+            {view === 'list' && (
+                <div className="relative h-10 md:h-11">
+                    <Button variant="secondary" onClick={() => { setShowColMenu(v => !v); setShowFilterMenu(false); setShowPresetMenu(false); }} className={cn("gap-2 h-full shadow-none",
+                      theme === 'light' ? 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600' : 'border border-slate-600/50 bg-slate-800 hover:bg-slate-700 text-slate-200'
+                    )}>
+                        <Settings2 size={16} /> Columns
+                    </Button>
+                    {showColMenu && (
+                        <div className={cn("absolute top-full right-0 mt-2 w-48 rounded-xl shadow-2xl border z-40 p-2",
+                            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700/50'
+                        )}>
+                            {(Object.keys(DEFAULT_COLS) as ColumnKey[]).map(k => (
+                                <label key={k} className={cn("flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer hover:bg-blue-500/10", getTextColor())}>
+                                    <input type="checkbox" checked={!!columns[k]} onChange={e => setColumns(c => ({...c, [k]: e.target.checked}))} />
+                                    <span className="capitalize">{k === 'createdAt' ? 'Created' : k}</span>
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <Button variant="secondary" onClick={exportCsv} className={cn("gap-2 h-10 md:h-11 shadow-none hidden md:flex",
+                theme === 'light' ? 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600' : 'border border-slate-600/50 bg-slate-800 hover:bg-slate-700 text-slate-200'
+            )}>
+                <Download size={16} /> Export
+            </Button>
 
             <Button onClick={handleOpenModal} className="hidden md:flex shadow-lg shadow-blue-500/20 h-10 md:h-11">
                 <Plus size={18} /> Add Lead
@@ -859,7 +1330,7 @@ export const Leads = () => {
                     : "Your pipeline is looking empty. Add your first potential client to start tracking their journey."}
             </p>
             {hasActiveFilters ? (
-                <Button onClick={() => setFilters({source: '', temp: '', tags: []})} variant="secondary">
+                <Button onClick={clearFilters} variant="secondary">
                     Clear Filters
                 </Button>
             ) : (
@@ -943,45 +1414,87 @@ export const Leads = () => {
         </>
       ) : (
         <>
-            {/* List View with Cinematic Row Interaction */}
+            {/* Bulk action bar */}
+            {selectedIds.size > 0 && (
+                <div className={cn("hidden md:flex items-center gap-3 px-4 py-2.5 rounded-xl border shadow-sm",
+                    theme === 'light' ? 'bg-blue-50 border-blue-200' : 'bg-blue-900/30 border-blue-700/40'
+                )}>
+                    <span className={cn("text-sm font-semibold", getTextColor())}>{selectedIds.size} selected</span>
+                    <div className="h-5 w-px bg-gray-400/30" />
+                    <select
+                        value={bulkAgent}
+                        onChange={e => { setBulkAgent(e.target.value); bulkAssign(e.target.value); setBulkAgent(''); }}
+                        className={cn("rounded-md px-2 py-1 text-xs border", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')}
+                    >
+                        <option value="">Assign to…</option>
+                        {allAgents.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="text"
+                            placeholder="Add tag"
+                            value={bulkTag}
+                            onChange={e => setBulkTag(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') bulkAddTag(bulkTag); }}
+                            className={cn("rounded-md px-2 py-1 text-xs border w-24", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')}
+                        />
+                        <button onClick={() => bulkAddTag(bulkTag)} className="p-1 rounded hover:bg-blue-500/10"><Tag size={14} /></button>
+                    </div>
+                    <button onClick={bulkDelete} className="ml-auto flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-rose-500 hover:bg-rose-500/10">
+                        <Trash2 size={14} /> Delete
+                    </button>
+                    <button onClick={clearSelection} className="text-xs opacity-60 hover:opacity-100">Clear</button>
+                </div>
+            )}
+
+            {/* List View with sortable columns + checkboxes */}
             <Card noPadding className="hidden md:block overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left border-collapse", getTextColor())}>
                         <thead>
                             <tr className={cn(theme === 'light' ? 'bg-slate-50 border-b border-slate-200' : theme === 'ocean' ? 'bg-blue-950/40 border-b border-blue-800/40' : 'bg-slate-800/60 border-b border-slate-700/60')}>
-                                <th className="p-5 font-bold font-serif text-sm">Name</th>
-                                {user?.role === 'admin' && <th className="p-5 font-bold font-serif text-sm">Agent</th>}
-                                <th className="p-5 font-bold font-serif text-sm">Status</th>
-                                <th className="p-5 font-bold font-serif text-sm">Temp</th>
-                                <th className="p-5 font-bold font-serif text-sm">Destination</th>
-                                <th className="p-5 font-bold font-serif text-sm">Budget</th>
+                                <th className="p-3 w-8">
+                                    <input type="checkbox" checked={allOnPageSelected} onChange={togglePageSelect} aria-label="Select all" />
+                                </th>
+                                {columns.name && <SortableTh label="Name" k="name" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />}
+                                {columns.agent && user?.role === 'admin' && <SortableTh label="Agent" k="agent" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />}
+                                {columns.status && <SortableTh label="Status" k="status" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />}
+                                {columns.temp && <SortableTh label="Temp" k="temp" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />}
+                                {columns.destination && <SortableTh label="Destination" k="destination" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />}
+                                {columns.budget && <SortableTh label="Budget" k="budget" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />}
+                                {columns.createdAt && <SortableTh label="Created" k="createdAt" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />}
+                                {columns.tags && <th className="p-5 font-bold font-serif text-sm">Tags</th>}
                                 <th className="p-5 font-bold font-serif text-sm">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredLeads.map(lead => (
+                            {pagedLeads.map(lead => {
+                                const checked = selectedIds.has(lead.id);
+                                return (
                                 <tr key={lead.id} className={cn(
                                     "group relative transition-all duration-500 ease-in-out border-b",
-                                    theme === 'light' 
-                                        ? "border-slate-100 hover:bg-gradient-to-r hover:from-transparent hover:via-slate-50 hover:to-transparent" 
+                                    checked && (theme === 'light' ? 'bg-blue-50/60' : 'bg-blue-900/20'),
+                                    theme === 'light'
+                                        ? "border-slate-100 hover:bg-gradient-to-r hover:from-transparent hover:via-slate-50 hover:to-transparent"
                                         : theme === 'ocean' ? "border-blue-800/20 hover:bg-gradient-to-r hover:from-transparent hover:via-blue-800/20 hover:to-transparent" : "border-slate-700/30 hover:bg-gradient-to-r hover:from-transparent hover:via-slate-700/30 hover:to-transparent",
                                     "hover:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:z-10"
                                 )}>
-                                    <td className="p-5 font-semibold relative">
-                                        {/* Cinematic Glow Marker */}
-                                        <div className={cn(
-                                            "absolute left-0 top-0 bottom-0 w-[3px] scale-y-0 transition-transform duration-300 origin-center group-hover:scale-y-100",
-                                            theme === 'light' ? "bg-slate-900" : "bg-blue-400"
-                                        )} />
-                                        
-                                        <div className="flex items-center gap-2">
-                                            {lead.name}
-                                            <DialButton phoneNumber={lead.contact.phone} className="w-11 h-11 opacity-50 group-hover:opacity-100 transition-opacity" />
-                                        </div>
+                                    <td className="p-3 w-8">
+                                        <input type="checkbox" checked={checked} onChange={() => toggleOne(lead.id)} aria-label={`Select ${lead.name}`} />
                                     </td>
-                                    
-                                    {/* Admin Agent Column */}
-                                    {user?.role === 'admin' && (
+                                    {columns.name && (
+                                        <td className="p-5 font-semibold relative">
+                                            <div className={cn(
+                                                "absolute left-0 top-0 bottom-0 w-[3px] scale-y-0 transition-transform duration-300 origin-center group-hover:scale-y-100",
+                                                theme === 'light' ? "bg-slate-900" : "bg-blue-400"
+                                            )} />
+                                            <div className="flex items-center gap-2">
+                                                {lead.name}
+                                                <DialButton phoneNumber={lead.contact.phone} className="w-11 h-11 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                        </td>
+                                    )}
+                                    {columns.agent && user?.role === 'admin' && (
                                         <td className="p-5">
                                             {(() => {
                                                 const isUnassigned = !lead.assignedTo || lead.assignedTo === 'Unassigned' || lead.assignedTo === 'System';
@@ -997,24 +1510,45 @@ export const Leads = () => {
                                             })()}
                                         </td>
                                     )}
-
-                                    <td className="p-5">
-                                        <span className={cn("px-2.5 py-1 rounded-md text-xs font-medium border", theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/40' : 'bg-slate-700/60 border-slate-600/50')}>{lead.status}</span>
-                                    </td>
-                                    <td className="p-5">
-                                        <span className={cn(
-                                            "px-2.5 py-1 rounded-full text-xs font-bold border", 
-                                            lead.temperature === 'Hot' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 
-                                            lead.temperature === 'Warm' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
-                                            'bg-sky-500/10 text-sky-500 border-sky-500/20'
-                                        )}>{lead.temperature}</span>
-                                    </td>
-                                    <td className={cn("p-5 text-sm transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-slate-400 group-hover:text-slate-100")}>
-                                        {lead.tripDetails.destination}
-                                    </td>
-                                    <td className={cn("p-5 text-sm font-mono tracking-wide transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-slate-400 group-hover:text-slate-100")}>
-                                        {formatCurrency(lead.tripDetails.budget)}
-                                    </td>
+                                    {columns.status && (
+                                        <td className="p-5">
+                                            <span className={cn("px-2.5 py-1 rounded-md text-xs font-medium border", theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/40' : 'bg-slate-700/60 border-slate-600/50')}>{lead.status}</span>
+                                        </td>
+                                    )}
+                                    {columns.temp && (
+                                        <td className="p-5">
+                                            <span className={cn(
+                                                "px-2.5 py-1 rounded-full text-xs font-bold border",
+                                                lead.temperature === 'Hot' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                                                lead.temperature === 'Warm' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                                                'bg-sky-500/10 text-sky-500 border-sky-500/20'
+                                            )}>{lead.temperature}</span>
+                                        </td>
+                                    )}
+                                    {columns.destination && (
+                                        <td className={cn("p-5 text-sm transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-slate-400 group-hover:text-slate-100")}>
+                                            {lead.tripDetails.destination}
+                                        </td>
+                                    )}
+                                    {columns.budget && (
+                                        <td className={cn("p-5 text-sm font-mono tracking-wide transition-colors", theme === 'light' ? "text-slate-500 group-hover:text-slate-900" : "text-slate-400 group-hover:text-slate-100")}>
+                                            {formatCurrency(lead.tripDetails.budget)}
+                                        </td>
+                                    )}
+                                    {columns.createdAt && (
+                                        <td className={cn("p-5 text-sm transition-colors", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
+                                            {timeAgo(lead.createdAt)}
+                                        </td>
+                                    )}
+                                    {columns.tags && (
+                                        <td className="p-5">
+                                            <div className="flex flex-wrap gap-1">
+                                                {(lead.tags || []).slice(0, 3).map(t => (
+                                                    <span key={t} className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">{t}</span>
+                                                ))}
+                                            </div>
+                                        </td>
+                                    )}
                                     <td className="p-5">
                                         <Link to={`/leads/${lead.id}`} className={cn(
                                             "font-medium text-sm transition-all transform inline-block",
@@ -1025,17 +1559,40 @@ export const Leads = () => {
                                         </Link>
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Pagination */}
+                <div className={cn("flex items-center justify-between px-4 py-3 border-t text-xs",
+                    theme === 'light' ? 'border-slate-200 bg-slate-50/40' : 'border-slate-700/40 bg-slate-800/30'
+                )}>
+                    <div className={cn("opacity-70", getTextColor())}>
+                        Showing <span className="font-bold">{(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, sortedLeads.length)}</span> of <span className="font-bold">{sortedLeads.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <select value={pageSize} onChange={e => setPageSize(parseInt(e.target.value, 10))}
+                            className={cn("rounded px-2 py-1 border text-xs", theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-600/50 text-white')}>
+                            {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}/page</option>)}
+                        </select>
+                        <button disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className={cn("p-1.5 rounded border", safePage <= 1 ? 'opacity-30' : 'hover:bg-blue-500/10', theme === 'light' ? 'border-slate-200' : 'border-slate-600/50')}>
+                            <ChevronLeft size={14} />
+                        </button>
+                        <span className={cn("font-mono", getTextColor())}>{safePage} / {totalPages}</span>
+                        <button disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className={cn("p-1.5 rounded border", safePage >= totalPages ? 'opacity-30' : 'hover:bg-blue-500/10', theme === 'light' ? 'border-slate-200' : 'border-slate-600/50')}>
+                            <ChevronRight size={14} />
+                        </button>
+                    </div>
                 </div>
             </Card>
 
             <div className="md:hidden space-y-4 pb-32">
-                {filteredLeads.map(lead => (
-                    <MobileLeadCard 
-                        key={lead.id} 
-                        lead={lead} 
+                {pagedLeads.map(lead => (
+                    <MobileLeadCard
+                        key={lead.id}
+                        lead={lead}
                         onStatusChange={updateLeadStatus}
                     />
                 ))}
