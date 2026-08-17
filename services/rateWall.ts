@@ -31,6 +31,15 @@ export interface BlockedRow extends WallRoomBase {
 
 export type WallRoomRow = QuotableRow | BlockedRow;
 
+// The repo's tsconfig does not enable strict, and without strictNullChecks
+// TypeScript will not narrow a boolean-literal discriminant — `if (!row.quotable)`
+// leaves the type as the full union. A user-defined type predicate narrows
+// correctly regardless, so consumers use these rather than testing the field.
+// Without them the tempting workaround is to give BlockedRow dummy zero money
+// fields, which is exactly the footgun the union exists to remove.
+export const isQuotable = (r: WallRoomRow): r is QuotableRow => r.quotable;
+export const isBlocked = (r: WallRoomRow): r is BlockedRow => !r.quotable;
+
 export interface WallEntry {
   hotelId: string;
   hotelName: string;
@@ -65,7 +74,7 @@ export interface BandedWall {
 // "On request".
 export function cheapestQuotable(rows: WallRoomRow[]): number | null {
   const priced = rows
-    .filter((r): r is QuotableRow => r.quotable)
+    .filter(isQuotable)
     .map(r => r.sellingTotal)
     .filter(v => Number.isFinite(v) && v > 0);
   return priced.length ? Math.min(...priced) : null;

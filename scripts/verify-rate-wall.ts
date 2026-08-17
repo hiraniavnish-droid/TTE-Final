@@ -1,7 +1,7 @@
 // Verification for the Rate Wall. Run: npx tsx scripts/verify-rate-wall.ts
 // Covers price banding: strict partition, tie handling, spread collapse, and
 // exclusion of anything that cannot be priced. Later tasks extend this file.
-import { bandHotels, cheapestQuotable, formatClientExport, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
+import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall } from '../services/rajarshiWall';
 import { RAJARSHI_HOTELS, type RajPlan } from '../services/rajarshiData';
 import { quoteStay } from '../services/rajarshiRates';
@@ -461,7 +461,7 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
   const allRows = entries.flatMap(e => e.rows);
   ok(allRows.length > 0, 'rooms must still be listed for an oversized party');
   ok(allRows.every(r => !r.quotable), 'a 9-guest party must not be priced into a single room');
-  const blockedRows = allRows.filter((r): r is Extract<WallRoomRow, { quotable: false }> => !r.quotable);
+  const blockedRows = allRows.filter(isBlocked);
   ok(blockedRows.every(r => /pax|guest/i.test(r.blockedReason)),
     'an oversized party must say so in the blocked reason');
 }
