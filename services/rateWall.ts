@@ -11,6 +11,10 @@ interface WallRoomBase {
   key: string;                 // stable and unique, e.g. `${hotelId}::${roomIdx}`
   roomName: string;
   planLabel?: string;          // e.g. 'CPAI' — set when a row represents one meal plan of a room
+  // Set when this row's price was computed by us (e.g. CPAI + a printed meal
+  // supplement) rather than printed by the supplier as its own rate. Internal
+  // provenance for the agent only — formatClientExport must never print it.
+  derivedNote?: string;
 }
 
 // A room we can actually price. Carries money; carries no reason.

@@ -12,7 +12,7 @@
 
 import { RAJARSHI_HOTELS, type RajCity, type RajPlan, type RajRoom } from './rajarshiData';
 import { quoteStay, hotelsByCity, type MarkupMode } from './rajarshiRates';
-import { cheapestQuotable, type WallEntry, type WallRoomRow } from './rateWall';
+import { cheapestQuotable, isQuotable, type WallEntry, type WallRoomRow } from './rateWall';
 
 export const RAJARSHI_PLANS = ['EPAI', 'CPAI', 'MAPAI'] as const;
 
@@ -78,8 +78,9 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
     const rows: WallRoomRow[] = hotel.rooms.flatMap((room, ri) => {
       const cap = baseCapacity(room);
       const extraPerRoom = Math.max(0, paxPerRoom - cap);
+      const plans = publishedPlans(room);
 
-      return publishedPlans(room).map((plan): WallRoomRow => {
+      const publishedRows: WallRoomRow[] = plans.map((plan): WallRoomRow => {
         const key = `${hotel.id}::${ri}::${plan}`;
         const hasExtraRate = (hotel.extraPerson?.base?.[plan] ?? 0) > 0;
 
@@ -116,6 +117,65 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
           sellingPerNight: Math.round(q.sellingPrice / Math.max(1, input.nights)),
         };
       });
+
+      // Derived MAPAI row. Most Bhuj hotels print only a CPAI (bed & breakfast)
+      // rate plus a per-meal, per-person meal supplement rather than a MAPAI
+      // column. MAP (half-board) is obtainable as CPAI + one meal per guest per
+      // night, computed from the supplier's own printed supplement — but only
+      // when the room doesn't already publish a real MAPAI rate, which must
+      // never be shadowed by a computed one.
+      const supplementAmount = hotel.mealSupplement?.amount;
+      const cpaiRow = publishedRows.find(r => r.planLabel === 'CPAI');
+      const hasMapai = plans.includes('MAPAI');
+      const derivedRows: WallRoomRow[] = [];
+
+      if (
+        typeof supplementAmount === 'number' && Number.isFinite(supplementAmount) && supplementAmount > 0 &&
+        cpaiRow && !hasMapai
+      ) {
+        const key = `${hotel.id}::${ri}::MAPAI`;
+
+        // A MAP price can be no more certain than the CPAI it is built on: if
+        // the CPAI row is blocked (closed, too small, no extra-bed rate, or
+        // on-request), the derived row is blocked too, for the same reason.
+        if (!isQuotable(cpaiRow)) {
+          derivedRows.push({
+            key, roomName: room.name, planLabel: 'MAPAI', quotable: false,
+            blockedReason: cpaiRow.blockedReason,
+          });
+        } else {
+          const q = quoteStay({
+            hotel, room, plan: 'CPAI', checkIn: input.checkIn, nights: input.nights,
+            rooms: input.rooms, extraPersons: extraPerRoom * input.rooms,
+            markupMode: input.markupMode, markupValue: input.markupValue,
+          });
+
+          // Per meal, per person — MAP adds exactly one meal per guest per
+          // night, so this uses the total party size (input.pax), not a
+          // per-room or per-room-capacity count.
+          const supplementNet = supplementAmount * input.pax * input.nights;
+          const netTotal = q.netCost + supplementNet;
+          // A percent markup is a percentage of the net room rate, so adding
+          // the supplement into that base changes the markup amount too. A
+          // flat ₹/room-night markup does not depend on the net at all, so it
+          // carries over unchanged from the CPAI quote.
+          const markupAmount = input.markupMode === 'percent'
+            ? Math.round((q.netRoomTotal + supplementNet) * input.markupValue / 100)
+            : q.markupAmount;
+          const sellingTotal = netTotal + markupAmount;
+
+          derivedRows.push({
+            key, roomName: room.name, planLabel: 'MAPAI', quotable: true,
+            netTotal,
+            markupAmount,
+            sellingTotal,
+            sellingPerNight: Math.round(sellingTotal / Math.max(1, input.nights)),
+            derivedNote: `+₹${supplementAmount}/meal`,
+          });
+        }
+      }
+
+      return [...publishedRows, ...derivedRows];
     });
 
     // Festive/blackout is exact here: the sheet prints its own tier labels, so

@@ -420,10 +420,21 @@ function publishedPlansT(room: RajRoom): RajPlan[] {
         const room = hotel.rooms[ri];
         const plans = publishedPlansT(room);
 
+        // A derived MAPAI row is expected in place of "no row" precisely when
+        // the hotel prints a meal supplement, the room publishes CPAI, and it
+        // does not already publish a real MAPAI.
+        const expectsDerivedMapai = plans.includes('CPAI') && !plans.includes('MAPAI') &&
+          Number.isFinite(hotel.mealSupplement?.amount) && (hotel.mealSupplement?.amount ?? 0) > 0;
+
         for (const plan of RAJARSHI_PLANS) {
           const row = e.rows.find(r => r.key === `${hotel.id}::${ri}::${plan}`);
 
           if (!plans.includes(plan)) {
+            if (plan === 'MAPAI' && expectsDerivedMapai) {
+              ok(!!row, `${hotel.id}::${ri}::MAPAI ${checkIn}: expected a derived MAPAI row, none found`);
+              if (row) ok(!!row.derivedNote, `${hotel.id}::${ri}::MAPAI ${checkIn}: derived row missing derivedNote`);
+              continue;
+            }
             ok(!row, `${hotel.id}::${ri}::${plan} ${checkIn}: row exists for a plan the room does not publish`);
             continue;
           }
@@ -530,6 +541,141 @@ function publishedPlansT(room: RajRoom): RajPlan[] {
   });
   ok(text.includes('Deluxe · EPAI'), 'export must show the plan on the EPAI line');
   ok(text.includes('Suite · MAPAI'), 'export must show the plan on the MAPAI line');
+}
+
+// ── derived MAPAI rows: six Bhuj hotels print CPAI + a meal supplement ──
+{
+  const NIGHTS = 2, ROOMS = 1, PAX = 2;
+  const checkIn = '2026-09-02'; // clear of every tier window, per the reconciliation loop above
+
+  const supplementHotels = RAJARSHI_HOTELS.filter(h => Number.isFinite(h.mealSupplement?.amount) && (h.mealSupplement?.amount ?? 0) > 0);
+  ok(supplementHotels.length === 6, `expected 6 hotels with a meal supplement, found ${supplementHotels.length}`);
+
+  for (const hotel of supplementHotels) {
+    const entries = buildRajarshiWall({ city: hotel.city, checkIn, nights: NIGHTS, rooms: ROOMS, pax: PAX, markupMode: 'percent', markupValue: 15 });
+    const e = entries.find(x => x.hotelId === hotel.id);
+    if (!e) { ok(false, `${hotel.id}: missing from its own city wall`); continue; }
+
+    for (let ri = 0; ri < hotel.rooms.length; ri++) {
+      const room = hotel.rooms[ri];
+      const plans = publishedPlansT(room);
+      if (!plans.includes('CPAI') || plans.includes('MAPAI')) continue; // not a candidate for derivation
+
+      const cpaiRow = e.rows.find(r => r.key === `${hotel.id}::${ri}::CPAI`);
+      const mapaiRow = e.rows.find(r => r.key === `${hotel.id}::${ri}::MAPAI`);
+      if (!cpaiRow) { ok(false, `${hotel.id}::${ri}: CPAI row missing`); continue; }
+      if (!mapaiRow) { ok(false, `${hotel.id}::${ri}: derived MAPAI row missing`); continue; }
+
+      ok(mapaiRow.planLabel === 'MAPAI', `${hotel.id}::${ri}: derived row planLabel is '${mapaiRow.planLabel}'`);
+      ok(!!mapaiRow.derivedNote, `${hotel.id}::${ri}: derived row missing derivedNote`);
+
+      if (cpaiRow.quotable && mapaiRow.quotable) {
+        const amount = hotel.mealSupplement!.amount;
+        const expectedNet = cpaiRow.netTotal + amount * PAX * NIGHTS;
+        ok(mapaiRow.netTotal === expectedNet,
+          `${hotel.id}::${ri}: derived netTotal ${mapaiRow.netTotal} != CPAI ${cpaiRow.netTotal} + ${amount}*${PAX}*${NIGHTS} = ${expectedNet}`);
+        ok(mapaiRow.sellingTotal > cpaiRow.sellingTotal,
+          `${hotel.id}::${ri}: derived sellingTotal ${mapaiRow.sellingTotal} must exceed CPAI's ${cpaiRow.sellingTotal}`);
+      } else {
+        ok(cpaiRow.quotable === mapaiRow.quotable, `${hotel.id}::${ri}: derived row quotability diverged from its CPAI base`);
+      }
+    }
+  }
+}
+
+// ── Time Square publishes both CPAI and MAPAI: no derivation, no shadowing ──
+{
+  const hotel = RAJARSHI_HOTELS.find(h => h.id === 'time-square-club-resort-spa')!;
+  ok(!hotel.mealSupplement, 'Time Square must not print a meal supplement for this check to be meaningful');
+  const entries = buildRajarshiWall({ city: hotel.city, checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  const e = entries.find(x => x.hotelId === hotel.id)!;
+  for (let ri = 0; ri < hotel.rooms.length; ri++) {
+    const mapaiRows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`) && r.planLabel === 'MAPAI');
+    ok(mapaiRows.length === 1, `${hotel.id}::${ri}: expected exactly 1 MAPAI row, got ${mapaiRows.length}`);
+    if (mapaiRows[0]) ok(!mapaiRows[0].derivedNote, `${hotel.id}::${ri}: printed MAPAI row must not carry derivedNote`);
+  }
+}
+
+// ── no derived row for a hotel with no meal supplement (Hotel White Desert: EPAI+CPAI, no MAPAI, no supplement) ──
+{
+  const hotel = RAJARSHI_HOTELS.find(h => h.id === 'hotel-white-desert')!;
+  ok(!hotel.mealSupplement, 'Hotel White Desert must not print a meal supplement for this check to be meaningful');
+  const entries = buildRajarshiWall({ city: hotel.city, checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  const e = entries.find(x => x.hotelId === hotel.id)!;
+  for (let ri = 0; ri < hotel.rooms.length; ri++) {
+    const room = hotel.rooms[ri];
+    const plans = publishedPlansT(room);
+    if (plans.includes('MAPAI')) continue;
+    const mapaiRow = e.rows.find(r => r.key === `${hotel.id}::${ri}::MAPAI`);
+    ok(!mapaiRow, `${hotel.id}::${ri}: a MAPAI row must not appear without a printed meal supplement`);
+  }
+}
+
+// ── blocked CPAI propagates its exact reason to the derived MAPAI row ──
+{
+  // Oversized party: real, reachable scenario for the meal-supplement hotels.
+  // (A "peak date where CPAI is on-request" scenario was checked directly
+  // against quoteStay for all 6 meal-supplement hotels across every printed
+  // tier window's first date, and none exists in this dataset — every one of
+  // them prints a full CPAI figure on every tier. That sub-case of blocking is
+  // real in the code path — the derived row always copies cpaiRow.blockedReason
+  // verbatim, whatever produced it — but is not exercisable against real data
+  // here, so it is not asserted against a specific reason string below.)
+  const hotel = RAJARSHI_HOTELS.find(h => h.id === 'floating-deck-resort')!;
+  const entries = buildRajarshiWall({ city: hotel.city, checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 9, markupMode: 'percent', markupValue: 0 });
+  const e = entries.find(x => x.hotelId === hotel.id)!;
+  for (let ri = 0; ri < hotel.rooms.length; ri++) {
+    const cpaiRow = e.rows.find(r => r.key === `${hotel.id}::${ri}::CPAI`);
+    const mapaiRow = e.rows.find(r => r.key === `${hotel.id}::${ri}::MAPAI`);
+    if (!cpaiRow || !mapaiRow) { ok(false, `${hotel.id}::${ri}: expected both a CPAI and derived MAPAI row for an oversized party`); continue; }
+    ok(!cpaiRow.quotable && !mapaiRow.quotable, `${hotel.id}::${ri}: an oversized party must block both rows`);
+    if (isBlocked(cpaiRow) && isBlocked(mapaiRow)) {
+      ok(mapaiRow.blockedReason === cpaiRow.blockedReason,
+        `${hotel.id}::${ri}: derived block reason '${mapaiRow.blockedReason}' != CPAI's '${cpaiRow.blockedReason}'`);
+    }
+  }
+}
+
+// ── row keys stay unique across the whole wall, including derived rows ──
+{
+  const entries = buildRajarshiWall({ city: 'ALL', checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  const keys = entries.flatMap(e => e.rows.map(r => r.key));
+  ok(new Set(keys).size === keys.length, 'row keys must stay unique across the whole wall once derived rows are included');
+  const derivedKeys = entries.flatMap(e => e.rows.filter(r => r.derivedNote)).map(r => r.key);
+  ok(derivedKeys.length > 0, 'expected at least one derived row across the whole wall');
+}
+
+// ── the client export never leaks the derived note or its wording ──
+{
+  const hotel = RAJARSHI_HOTELS.find(h => h.id === 'floating-deck-resort')!;
+  const entries = buildRajarshiWall({ city: hotel.city, checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  const e = entries.find(x => x.hotelId === hotel.id)!;
+  const mapaiRow = e.rows.find((r): r is QuotableRow => r.quotable && r.key === `${hotel.id}::0::MAPAI`);
+  if (!mapaiRow) { ok(false, `${hotel.id}: expected a quotable derived MAPAI row for this scenario`); }
+  else {
+    ok(!!mapaiRow.derivedNote, 'sanity: the row under test must actually carry a derivedNote');
+    const text = formatClientExport([{ entry: e, row: mapaiRow }], {
+      supplierName: 'Rajarshi Travels', cityLabel: 'Bhuj', clientName: 'Mr Test',
+      checkIn: '2026-11-01', checkOut: '2026-11-03', nights: 2, rooms: 1, pax: 2,
+      inclusions: 'GST included',
+    });
+    ok(!text.includes('/meal'), 'export leaked the derived note wording (/meal)');
+    ok(!text.includes(mapaiRow.derivedNote as string), 'export leaked the derived note verbatim');
+  }
+}
+
+// ── flat markup: the derived row's markup equals the CPAI row's markup unchanged ──
+{
+  const hotel = RAJARSHI_HOTELS.find(h => h.id === 'hill-view-resort')!;
+  const entries = buildRajarshiWall({ city: hotel.city, checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2, markupMode: 'flat', markupValue: 500 });
+  const e = entries.find(x => x.hotelId === hotel.id)!;
+  for (let ri = 0; ri < hotel.rooms.length; ri++) {
+    const cpaiRow = e.rows.find((r): r is QuotableRow => r.quotable && r.key === `${hotel.id}::${ri}::CPAI`);
+    const mapaiRow = e.rows.find((r): r is QuotableRow => r.quotable && r.key === `${hotel.id}::${ri}::MAPAI`);
+    if (!cpaiRow || !mapaiRow) { ok(false, `${hotel.id}::${ri}: expected both rows quotable under flat markup`); continue; }
+    ok(mapaiRow.markupAmount === cpaiRow.markupAmount,
+      `${hotel.id}::${ri}: flat-mode derived markup ${mapaiRow.markupAmount} != CPAI's ${cpaiRow.markupAmount}`);
+  }
 }
 
 console.log(`\nChecks: ${checks}`);
