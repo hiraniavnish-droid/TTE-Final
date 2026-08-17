@@ -12,10 +12,13 @@ import {
   isSuite, fmtINR, RESORT_SEASON, TC_SEASON, TC_SUITE, type TCTentType, type QuoteResult,
 } from '../services/rannUtsavRates';
 import { buildRannOptions, type OptionCell, type OptionDuration } from '../services/rannOptions';
-import { condensedItinerary, itineraryWarnings } from '../services/rannItinerary';
+import { itineraryWarnings } from '../services/rannItinerary';
+// NOTE: `condensedItinerary` is deliberately NOT imported here. The compare PDF
+// must take its itinerary from `compareItinerarySection` — the same helper the
+// WhatsApp message uses — so the two client-facing outputs cannot drift apart.
 import {
-  buildCompareMessage, groupCompareRates, compareDurations, categoryLabel,
-  suiteQualifier, occupancyLine, fmtCompareDate, type CompareRate,
+  buildCompareMessage, groupCompareRates, compareDurations, compareItinerarySection,
+  categoryLabel, suiteQualifier, occupancyLine, fmtCompareDate, type CompareRate,
 } from '../services/rannCompareMessage';
 import { COMMISSION_OPTIONS } from '../services/leadCostingEngine';
 
@@ -341,18 +344,27 @@ export const RannUtsavBuilder: React.FC = () => {
         y += 2;
       });
 
-      if (includeItinerary) {
-        tickedDurations.forEach(n => {
-          page(22); y += 4;
-          doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...slate);
-          doc.text(`${n}-Night itinerary`, 14, y); y += 6;
-          doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...muted);
-          condensedItinerary(n).forEach(line => {
-            const wrapped = doc.splitTextToSize(line.replace(/\*/g, ''), W - 28) as string[];
-            page(wrapped.length * 4.4 + 4);
-            doc.text(wrapped, 14, y); y += wrapped.length * 4.4 + 2;
-          });
+      // Same section object the WhatsApp message renders, so the two outputs
+      // cannot disagree about what the client was shown. This renders it to
+      // PDF rows; buildCompareMessage renders it to text.
+      const itin = includeItinerary ? compareItinerarySection(tickedDurations) : null;
+      if (itin) {
+        page(22); y += 4;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...slate);
+        doc.text(itin.heading, 14, y); y += 6;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...muted);
+        itin.dayLines.forEach(line => {
+          // Strip the `*Day n*` WhatsApp bold markers — jsPDF has no inline markup.
+          const wrapped = doc.splitTextToSize(line.replace(/\*/g, ''), W - 28) as string[];
+          page(wrapped.length * 4.4 + 4);
+          doc.text(wrapped, 14, y); y += wrapped.length * 4.4 + 2;
         });
+        if (itin.concludesLine) {
+          doc.setFont('helvetica', 'italic');
+          const wrapped = doc.splitTextToSize(itin.concludesLine, W - 28) as string[];
+          page(wrapped.length * 4.4 + 6);
+          y += 2; doc.text(wrapped, 14, y); y += wrapped.length * 4.4;
+        }
       }
 
       page(12); y += 5;

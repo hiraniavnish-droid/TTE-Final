@@ -9,7 +9,7 @@ import {
 import {
   RANN_ITINERARIES, RANN_PLACES, condensedItinerary, itineraryWarnings,
 } from '../services/rannItinerary';
-import { buildCompareMessage } from '../services/rannCompareMessage';
+import { buildCompareMessage, compareItinerarySection } from '../services/rannCompareMessage';
 
 let checks = 0;
 const fail: string[] = [];
@@ -351,6 +351,94 @@ for (const combo of [[1] as OptionDuration[], [1, 2, 3] as OptionDuration[]]) {
   ok(!m.includes('*Day '), `itinerary off (${combo.join('+')}): no day lines may appear`);
   ok(!m.includes('concludes after Day'), `itinerary off (${combo.join('+')}): no concludes-after line may appear`);
   ok(!m.includes('*Itinerary*'), `itinerary off (${combo.join('+')}): no itinerary heading may appear`);
+}
+
+// ══════════════════════════════════════════════════════════════
+// One itinerary rule, two renderers
+// ══════════════════════════════════════════════════════════════
+
+// ── the helper's contract, over every combination ──
+ok(compareItinerarySection([]) === null, 'no ticked durations must yield no itinerary section');
+
+const ALL_COMBOS: OptionDuration[][] = [[1], [2], [3], [1, 2], [1, 3], [2, 3], [1, 2, 3]];
+for (const combo of ALL_COMBOS) {
+  const sec = compareItinerarySection(combo)!;
+  const longest = combo[combo.length - 1];
+  const label = combo.join('+');
+
+  ok(sec !== null, `${label}: must yield a section`);
+  ok(sec.writtenOut === longest, `${label}: must write out the longest duration (${longest}), got ${sec.writtenOut}`);
+  ok(JSON.stringify(sec.durations) === JSON.stringify(combo), `${label}: durations must round-trip ascending`);
+  // The days printed are exactly the longest brochure itinerary, untouched.
+  ok(JSON.stringify(sec.dayLines) === JSON.stringify(condensedItinerary(longest)),
+    `${label}: dayLines must be the ${longest}N brochure itinerary verbatim`);
+  // Channel-neutral: markup is the renderer's job, not the helper's.
+  ok(!sec.heading.includes('*') && !sec.heading.includes('_'),
+    `${label}: heading must carry no channel markup, got "${sec.heading}"`);
+  ok(!(sec.concludesLine ?? '').includes('_'),
+    `${label}: concludesLine must carry no channel markup`);
+
+  if (combo.length === 1) {
+    ok(sec.heading === `${longest}-Night itinerary`, `${label}: single duration keeps the numbered heading`);
+    ok(sec.concludesLine === undefined, `${label}: single duration has no concludes-after line`);
+  } else {
+    ok(sec.heading === 'Itinerary', `${label}: multi-duration heading must be unnumbered, got "${sec.heading}"`);
+    ok(sec.concludesLine === combo.slice(0, -1).map(n => `${n}-Night stay concludes after Day ${n + 1}`).join('; ') + '.',
+      `${label}: concludes-after sentence wrong, got "${sec.concludesLine}"`);
+  }
+}
+// Unsorted / duplicated input must normalise, not corrupt the output.
+ok(JSON.stringify(compareItinerarySection([3, 1, 2, 1] as OptionDuration[])) ===
+   JSON.stringify(compareItinerarySection([1, 2, 3] as OptionDuration[])),
+  'compareItinerarySection must normalise unordered, duplicated input');
+
+// ── the MESSAGE renders the helper and adds nothing of its own ──
+for (const combo of ALL_COMBOS) {
+  const sec = compareItinerarySection(combo)!;
+  const m = msgFor(combo);
+  const label = combo.join('+');
+  ok(m.includes(`*${sec.heading}*`), `${label}: message must render the helper's heading in bold`);
+  sec.dayLines.forEach(line => ok(m.includes(line), `${label}: message must render every helper day line`));
+  // No day line the helper did not supply may appear.
+  ok(countOf(m, '*Day ') === sec.dayLines.length,
+    `${label}: message prints ${countOf(m, '*Day ')} day lines but the helper supplied ${sec.dayLines.length}`);
+  if (sec.concludesLine) {
+    ok(m.includes(`_${sec.concludesLine}_`), `${label}: message must render the helper's concludes line in italic`);
+  } else {
+    ok(!m.includes('concludes after Day'), `${label}: message must not invent a concludes line`);
+  }
+}
+
+// ── the PDF is checked at SOURCE level ──
+// jsPDF output is not inspectable without rendering, so these assertions pin
+// that downloadComparePdf DERIVES from the shared helper rather than pinning
+// the drawn pixels. See the report: the PDF's rendering is not covered by test.
+{
+  const page = readFileSync(new URL('../pages/RannUtsavBuilder.tsx', import.meta.url), 'utf8');
+  const start = page.indexOf('const downloadComparePdf');
+  ok(start !== -1, 'downloadComparePdf not found — these source assertions are now vacuous and must be repaired');
+  const end = page.indexOf('\n  };', start);
+  ok(end > start, 'could not delimit downloadComparePdf — source assertions are unreliable, repair them');
+  const body = page.slice(start, end);
+  const code = body.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+  ok(code.includes('compareItinerarySection('),
+    'the compare PDF must take its itinerary from the shared helper');
+  ok(!code.includes('condensedItinerary('),
+    'the compare PDF must not call condensedItinerary directly — that is how it drifted from the message before');
+  ok(!/-Night itinerary/.test(code),
+    'the compare PDF must not build its own heading — it must print the helper\'s');
+  ok(!/concludes after Day/.test(code),
+    'the compare PDF must not build its own concludes-after sentence');
+  // The whole page legitimately handles internal figures (the margin strip), so
+  // this is scoped to the client-facing PDF function only.
+  for (const banned of ['netCost', 'profit', 'commissionPct', 'compareCommission', 'discountPct']) {
+    ok(!code.includes(banned),
+      `downloadComparePdf references ${banned} — the client-facing PDF must not print an internal figure`);
+  }
+  // Whole-file guard: the page must not import condensedItinerary at all now.
+  ok(!/import\s*\{[^}]*condensedItinerary/.test(page),
+    'RannUtsavBuilder must not import condensedItinerary — the compare PDF is the only place it was used');
 }
 
 // ── no internal figure may reach the client-facing message ──

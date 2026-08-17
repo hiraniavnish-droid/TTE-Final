@@ -96,6 +96,71 @@ export function compareDurations(rates: CompareRate[]): OptionDuration[] {
   return ([1, 2, 3] as OptionDuration[]).filter(n => seen.has(n));
 }
 
+/** The itinerary block, resolved once for BOTH the WhatsApp message and the
+ *  compare PDF. Channel-neutral: no `*bold*` / `_italic_` markup is applied to
+ *  the heading or the concludes line, so each renderer adds its own. `dayLines`
+ *  come from the brochure module as-is (they carry `*Day n*`); the PDF strips
+ *  asterisks when drawing.
+ *
+ *  Both outputs consume this so they cannot drift apart — that drift is exactly
+ *  the defect this replaced, where the PDF still repeated Day 1 three times
+ *  after the message had stopped. */
+export interface CompareItinerarySection {
+  /** Ticked durations covered, ascending. */
+  durations: OptionDuration[];
+  /** The one duration actually written out in full — the longest. */
+  writtenOut: OptionDuration;
+  /** Plain heading, WITHOUT channel markup. */
+  heading: string;
+  /** One line per day of `writtenOut`. */
+  dayLines: string[];
+  /** Plain sentence naming where each shorter stay ends. Absent when only one
+   *  duration is ticked, because nothing is being stood in for. */
+  concludesLine?: string;
+}
+
+/**
+ * Printing one itinerary per ticked duration repeats Day 1 verbatim in every
+ * block and Day 2 in all but the shortest — neither condensed nor professional.
+ * The packages share a prefix: an n-night stay runs the longest itinerary's
+ * Days 1..n unchanged and then checks out on Day n+1. So the longest itinerary
+ * plus one line of end-points says the same thing once.
+ *
+ * That shared-prefix property is the load-bearing assumption and is pinned in
+ * `verify-rann-options.ts`. If a brochure edit ever breaks it, the test fails
+ * rather than these outputs quietly misdescribing a shorter package.
+ *
+ * Returns null when nothing is ticked.
+ */
+export function compareItinerarySection(
+  durations: OptionDuration[],
+): CompareItinerarySection | null {
+  // Normalised here rather than trusting the caller: ascending, de-duplicated.
+  const durs = ([1, 2, 3] as OptionDuration[]).filter(n => durations.includes(n));
+  if (durs.length === 0) return null;
+
+  const writtenOut = durs[durs.length - 1];
+  const dayLines = condensedItinerary(writtenOut);
+
+  // One duration: nothing is being represented by proxy, so keep the numbered
+  // heading and say nothing about where other stays end.
+  if (durs.length === 1) {
+    return { durations: durs, writtenOut, heading: `${writtenOut}-Night itinerary`, dayLines };
+  }
+
+  return {
+    durations: durs,
+    writtenOut,
+    // Unnumbered: this block now serves every ticked duration, so labelling it
+    // "3-Night itinerary" would misfile the shorter stays under it.
+    heading: 'Itinerary',
+    dayLines,
+    concludesLine: durs.slice(0, -1)
+      .map(n => `${n}-Night stay concludes after Day ${n + 1}`)
+      .join('; ') + '.',
+  };
+}
+
 export function occupancyLine(rooms: number, single: boolean): string {
   return `${single ? 'Single' : 'Double'} occupancy · ${rooms} room${rooms === 1 ? '' : 's'}`;
 }
@@ -123,28 +188,15 @@ export function buildCompareMessage(i: CompareMessageInput): string {
   }
 
   if (i.includeItinerary) {
-    const durs = compareDurations(i.rates);
-    if (durs.length === 1) {
+    const sec = compareItinerarySection(compareDurations(i.rates));
+    if (sec) {
       L.push('');
-      L.push(`*${durs[0]}-Night itinerary*`);
-      condensedItinerary(durs[0]).forEach(line => L.push(line));
-    } else if (durs.length > 1) {
-      // Printing one itinerary per duration repeats Day 1 verbatim in every
-      // block and Day 2 in all but the shortest, which is neither condensed nor
-      // professional. The packages share a prefix — an n-night stay runs the
-      // longest itinerary's Days 1..n and then checks out on Day n+1 — so the
-      // longest itinerary plus a line of end-points says the same thing once.
-      // `verify-rann-options.ts` pins that shared-prefix property; if a future
-      // brochure edit breaks it, the test fails rather than this message
-      // quietly misdescribing a shorter package.
-      const longest = durs[durs.length - 1];
-      L.push('');
-      L.push('*Itinerary*');
-      condensedItinerary(longest).forEach(line => L.push(line));
-      L.push('');
-      L.push('_' + durs.slice(0, -1)
-        .map(n => `${n}-Night stay concludes after Day ${n + 1}`)
-        .join('; ') + '._');
+      L.push(`*${sec.heading}*`);          // WhatsApp bold
+      sec.dayLines.forEach(line => L.push(line));
+      if (sec.concludesLine) {
+        L.push('');
+        L.push(`_${sec.concludesLine}_`);  // WhatsApp italic
+      }
     }
   }
 
