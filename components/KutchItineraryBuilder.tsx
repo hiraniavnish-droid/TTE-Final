@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generateId, useRoomCalculator, formatDate, formatCurrency } from '../utils/helpers';
+import { generateId, formatDate, formatCurrency } from '../utils/helpers';
+const calcRooms = (pax: number, capacity: number) => Math.ceil(pax / capacity);
 import { PageLoader } from './ui/PageLoader';
 import { Hotel, ItineraryPackage, RoomType, Vehicle, Sightseeing } from '../types';
 import { DestinationGallery } from './DestinationGallery';
@@ -17,6 +18,8 @@ import { FleetManager } from './itinerary/FleetManager';
 import { HotelSwapModal } from './itinerary/HotelSwapModal';
 import { FleetItem, CustomDay } from './itinerary/types';
 import { FALLBACK_IMG, getMealPlanLabel, getSmartDate } from './itinerary/utils';
+import { getPeakSupplement, getTripPeakPeriods, getDayDateStr } from './itinerary/peakDates';
+import { RecentQuote, loadRecentQuotes, saveRecentQuote } from './itinerary/recentQuotes';
 
 // --- SUB-COMPONENT: WRAPPER FOR KUTCH SPECIFIC FLOW ---
 
@@ -65,7 +68,23 @@ const KutchBuilder: React.FC<{
   const [markupValue, setMarkupValue] = useState<number>(0);
   const [swapModal, setSwapModal] = useState<{ dayIndex: number; city: string } | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
-  
+  const [whatsappFeedback, setWhatsappFeedback] = useState(false);
+  const [recentQuotes, setRecentQuotes] = useState<RecentQuote[]>(() => loadRecentQuotes());
+
+  // Auto-fill from pending lead (set via Leads page "Build Quote" button)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('tte_pending_lead');
+      if (raw) {
+        const lead = JSON.parse(raw);
+        if (lead.name) setGuestName(lead.name);
+        if (lead.pax && lead.pax >= 2) setPax(lead.pax);
+        if (lead.startDate) setStartDate(lead.startDate);
+        localStorage.removeItem('tte_pending_lead');
+      }
+    } catch (_) {}
+  }, []);
+
   // PDF Generation State
   const [isPdfLoading, setIsPdfLoading] = useState(false);
 
@@ -74,54 +93,62 @@ const KutchBuilder: React.FC<{
       if (!isManualFleet) {
           const autoFleet: FleetItem[] = [];
           const id = generateId();
-          if (pax <= 4) { autoFleet.push({ id, name: 'Sedan (Dzire)', count: 1 }); } 
-          else if (pax <= 6) { autoFleet.push({ id, name: 'Innova', count: 1 }); } 
-          else if (pax <= 12) { autoFleet.push({ id, name: 'Tempo Traveller', count: 1 }); } 
-          else { autoFleet.push({ id, name: 'Tempo Traveller', count: Math.ceil(pax / 12) }); }
+          if (pax <= 4)       { autoFleet.push({ id, name: 'Sedan (Dzire/Aura)', count: 1 }); }
+          else if (pax <= 6)  { autoFleet.push({ id, name: 'Ertiga AC', count: 1 }); }
+          else if (pax <= 7)  { autoFleet.push({ id, name: 'Innova Crysta', count: 1 }); }
+          else if (pax <= 12) { autoFleet.push({ id, name: 'Tempo Traveller (12 Seater)', count: 1 }); }
+          else if (pax <= 17) { autoFleet.push({ id, name: 'Tempo Traveller (17 Seater)', count: 1 }); }
+          else { autoFleet.push({ id, name: 'Tempo Traveller (12 Seater)', count: Math.ceil(pax / 12) }); }
           setFleet(autoFleet);
       }
   }, [pax, isManualFleet]);
 
-  // --- PRICING LOGIC ---
-  const calculatePrice = (pkg: ItineraryPackage, tier: 'Budget' | 'Premium', overrides: Record<number, { hotel: Hotel, roomType: RoomType }> = {}) => {
+  // --- PRICING LOGIC (date-aware with peak surcharges) ---
+  const calculatePrice = (pkg: ItineraryPackage, tier: 'Budget' | 'Premium' | 'Luxury', overrides: Record<number, { hotel: Hotel, roomType: RoomType }> = {}) => {
       let transportCost = 0;
       fleet.forEach(item => {
           const vData = vehicleData.find(v => v.name === item.name);
           if (vData) transportCost += (vData.rate * item.count * pkg.days);
       });
       let hotelCost = 0;
+      let peakSurcharge = 0;
       pkg.route.forEach((city, index) => {
-          let override = overrides[index];
+          const dayDateStr = getDayDateStr(startDate, index);
+          const override = overrides[index];
           let rate = 0;
-          let capacity = 2; 
+          let capacity = 2;
+          let hotelName = '';
           if (override) {
               rate = override.roomType.rate;
               capacity = override.roomType.capacity;
+              hotelName = override.hotel.name;
           } else {
               const cityHotels = hotelData[city] || [];
               const hotel = cityHotels.find(h => h.tier === tier) || cityHotels[0];
               if (hotel) {
                   rate = hotel.roomTypes[0]?.rate || 0;
                   capacity = hotel.roomTypes[0]?.capacity || 2;
+                  hotelName = hotel.name;
               }
           }
-          const roomsNeeded = useRoomCalculator(pax, capacity);
-          hotelCost += (rate * roomsNeeded);
+          const roomsNeeded = calcRooms(pax, capacity);
+          hotelCost += rate * roomsNeeded;
+          peakSurcharge += getPeakSupplement(hotelName, dayDateStr) * roomsNeeded;
       });
-      const netTotal = transportCost + hotelCost;
-      return { netTotal, perPerson: pax > 0 ? Math.round(netTotal / pax) : 0 };
+      const netTotal = transportCost + hotelCost + peakSurcharge;
+      return { netTotal, transportCost, hotelCost, peakSurcharge, perPerson: pax > 0 ? Math.round(netTotal / pax) : 0 };
   };
 
   const activePackage = selectedPkgId === 'custom' ? customPackage : packages.find(p => p.id === selectedPkgId);
 
   const editorPricing = useMemo(() => {
       if (!activePackage) return null;
-      const { netTotal } = calculatePrice(activePackage, baseTier, hotelOverrides);
+      const { netTotal, transportCost, hotelCost, peakSurcharge } = calculatePrice(activePackage, baseTier, hotelOverrides);
       let finalTotal = netTotal;
       if (markupType === 'percent') finalTotal = netTotal * (1 + markupValue / 100);
       else finalTotal = netTotal + markupValue;
-      return { netTotal, finalTotal, perPerson: pax > 0 ? Math.round(finalTotal / pax) : 0 };
-  }, [activePackage, baseTier, hotelOverrides, fleet, pax, markupType, markupValue, vehicleData]);
+      return { netTotal, finalTotal, perPerson: pax > 0 ? Math.round(finalTotal / pax) : 0, transportCost, hotelCost, peakSurcharge };
+  }, [activePackage, baseTier, hotelOverrides, fleet, pax, markupType, markupValue, vehicleData, startDate]);
 
   // --- HANDLERS ---
   const handleAddVehicle = () => { setIsManualFleet(true); setFleet([...fleet, { id: generateId(), name: 'Sedan (Dzire)', count: 1 }]); };
@@ -229,9 +256,33 @@ const KutchBuilder: React.FC<{
       return text;
   };
 
+  const saveCurrentToRecents = () => {
+      if (!activePackage || !editorPricing) return;
+      const updated = saveRecentQuote({
+          guestName,
+          pax,
+          packageName: activePackage.name,
+          packageId: activePackage.id,
+          tier: baseTier as 'Budget' | 'Premium',
+          total: Math.round(editorPricing.finalTotal),
+          startDate,
+      });
+      setRecentQuotes(updated);
+  };
+
+  const handleWhatsAppShare = () => {
+      const text = generateItineraryText();
+      if (!text) return;
+      saveCurrentToRecents();
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+      setWhatsappFeedback(true);
+      setTimeout(() => setWhatsappFeedback(false), 3000);
+  };
+
   const handleCopyQuotation = async () => {
       const text = generateItineraryText();
       if (!text) return;
+      saveCurrentToRecents();
 
       try {
           await navigator.clipboard.writeText(text);
@@ -279,14 +330,23 @@ const KutchBuilder: React.FC<{
                         onUpdateRates={() => {}}
                     />
 
-                    <GalleryView 
+                    <GalleryView
                         packages={packages}
                         pax={pax}
+                        startDate={startDate}
+                        guestName={guestName}
                         gallerySharingMode={gallerySharingMode}
                         setGallerySharingMode={setGallerySharingMode}
                         onSelectPackage={handleSelectPackage}
                         onOpenCustomBuilder={() => setView('custom_builder')}
                         hotelData={hotelData}
+                        recentQuotes={recentQuotes}
+                        onRestoreQuote={(q) => {
+                            setGuestName(q.guestName);
+                            setPax(q.pax);
+                            setStartDate(q.startDate);
+                            handleSelectPackage(q.packageId, q.tier);
+                        }}
                     />
                 </div>
             </div>
@@ -311,16 +371,18 @@ const KutchBuilder: React.FC<{
         {view === 'editor' && activePackage && editorPricing && (
             <div className="flex flex-col h-full">
                 <div className="shrink-0 z-30 shadow-sm relative bg-slate-50">
-                    <PricingControlDeck 
+                    <PricingControlDeck
                         pricing={editorPricing}
                         markupType={markupType} setMarkupType={setMarkupType}
                         markupValue={markupValue} setMarkupValue={setMarkupValue}
                         onBack={() => setView('gallery')}
                         onOpenFleetModal={() => setIsFleetModalOpen(true)}
-                        onGeneratePDF={() => {}} 
+                        onGeneratePDF={() => {}}
                         onCopyQuote={handleCopyQuotation}
+                        onWhatsAppShare={handleWhatsAppShare}
                         isPdfLoading={isPdfLoading}
                         copyFeedback={copyFeedback}
+                        whatsappFeedback={whatsappFeedback}
                     />
                 </div>
                 
@@ -370,27 +432,21 @@ const KutchBuilder: React.FC<{
   );
 };
 
+// The Itinerary Hub is now purely a launcher for the live rate-card builders.
+// The old inline Kutch day-by-day flow, plus the Direct Packages / Group Tours /
+// Gujarat DMC / SOU brochure entries, were removed from the gallery — so nothing
+// sets a destination here any more and KutchFlow is no longer reachable.
 export const KutchItineraryBuilder = () => {
-  const [selectedDest, setSelectedDest] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  if (!selectedDest) {
-    return <DestinationGallery onSelect={(dest) => {
-        if (dest === 'group-tours') {
-            navigate('/group-tours');
-        } else if (dest === 'direct-packages') {
-            navigate('/direct-packages');
-        } else if (dest === 'gujarat-dmc') {
-            navigate('/gujarat-dmc');
-        } else {
-            setSelectedDest(dest);
-        }
-    }} />;
-  }
-
   return (
-    <KutchFlow
-      onBack={() => setSelectedDest(null)}
+    <DestinationGallery
+      onSelect={(dest) => {
+        if (dest === 'rann-utsav') navigate('/rann-utsav-builder');
+        else if (dest === 'sou-tent-city') navigate('/sou-tent-city-builder');
+        else if (dest === 'rajarshi') navigate('/rajarshi-builder');
+        else if (dest === 'inland') navigate('/inland-builder');
+      }}
     />
   );
 };
