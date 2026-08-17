@@ -1,10 +1,13 @@
 // Verification for the Rate Wall. Run: npx tsx scripts/verify-rate-wall.ts
 // Covers price banding: strict partition, tie handling, spread collapse, and
 // exclusion of anything that cannot be priced. Later tasks extend this file.
-import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
+import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, isQuotable, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, RAJARSHI_PLANS } from '../services/rajarshiWall';
 import { RAJARSHI_HOTELS, type RajPlan, type RajRoom } from '../services/rajarshiData';
 import { quoteStay } from '../services/rajarshiRates';
+import { buildInlandWall, inlandCities } from '../services/inlandWall';
+import { INLAND_HOTELS, type InlandRoom } from '../services/inlandData';
+import { readFileSync } from 'node:fs';
 
 let checks = 0;
 const fail: string[] = [];
@@ -677,6 +680,622 @@ function publishedPlansT(room: RajRoom): RajPlan[] {
       `${hotel.id}::${ri}: flat-mode derived markup ${mapaiRow.markupAmount} != CPAI's ${cpaiRow.markupAmount}`);
   }
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Inland adapter (services/inlandWall.ts)
+//
+// Everything below re-derives the expected figures from inlandData directly.
+// It never calls a helper exported by (or copied from) inlandWall.ts — the
+// point is to disagree with that file if it is wrong, not to echo it.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── the sheet's own weekday/weekend day sets, read by hand from the labels ──
+//
+// Deliberately a lookup table rather than a parser: it is the transcription of
+// what a person reads on the sheet, so a parser bug in inlandWall.ts cannot be
+// mirrored here. Keyed by the exact printed pair.
+const WEEKEND_BY_LABELS: Record<string, number[]> = {
+  'WEEKDAYS||WEEKENDS (FRI-SUN)': [5, 6, 0],
+  'Weekday (Mon to Thu)||WEEKENDS (FRI-Sun)': [5, 6, 0],
+  'WEEKDAY(Sun-Thu)||WEEKENDS (FRI-SAT)': [5, 6],
+  'WEEKDAYS||WEEKENDS (FRI-SAT)': [5, 6],
+  'WEEKDAYS (Mon to Thu)||WEEKENDS (FRI-SUN)': [5, 6, 0],
+  'WEEKDAYS (Mon-Thu)||WEEKENDS (Fri-Sun)': [5, 6, 0],
+  'WEEKDAYS (Sun-Thu)||WEEKENDS (FRI-SAT)': [5, 6],
+  'CPAI||WEEKENDS (FRI-SUN)': [5, 6, 0],
+  'WEEKDAYS (Sun-thru)||WEEKENDS (FRI-SAT)': [5, 6],
+  'WEEKDAYS (SUN-THRU)||WEEKENDS (FRI-SAT)': [5, 6],
+  '(Mon to Thu)||WEEKENDS (FRI-Sun)': [5, 6, 0],
+};
+// The two pairs that name no day at all. Fri-Sun is the majority spelling in
+// this sheet, which is exactly why guessing it here would be so easy to get
+// away with and so expensive when wrong.
+const BARE_WEEKEND_LABELS = 'WEEKDAYS||WEEKENDS';
+const SAME_RATE_LABELS = 'WEEKDAYS / WEEKENDS Same Rate||';
+
+// ── the sheet's own season periods, likewise transcribed by hand ──
+const SEASON_MONTHS_BY_LABELS: Record<string, [number[], number[]]> = {
+  'Rate till Sep 2026||Rate Oct to Mar 2027':        [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  'Rate till Sep 2026||Rate till Mar 2027':          [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  'Rate till Sep 2026||Rate Oct - Mar 2027':         [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  '1 April to 30 Sep 2027||Rate Oct to Mar 2027':    [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  'Till Sep 2026||Oct to March 2027':                [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  'Rate till Sep 2026||Oct to Mar 2027':             [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  'Rate till Sep 2026||Rate Oct till Mar 2027':      [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  '01 April to 30 Sep 2027||Rate 1 Oct to 31 Mar 2027': [[4,5,6,7,8,9], [10,11,12,1,2,3]],
+  // The four that do NOT follow the Apr-Sep / Oct-Mar split.
+  'Rate till Aug 2026||Rate Sep to Mar 2027':        [[4,5,6,7,8], [9,10,11,12,1,2,3]],
+  'Nov 24 & Feb 25||Dec 24 & Jan 25':                [[11,2], [12,1]],
+  'Oct / Nov / Feb / Mar||Dec/Jan':                  [[10,11,2,3], [12,1]],
+  'Winter (Oct - Mar 26)||':                         [[10,11,12,1,2,3], []],
+};
+
+const labelKey = (room: InlandRoom) => `${room.axisLabels[0] ?? ''}||${room.axisLabels[1] ?? ''}`;
+
+const col2Printed = (room: InlandRoom) =>
+  room.axisLabels[1] != null || room.rate2 != null || room.onRequest2;
+
+const rateOf = (room: InlandRoom, col: 1 | 2) =>
+  col === 1 ? (room.onRequest1 ? null : room.rate1) : (room.onRequest2 ? null : room.rate2);
+
+// Weekday of the nth night, computed locally. Never toISOString().
+const nightDow = (iso: string, n: number) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d + n).getDay();
+};
+
+// ── independent occupancy reading ──
+// Written as a table over the 19 printed label pairs rather than as regexes,
+// so a mis-read regex in inlandWall.ts has nothing to hide behind.
+type ColRole = 'single' | 'double' | 'triple' | 'either' | 'extra' | 'none';
+const OCC_ROLES: Record<string, [ColRole, ColRole]> = {
+  'SINGLE||DOUBLE': ['single', 'double'],
+  'Double||': ['double', 'none'],
+  'DOUBLE||': ['double', 'none'],
+  'SGL Room||Double Room': ['single', 'double'],
+  'Double - CPAI & MAPAI||Triple Occ - CPAI & MAPAI': ['double', 'triple'],
+  'DBL||': ['double', 'none'],
+  'SIngel||Double': ['single', 'double'],
+  'Single||DOUBLE': ['single', 'double'],
+  'Single||DBL': ['single', 'double'],
+  'SGL / DBL ROOM||': ['either', 'none'],
+  'SGL / Double||': ['either', 'none'],
+  'DOUBLE MAPAI||TRIPLE MAPAI': ['double', 'triple'],
+  'DOUBLE MAPAI||Ex Person MAPAI': ['double', 'extra'],
+  'Double (AI) - CP | MAP | AP||Ex Adults (AI) CP | MAP | AP': ['double', 'extra'],
+  'Single||Double': ['single', 'double'],
+  'SGL||DBL': ['single', 'double'],
+  'DBL CPAI / MAPAI||Triple CPAI / MAPAI': ['double', 'triple'],
+  'DBL CPAI||Double MAPAI': ['double', 'double'],   // really a meal-plan axis
+  'DBL MAPAI||Triple  MAPAI': ['double', 'triple'],
+};
+
+const BASE_OCC = 2, MAX_EXTRA = 2;
+
+// The expected extra-person supplement, re-derived. `childAdult` is only a
+// supplement when it is smaller than the room rate — on 22 rooms it holds a
+// third rate column (an APAI figure) instead, and the adapter must refuse it.
+function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: number | null): number | null {
+  const raw = exColRate != null ? exColRate : (typeof room.childAdult === 'number' ? room.childAdult : null);
+  if (raw == null || !Number.isFinite(raw) || raw <= 0 || raw >= baseRate) return null;
+  return raw;
+}
+
+// ── every hotel, every room, a full week of check-ins, pax 1-4 ──
+{
+  const DATES = [0, 1, 2, 3, 4, 5, 6].map(n => {
+    const d = new Date(2026, 10, 16 + n);   // 2026-11-16 is a Monday
+    return `2026-11-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  // A second week in the other half-year, so H1-tagged rooms and the Apr-Sep
+  // season columns are exercised too.
+  const DATES_H1 = [0, 1, 2, 3, 4, 5, 6].map(n => `2026-06-${String(15 + n).padStart(2, '0')}`);
+  const ALL_DATES = [...DATES, ...DATES_H1];
+
+  const NIGHTS = 3, ROOMS = 1;
+  let quotableSeen = 0, blockedSeen = 0;
+
+  for (const checkIn of ALL_DATES) {
+    for (const pax of [1, 2, 3, 4]) {
+      const entries = buildInlandWall({
+        city: 'ALL', checkIn, nights: NIGHTS, rooms: ROOMS, pax,
+        markupMode: 'percent', markupValue: 0,   // 0% isolates the net from the markup rule
+      });
+      const paxPerRoom = Math.ceil(pax / ROOMS);
+      const half = Number(checkIn.slice(5, 7)) >= 4 && Number(checkIn.slice(5, 7)) <= 9 ? 'H1' : 'H2';
+
+      for (const e of entries) {
+        const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+        for (const row of e.rows) {
+          if (row.key.endsWith('::oncall')) {
+            ok(isBlocked(row), `${row.key}: an ON CALL hotel must never price`);
+            continue;
+          }
+          const [, riStr, suffix] = row.key.split('::');
+          const room = hotel.rooms[Number(riStr)];
+          ok(!!room, `${row.key}: row key does not point at a real room`);
+          if (!room) continue;
+
+          // A room belonging to the other printed half-year must not appear.
+          ok(room.season == null || room.season === half,
+            `${row.key}: ${room.season} room shown for a ${half} check-in`);
+
+          if (!row.quotable) { blockedSeen++; continue; }
+          if (!isQuotable(row)) continue;
+          quotableSeen++;
+
+          // ── the room's own printed figures, re-derived ──
+          let netRoomTotal: number;
+          let baseRate: number;
+          let baseOcc = BASE_OCC;
+          let exColRate: number | null = null;
+
+          if (suffix === 'DATES') {
+            const weekend = WEEKEND_BY_LABELS[labelKey(room)];
+            ok(!!weekend, `${row.key}: a 'Your dates' row on a room whose weekend days are not printed`);
+            if (!weekend) continue;
+            const r1 = rateOf(room, 1), r2 = rateOf(room, 2);
+            ok(r1 != null && r2 != null, `${row.key}: 'Your dates' priced with an on-request bucket`);
+            if (r1 == null || r2 == null) continue;
+            let wknd = 0;
+            for (let n = 0; n < NIGHTS; n++) if (weekend.includes(nightDow(checkIn, n))) wknd++;
+            netRoomTotal = (r1 * (NIGHTS - wknd) + r2 * wknd) * ROOMS;
+            baseRate = Math.min(r1, r2);
+          } else {
+            const col = suffix === 'C1' ? 1 : 2;
+            ok(suffix === 'C1' || suffix === 'C2', `${row.key}: unexpected row suffix '${suffix}'`);
+            const r = rateOf(room, col as 1 | 2);
+            ok(r != null, `${row.key}: priced off column ${col}, which the sheet marks on-request`);
+            if (r == null) continue;
+            netRoomTotal = r * NIGHTS * ROOMS;
+            baseRate = r;
+
+            if (room.axisType === 'occupancy') {
+              const roles = OCC_ROLES[labelKey(room)];
+              ok(!!roles, `${row.key}: unrecognised occupancy label pair '${labelKey(room)}'`);
+              if (roles) {
+                if (roles[col - 1] === 'triple') baseOcc = 3;
+                const exIdx = roles.indexOf('extra');
+                if (exIdx >= 0) exColRate = rateOf(room, (exIdx + 1) as 1 | 2);
+              }
+            }
+          }
+
+          const extraHeads = Math.max(0, paxPerRoom - baseOcc);
+          let expectedExtra = 0;
+          if (extraHeads > 0) {
+            const sup = expectedSupplement(room, baseRate, exColRate);
+            ok(sup != null, `${row.key}: priced ${paxPerRoom} pax with no usable extra-person rate`);
+            if (sup == null) continue;
+            expectedExtra = sup * extraHeads * ROOMS * NIGHTS;
+          }
+          ok(paxPerRoom - BASE_OCC <= MAX_EXTRA,
+            `${row.key}: priced ${paxPerRoom} pax in one room, over the 2 extra-bed ceiling`);
+
+          const expectedNet = netRoomTotal + expectedExtra;
+          ok(row.netTotal === expectedNet,
+            `${row.key} @${checkIn} pax${pax}: netTotal ${row.netTotal} != printed ${netRoomTotal} + extras ${expectedExtra} = ${expectedNet}`);
+          ok(row.markupAmount === 0, `${row.key}: 0% markup must produce a zero markup, got ${row.markupAmount}`);
+          ok(row.sellingTotal === row.netTotal, `${row.key}: sellingTotal must equal netTotal at 0% markup`);
+          ok(Number.isFinite(row.sellingTotal) && row.sellingTotal > 0,
+            `${row.key}: a non-positive or non-finite total must be blocked, not quoted`);
+        }
+      }
+    }
+  }
+  ok(quotableSeen > 10000, `expected a large quotable population across the sweep, got ${quotableSeen}`);
+  ok(blockedSeen > 0, `expected blocked rows across the sweep, got ${blockedSeen}`);
+  console.log(`  Inland sweep: ${ALL_DATES.length} dates x 4 pax — ${quotableSeen} quotable / ${blockedSeen} blocked rows reconciled`);
+}
+
+// ── no row is ever priced off an on-request cell ──
+{
+  for (const checkIn of ['2026-06-15', '2026-11-20']) {
+    const entries = buildInlandWall({ city: 'ALL', checkIn, nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+    for (const e of entries) {
+      const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+      for (const row of e.rows.filter(isQuotable)) {
+        if (row.key.endsWith('::oncall')) { ok(false, `${row.key}: ON CALL hotel priced`); continue; }
+        const [, riStr, suffix] = row.key.split('::');
+        const room = hotel.rooms[Number(riStr)];
+        if (!room) continue;
+        if (suffix === 'C1') ok(!room.onRequest1 && room.rate1 != null, `${row.key}: priced an on-request column 1`);
+        else if (suffix === 'C2') ok(!room.onRequest2 && room.rate2 != null, `${row.key}: priced an on-request column 2`);
+        else ok(!room.onRequest1 && room.rate1 != null && !room.onRequest2 && room.rate2 != null,
+          `${row.key}: split row priced with an on-request bucket`);
+      }
+    }
+  }
+}
+
+// ── axisType 'unknown' never prices, even where a figure is printed ──
+{
+  const entries = buildInlandWall({ city: 'ALL', checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  let unknownRooms = 0, printedButRefused = 0;
+  for (const e of entries) {
+    const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+    hotel.rooms.forEach((room, ri) => {
+      if (room.axisType !== 'unknown') return;
+      unknownRooms++;
+      if (room.rate1 != null && !room.onRequest1) printedButRefused++;
+      const rows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`));
+      ok(rows.length > 0, `${hotel.id}::${ri}: an unknown-axis room vanished instead of blocking`);
+      for (const r of rows) {
+        ok(isBlocked(r), `${hotel.id}::${ri}: an unknown-axis room was priced`);
+        if (isBlocked(r)) ok(r.blockedReason === 'On request', `${hotel.id}::${ri}: expected 'On request', got '${r.blockedReason}'`);
+      }
+    });
+  }
+  ok(unknownRooms === 5, `expected 5 unknown-axis rooms in the data, found ${unknownRooms}`);
+  ok(printedButRefused === 3, `expected 3 unknown-axis rooms carrying a printed figure we refuse, found ${printedButRefused}`);
+}
+
+// ── the 56 bare 'WEEKDAYS | WEEKENDS' rooms: two rates, never a resolution ──
+{
+  const entries = buildInlandWall({ city: 'ALL', checkIn: '2026-11-19', nights: 3, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  let bareRooms = 0, bareHotels = 0;
+  for (const e of entries) {
+    const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+    let hotelHasBare = false;
+    hotel.rooms.forEach((room, ri) => {
+      if (labelKey(room) !== BARE_WEEKEND_LABELS) return;
+      // A hotel printed as two half-year blocks only shows the half these
+      // dates fall in; 19 Nov 2026 is H2.
+      if (room.season != null && room.season !== 'H2') return;
+      bareRooms++; hotelHasBare = true;
+      const rows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`));
+      ok(rows.length === 2, `${hotel.id}::${ri}: a bare WEEKDAYS/WEEKENDS room must emit exactly 2 rows, got ${rows.length}`);
+      ok(!rows.some(r => r.key.endsWith('::DATES')), `${hotel.id}::${ri}: a 'Your dates' row was invented from undefined weekend days`);
+      ok(!rows.some(r => r.planLabel === 'Your dates'), `${hotel.id}::${ri}: a row is labelled 'Your dates' without printed weekend days`);
+      ok(rows[0]?.planLabel === 'WEEKDAYS' && rows[1]?.planLabel === 'WEEKENDS',
+        `${hotel.id}::${ri}: rows must carry the sheet's own labels, got '${rows[0]?.planLabel}' / '${rows[1]?.planLabel}'`);
+    });
+    if (hotelHasBare) {
+      bareHotels++;
+      ok(e.resolutionOk === false, `${e.hotelId}: a hotel with undefined weekend days must render amber (resolutionOk false)`);
+    }
+  }
+  // 56 in the sheet; 3 of them belong to KAVISH GIR's April-Sep block and so
+  // are correctly absent from a November wall.
+  const bareInData = INLAND_HOTELS.flatMap(h => h.rooms).filter(r => labelKey(r) === BARE_WEEKEND_LABELS);
+  ok(bareInData.length === 56, `expected 56 bare WEEKDAYS/WEEKENDS rooms in the data, found ${bareInData.length}`);
+  ok(bareInData.filter(r => r.season === 'H1').length === 3, 'expected 3 of them in an Apr-Sep block');
+  ok(bareRooms === 53, `expected 53 bare rooms on a November wall, found ${bareRooms}`);
+  ok(bareHotels === 23, `expected 23 hotels carrying them, found ${bareHotels}`);
+}
+
+// ── rooms whose weekend days ARE printed do resolve ──
+{
+  // A Monday check-in for 3 nights (Mon/Tue/Wed) lies entirely inside the
+  // weekday bucket under every day definition printed in this sheet, so the
+  // split row must equal the weekday rate outright.
+  const CHECK_IN = '2026-11-16', NIGHTS = 3, ROOMS = 2;
+  const entries = buildInlandWall({ city: 'ALL', checkIn: CHECK_IN, nights: NIGHTS, rooms: ROOMS, pax: 4, markupMode: 'percent', markupValue: 0 });
+  let resolved = 0, whollyWeekdayChecked = 0;
+  for (const e of entries) {
+    const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+    hotel.rooms.forEach((room, ri) => {
+      const weekend = WEEKEND_BY_LABELS[labelKey(room)];
+      if (!weekend) return;
+      if (room.season != null && room.season !== 'H2') return;   // 16 Nov 2026 is H2
+      resolved++;
+      const dates = e.rows.find(r => r.key === `${hotel.id}::${ri}::DATES`);
+      ok(!!dates, `${hotel.id}::${ri}: printed weekend days but no 'Your dates' row`);
+      if (!dates) return;
+      ok(dates.planLabel === 'Your dates', `${hotel.id}::${ri}: split row planLabel is '${dates.planLabel}'`);
+      for (let n = 0; n < NIGHTS; n++) ok(!weekend.includes(nightDow(CHECK_IN, n)), 'sanity: Mon-Wed must be weekday nights');
+      const weekdayRow = e.rows.find(r => r.key === `${hotel.id}::${ri}::C1`);
+      if (isQuotable(dates) && weekdayRow && isQuotable(weekdayRow)) {
+        whollyWeekdayChecked++;
+        ok(dates.netTotal === weekdayRow.netTotal,
+          `${hotel.id}::${ri}: a wholly-weekday stay must equal the weekday rate (${dates.netTotal} vs ${weekdayRow.netTotal})`);
+        ok(dates.netTotal === room.rate1! * NIGHTS * ROOMS + (dates.netTotal - room.rate1! * NIGHTS * ROOMS),
+          `${hotel.id}::${ri}: sanity on the split row's composition`);
+      }
+    });
+  }
+  const printedDaysInData = INLAND_HOTELS.flatMap(h => h.rooms).filter(r => WEEKEND_BY_LABELS[labelKey(r)]);
+  ok(printedDaysInData.length === 99, `expected 99 rooms with printed weekend days in the data, found ${printedDaysInData.length}`);
+  ok(resolved === 95, `expected 95 of them on a November wall (4 sit in an Apr-Sep block), found ${resolved}`);
+  ok(whollyWeekdayChecked > 40, `expected a meaningful number of wholly-weekday comparisons, got ${whollyWeekdayChecked}`);
+}
+
+// ── the named Thursday case: 1 weekday + 2 weekend nights, arithmetic explicit ──
+{
+  // Iscon The Fern Resort & Spa, Bhavnagar — 'WEEKDAYS' 4300 | 'WEEKENDS
+  // (FRI-SUN)' 4900 on Winter Green Room. Check-in Thu 05 Nov 2026 for 3
+  // nights covers Thu, Fri, Sat: one weekday night and two weekend nights.
+  const HOTEL = 'bhavnagar-iscon-the-fern-resort-spa';
+  const hotel = INLAND_HOTELS.find(h => h.id === HOTEL)!;
+  const room = hotel.rooms[0];
+  ok(room.name === 'Winter Green Room', `fixture drifted: room 0 is '${room.name}'`);
+  ok(room.rate1 === 4300 && room.rate2 === 4900, `fixture drifted: rates are ${room.rate1}/${room.rate2}`);
+  ok(labelKey(room) === 'WEEKDAYS||WEEKENDS (FRI-SUN)', `fixture drifted: labels are '${labelKey(room)}'`);
+
+  const CHECK_IN = '2026-11-05';   // Thursday
+  ok(nightDow(CHECK_IN, 0) === 4, 'fixture drifted: 05 Nov 2026 must be a Thursday');
+  ok(nightDow(CHECK_IN, 1) === 5 && nightDow(CHECK_IN, 2) === 6, 'nights 2 and 3 must be Fri and Sat');
+
+  const e = buildInlandWall({ city: hotel.city, checkIn: CHECK_IN, nights: 3, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+    .find(x => x.hotelId === HOTEL)!;
+  const dates = e.rows.find(r => r.key === `${HOTEL}::0::DATES`);
+  ok(!!dates && isQuotable(dates!), 'the Thursday split row must be quotable');
+  if (dates && isQuotable(dates)) {
+    const expected = 4300 * 1 + 4900 * 2;   // = 14100
+    ok(expected === 14100, 'arithmetic sanity: 4300 + 4900 x 2 = 14100');
+    ok(dates.netTotal === expected,
+      `Thursday split: netTotal ${dates.netTotal} != 4300x1 + 4900x2 = ${expected}`);
+    ok(dates.derivedNote === '1 weekday + 2 weekend night(s)',
+      `Thursday split: derivedNote is '${dates.derivedNote}'`);
+    // Strictly between the two single-basis rows, which is the whole point.
+    const wd = e.rows.find(r => r.key === `${HOTEL}::0::C1`)!;
+    const we = e.rows.find(r => r.key === `${HOTEL}::0::C2`)!;
+    if (isQuotable(wd) && isQuotable(we)) {
+      ok(wd.netTotal === 4300 * 3 && we.netTotal === 4900 * 3, 'the two single-basis rows must be flat 3-night totals');
+      ok(dates.netTotal > wd.netTotal && dates.netTotal < we.netTotal,
+        'the split row must fall between the all-weekday and all-weekend totals');
+    }
+  }
+  // 2 rooms doubles it and nothing else.
+  const e2 = buildInlandWall({ city: hotel.city, checkIn: CHECK_IN, nights: 3, rooms: 2, pax: 4, markupMode: 'percent', markupValue: 0 })
+    .find(x => x.hotelId === HOTEL)!;
+  const dates2 = e2.rows.find(r => r.key === `${HOTEL}::0::DATES`);
+  if (dates2 && isQuotable(dates2)) ok(dates2.netTotal === 14100 * 2, `2-room split total ${dates2.netTotal} != 28200`);
+}
+
+// ── the 'Ex Person' column is a supplement, not a triple rate ──
+{
+  // Rann Resort Dholavira prints 'DOUBLE MAPAI' 5460 | 'Ex Person MAPAI' 2100,
+  // and separately carries childAdult 6300 — which is the NEXT room's double
+  // rate, not an extra bed. Reading the label is what keeps a 3-pax quote at
+  // 5460 + 2100 instead of 5460 + 6300.
+  const hotel = INLAND_HOTELS.find(h => h.name.trim() === 'Rann Resort  Dholavira'.trim())!;
+  ok(!!hotel, 'fixture drifted: Rann Resort Dholavira not found');
+  if (hotel) {
+    const room = hotel.rooms[0];
+    ok(room.rate1 === 5460 && room.rate2 === 2100 && room.childAdult === 6300,
+      `fixture drifted: ${room.rate1}/${room.rate2}/${room.childAdult}`);
+    const e = buildInlandWall({ city: hotel.city, checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 0 })
+      .find(x => x.hotelId === hotel.id)!;
+    const rows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::0::`));
+    ok(rows.length === 1, `expected a single occupancy row, got ${rows.length}`);
+    const row = rows[0];
+    ok(row.key.endsWith('::C1'), `must price off the DOUBLE column, got '${row.key}'`);
+    if (isQuotable(row)) {
+      ok(row.netTotal === 5460 * 2 + 2100 * 1 * 2,
+        `3-pax net ${row.netTotal} != 5460x2 nights + 2100 x 1 head x 2 nights = ${5460 * 2 + 2100 * 2}`);
+    } else ok(false, `expected a quotable 3-pax row, blocked: '${row.blockedReason}'`);
+  }
+}
+
+// ── a childAdult that is really a third rate column is refused, not charged ──
+{
+  // Kings Kraft Tremezzo Somnath: CPAI 2900 | MAPAI 3800, childAdult 4700 —
+  // an APAI rate the transcription had nowhere else to put. Charging it as an
+  // extra bed would add 62% to a room.
+  const hotel = INLAND_HOTELS.find(h => h.name === 'Kings Kraft Tremezzo Somnath')!;
+  ok(!!hotel, 'fixture drifted: Kings Kraft Tremezzo Somnath not found');
+  if (hotel) {
+    const room = hotel.rooms[0];
+    ok(room.rate1 === 2900 && room.childAdult === 4700, `fixture drifted: ${room.rate1}/${room.childAdult}`);
+    const e = buildInlandWall({ city: hotel.city, checkIn: '2026-11-16', nights: 1, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 0 })
+      .find(x => x.hotelId === hotel.id)!;
+    for (const r of e.rows.filter(r => r.key.startsWith(`${hotel.id}::0::`))) {
+      ok(isBlocked(r), `an implausible extra-person figure must block, not price (got ${isQuotable(r) ? r.netTotal : ''})`);
+      if (isBlocked(r)) ok(/extra person rate/i.test(r.blockedReason), `reason should name the missing extra-person rate, got '${r.blockedReason}'`);
+    }
+  }
+}
+
+// ── the season split is read from the printed periods, not assumed ──
+{
+  for (const [key, [m1, m2]] of Object.entries(SEASON_MONTHS_BY_LABELS)) {
+    const hotel = INLAND_HOTELS.find(h => h.rooms.some(r => r.axisType === 'season' && labelKey(r) === key));
+    ok(!!hotel, `no hotel found for season label pair '${key}'`);
+    if (!hotel) continue;
+    const ri = hotel.rooms.findIndex(r => r.axisType === 'season' && labelKey(r) === key);
+    for (let month = 1; month <= 12; month++) {
+      const checkIn = `2026-${String(month).padStart(2, '0')}-15`;
+      const e = buildInlandWall({ city: hotel.city, checkIn, nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+        .find(x => x.hotelId === hotel.id)!;
+      const suffixes = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`)).map(r => r.key.split('::')[2]).sort();
+      const in1 = m1.includes(month), in2 = m2.includes(month);
+      if (in1 && !in2) ok(suffixes.join(',') === 'C1', `${hotel.id} month ${month}: expected only C1 for '${key}', got '${suffixes.join(',')}'`);
+      else if (in2 && !in1) ok(suffixes.join(',') === 'C2', `${hotel.id} month ${month}: expected only C2 for '${key}', got '${suffixes.join(',')}'`);
+      else {
+        ok(suffixes.length >= 1, `${hotel.id} month ${month}: an undecidable season must still show the printed rates`);
+        ok(e.resolutionOk === false, `${hotel.id} month ${month}: an undecidable season must render amber`);
+      }
+    }
+  }
+}
+
+// ── Lords Inn Somnath breaks at Aug/Sep, so September is NOT the summer rate ──
+{
+  const hotel = INLAND_HOTELS.find(h => h.name === 'Lords Inn Somnath')!;
+  ok(!!hotel, 'fixture drifted: Lords Inn Somnath not found');
+  if (hotel) {
+    const ri = hotel.rooms.findIndex(r => r.axisType === 'season');
+    ok(labelKey(hotel.rooms[ri]) === 'Rate till Aug 2026||Rate Sep to Mar 2027',
+      `fixture drifted: labels are '${labelKey(hotel.rooms[ri])}'`);
+    const sept = buildInlandWall({ city: hotel.city, checkIn: '2026-09-15', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+      .find(x => x.hotelId === hotel.id)!;
+    const rows = sept.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`));
+    ok(rows.length === 1 && rows[0].key.endsWith('::C2'),
+      `September at Lords Inn must resolve to the Sep-Mar column, got '${rows.map(r => r.key.split('::')[2]).join(',')}'`);
+  }
+}
+
+// ── meal-plan rooms show both plans, labelled as printed ──
+{
+  const entries = buildInlandWall({ city: 'ALL', checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  let checked = 0;
+  for (const e of entries) {
+    const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+    hotel.rooms.forEach((room, ri) => {
+      if (room.axisType !== 'meal_plan') return;
+      if (room.season != null && room.season !== 'H2') return;
+      checked++;
+      const rows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`));
+      const expected = col2Printed(room) ? 2 : 1;
+      ok(rows.length === expected, `${hotel.id}::${ri}: expected ${expected} meal-plan rows, got ${rows.length}`);
+      rows.forEach((r, idx) => ok(r.planLabel === (room.axisLabels[idx] || undefined),
+        `${hotel.id}::${ri}: row ${idx} planLabel '${r.planLabel}' != printed '${room.axisLabels[idx]}'`));
+    });
+  }
+  ok(checked > 80, `expected the meal-plan population to be exercised, checked ${checked}`);
+}
+
+// ── a mislabelled occupancy axis that is really two meal plans is not halved ──
+{
+  // DAKSH THE NIRVANA RETREAT prints 'DBL CPAI' 3100 | 'Double MAPAI' 3850 —
+  // both columns are double occupancy, so choosing one by party size would
+  // silently discard a rate the agent needs.
+  const hotel = INLAND_HOTELS.find(h => h.id === 'bhuj-daksh-the-nirvana-retreat-pavagadh')!;
+  ok(!!hotel, 'fixture drifted: DAKSH THE NIRVANA RETREAT not found');
+  if (hotel) {
+    const e = buildInlandWall({ city: hotel.city, checkIn: '2026-11-16', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+      .find(x => x.hotelId === hotel.id)!;
+    const rows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::0::`));
+    ok(rows.length === 2, `expected both plans priced, got ${rows.length} row(s)`);
+    const totals = rows.filter(isQuotable).map(r => r.netTotal).sort((a, b) => a - b);
+    ok(totals.join(',') === '3100,3850', `expected 3100 and 3850, got '${totals.join(',')}'`);
+  }
+}
+
+// ── ON CALL hotels produce a card that explains itself, never a price ──
+{
+  const entries = buildInlandWall({ city: 'ALL', checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  const onCall = INLAND_HOTELS.filter(h => h.isOnCallOnly);
+  ok(onCall.length === 8, `expected 8 ON CALL hotels, found ${onCall.length}`);
+  for (const h of onCall) {
+    const e = entries.find(x => x.hotelId === h.id)!;
+    ok(!!e, `${h.id}: ON CALL hotel missing from the wall`);
+    if (!e) continue;
+    ok(e.rows.length > 0 && e.rows.every(isBlocked), `${h.id}: ON CALL hotel must render blocked rows`);
+    ok(e.cheapestSelling === null, `${h.id}: ON CALL hotel must have no cheapest price`);
+    ok(e.resolutionOk === false, `${h.id}: ON CALL hotel must render amber`);
+  }
+}
+
+// ── row keys are unique across the whole wall, in every city mode ──
+{
+  const cities = inlandCities();
+  ok(cities.length === 20, `expected 20 Inland cities, got ${cities.length}`);
+  ok(cities.every((c, i) => i === 0 || cities[i - 1].localeCompare(c) <= 0), 'inlandCities() must be sorted');
+
+  for (const city of ['ALL', ...cities]) {
+    for (const pax of [1, 3]) {
+      const entries = buildInlandWall({ city, checkIn: '2026-11-19', nights: 3, rooms: 1, pax, markupMode: 'percent', markupValue: 15 });
+      const keys = entries.flatMap(e => e.rows.map(r => r.key));
+      ok(new Set(keys).size === keys.length, `${city} pax${pax}: duplicate row keys on the wall`);
+    }
+  }
+  const all = buildInlandWall({ city: 'ALL', checkIn: '2026-11-19', nights: 3, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  ok(all.length === INLAND_HOTELS.length, `'ALL' must cover every hotel: ${all.length} vs ${INLAND_HOTELS.length}`);
+  const perCity = inlandCities().flatMap(c => buildInlandWall({ city: c, checkIn: '2026-11-19', nights: 3, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 }));
+  ok(perCity.length === all.length, `city-by-city must partition 'ALL': ${perCity.length} vs ${all.length}`);
+}
+
+// ── markup follows inlandRates.ts exactly, on the room total only ──
+{
+  const HOTEL = 'bhavnagar-iscon-the-fern-resort-spa';
+  const pct = buildInlandWall({ city: 'BHAVNAGAR', checkIn: '2026-11-05', nights: 3, rooms: 2, pax: 2, markupMode: 'percent', markupValue: 15 })
+    .find(x => x.hotelId === HOTEL)!;
+  const d = pct.rows.find(r => r.key === `${HOTEL}::0::DATES`)!;
+  if (isQuotable(d)) {
+    ok(d.netTotal === 14100 * 2, `percent-mode split net ${d.netTotal} != 28200`);
+    ok(d.markupAmount === Math.round(28200 * 0.15), `percent markup ${d.markupAmount} != ${Math.round(28200 * 0.15)}`);
+    ok(d.sellingTotal === d.netTotal + d.markupAmount, 'sellingTotal must be net + markup');
+    ok(d.sellingPerNight === Math.round(d.sellingTotal / 3), 'sellingPerNight must be the 3-night average');
+  } else ok(false, 'expected a quotable split row under percent markup');
+
+  const flat = buildInlandWall({ city: 'BHAVNAGAR', checkIn: '2026-11-05', nights: 3, rooms: 2, pax: 2, markupMode: 'flat', markupValue: 500 })
+    .find(x => x.hotelId === HOTEL)!;
+  const df = flat.rows.find(r => r.key === `${HOTEL}::0::DATES`)!;
+  if (isQuotable(df)) {
+    ok(df.markupAmount === 500 * 3 * 2, `flat markup ${df.markupAmount} != 500 x 3 nights x 2 rooms`);
+  } else ok(false, 'expected a quotable split row under flat markup');
+}
+
+// ── printed weekday and weekend labels never contradict each other ──
+{
+  // The adapter prefers column 2's own day range and falls back to column 1's
+  // complement. That is only safe while the two agree everywhere in the data.
+  for (const h of INLAND_HOTELS) for (const room of h.rooms) {
+    if (room.axisType !== 'weekday_weekend') continue;
+    const l1 = (room.axisLabels[0] || '').toLowerCase(), l2 = (room.axisLabels[1] || '').toLowerCase();
+    const fromWeekday = /mon/.test(l1) && /thu/.test(l1) ? 'FriSun' : /sun/.test(l1) && /(thu|thru)/.test(l1) ? 'FriSat' : null;
+    const fromWeekend = /fri/.test(l2) ? (/sun/.test(l2) ? 'FriSun' : /sat/.test(l2) ? 'FriSat' : null) : null;
+    if (fromWeekday && fromWeekend) {
+      ok(fromWeekday === fromWeekend, `${h.id} / ${room.name}: printed weekday and weekend ranges disagree — '${labelKey(room)}'`);
+    }
+  }
+}
+
+// ── 'Same Rate' rooms emit one row, not the same number three times ──
+{
+  const entries = buildInlandWall({ city: 'ALL', checkIn: '2026-11-19', nights: 3, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  let seen = 0;
+  for (const e of entries) {
+    const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+    hotel.rooms.forEach((room, ri) => {
+      if (labelKey(room) !== SAME_RATE_LABELS) return;
+      seen++;
+      const rows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`));
+      ok(rows.length === 1, `${hotel.id}::${ri}: 'Same Rate' must emit one row, got ${rows.length}`);
+    });
+  }
+  ok(seen === 4, `expected 4 'Same Rate' rooms, found ${seen}`);
+}
+
+// ── every entry states GST and carries the supplier's festive wording verbatim ──
+{
+  const entries = buildInlandWall({ city: 'ALL', checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  let flagged = 0;
+  for (const e of entries) {
+    ok(e.inclusions === 'GST included', `${e.hotelId}: inclusions must state GST, got '${e.inclusions}'`);
+    ok(typeof e.resolutionChip === 'string' && e.resolutionChip.length > 0, `${e.hotelId}: empty resolution chip`);
+    const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
+    if (e.festiveFlag) {
+      flagged++;
+      const src = `${hotel.headerNote ?? ''} ${hotel.remark ?? ''}`;
+      for (const part of e.festiveFlag.split(' · ')) {
+        ok(src.includes(part), `${e.hotelId}: festiveFlag was not printed verbatim from the sheet`);
+      }
+    }
+  }
+  ok(flagged > 20, `expected the festive/blackout wording to surface on many hotels, got ${flagged}`);
+}
+
+// ── a client export off an Inland selection leaks no internal provenance ──
+{
+  const HOTEL = 'bhavnagar-iscon-the-fern-resort-spa';
+  const e = buildInlandWall({ city: 'BHAVNAGAR', checkIn: '2026-11-05', nights: 3, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 })
+    .find(x => x.hotelId === HOTEL)!;
+  const row = e.rows.find((r): r is QuotableRow => r.quotable && r.key === `${HOTEL}::0::DATES`)!;
+  ok(!!row?.derivedNote, 'sanity: the row under test must carry a derivedNote');
+  const text = formatClientExport([{ entry: e, row }], {
+    supplierName: 'Inland Tourways', cityLabel: 'Bhavnagar', clientName: 'Mr Test',
+    checkIn: '2026-11-05', checkOut: '2026-11-08', nights: 3, rooms: 1, pax: 2,
+    inclusions: 'GST included',
+  });
+  ok(!text.includes(row.derivedNote as string), 'export leaked the split provenance note');
+  ok(!text.includes('weekday'), 'export leaked the weekday/weekend derivation');
+  ok(!containsAmount(text, row.netTotal), 'export leaked the net cost');
+  ok(containsAmount(text, row.sellingTotal), 'export must print the selling total');
+}
+
+// ── the banned UTC path is absent from the adapter source ──
+{
+  const src = readFileSync(new URL('../services/inlandWall.ts', import.meta.url), 'utf8');
+  const code = src.replace(/^\s*\/\/.*$/gm, '');   // ignore the comment that explains the ban
+  ok(!code.includes('toISOString'), 'services/inlandWall.ts must never call toISOString() — it shifts IST dates back a day');
+  ok(src.includes('toISOString'), 'sanity: the ban is expected to be documented in a comment');
+  ok(!code.includes('getUTC'), 'services/inlandWall.ts must not read UTC date parts either');
+}
+
 
 console.log(`\nChecks: ${checks}`);
 if (fail.length) { console.error(`FAILURES: ${fail.length}\n` + fail.map(f => '  - ' + f).join('\n')); process.exit(1); }
