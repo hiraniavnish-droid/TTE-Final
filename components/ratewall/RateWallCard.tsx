@@ -14,9 +14,15 @@ interface Props {
 export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, onToggle }) => {
   const { theme, getTextColor, getSecondaryTextColor } = useTheme();
 
+  // bandTone MUST be the last argument to cn(). cn() runs twMerge, which treats
+  // border-l-* and the all-sides border-* as one conflict group and keeps
+  // whichever comes later — passing bandTone before the theme classes silently
+  // strips it, and the band's colour rule renders as plain grey. Caught in live
+  // testing, where the class was simply absent from the rendered element.
   return (
-    <div className={cn('border border-l-[3px] p-3.5', bandTone,
-      theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+    <div className={cn('border border-l-[3px] p-3.5',
+      theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10',
+      bandTone)}>
       <div className="flex items-baseline gap-2 flex-wrap mb-1">
         <span className={cn('text-[13.5px] font-bold', getTextColor())}>{entry.hotelName}</span>
         {entry.starLabel && <span className={cn('text-[10.5px]', getSecondaryTextColor())}>{entry.starLabel}</span>}
