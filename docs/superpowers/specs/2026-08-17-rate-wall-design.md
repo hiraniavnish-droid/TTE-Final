@@ -125,6 +125,11 @@ supply enough information to pick the right one. Distribution across 508 rooms:
   plus the hotel's extra-person charge.
 - **Season** compares the check-in date against the printed half-year, and also
   drives the existing `H1`/`H2` room tagging for the 9 season-split hotels.
+A room row is one of two shapes, not one shape with unused fields: a quotable
+row carries its money figures, and a blocked row carries only a reason. This is
+enforced in the type system so that printing a price for an unquotable room is
+not merely discouraged but impossible to express.
+
 - **Unresolvable rooms** (the 5 `unknown`-axis rooms, unparseable weekend
   labels, and any room whose chosen column has no clean number) are listed,
   greyed, tagged `On request`, and are not tickable. They are never priced at 0
@@ -146,9 +151,26 @@ Bands are computed from the results actually on screen, so they adapt per city.
 3. If fewer than 3 bandable hotels, render one unlabelled list.
 4. If the most expensive is within 15% of the cheapest, render one band labelled
    `Similar pricing` — forcing three bands over a narrow spread is misleading.
-5. Otherwise split into three equal-count groups by rank — `Value`, `Mid`,
-   `Premium` — with any remainder going to the cheaper groups. Equal-count
-   guarantees no empty band.
+5. Otherwise aim for three equal-count groups by rank, remainder to the cheaper
+   groups — but cut only where the price actually changes. A band boundary must
+   never fall inside a group of hotels sharing one price, because two hotels at
+   the same rate under different labels cannot be explained on a call. Each
+   ideal cut snaps to the **nearest** legal boundary in either direction.
+6. Label by how many groups actually survive: three → `Value` / `Mid` /
+   `Premium`; two → `Value` / `Premium`; one → a single unlabelled band. Labels
+   are never assigned by position with empty bands dropped — that names the
+   priciest group `Mid`, or titles a 50× spread `Value`, which is worse than
+   having no labels at all.
+
+Any hotel whose cheapest total is not a finite, positive number is treated as
+unquotable and listed under `On request`. A malformed or zero figure must
+degrade to "call the supplier", never render as `₹NaN` or `₹0` on a card. A
+zero also breaks the proportional spread test outright (`0 × 1.15 = 0`), which
+would silently disable the `Similar pricing` collapse for the entire wall.
+
+Within a hotel, one unusable room must not poison the rest: the cheapest figure
+is taken over that hotel's *usable* rooms only, so a hotel with one corrupt
+rate and one good ₹4,000 room still quotes ₹4,000.
 
 Star rating is displayed on every card but never affects banding. A 5-star
 hotel can and will appear under `Mid` when its rate says so.
