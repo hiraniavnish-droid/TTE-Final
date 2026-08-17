@@ -5,12 +5,17 @@ import { cn, generateId } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import {
   Building2, ArrowLeft, Download, Copy, Loader2, Minus, Plus, Trash2,
-  AlertTriangle, LayoutGrid, ListChecks, MapPin,
+  AlertTriangle, LayoutGrid, Zap, MapPin,
 } from 'lucide-react';
 import { RAJARSHI_HOTELS, RAJARSHI_SUPPLIER, type RajCity, type RajPlan } from '../services/rajarshiData';
-import { quoteStay, hotelsByCity, fmtINR, type MarkupMode, type StayQuoteResult } from '../services/rajarshiRates';
+import { quoteStay, hotelsByCity, fmtINR, type MarkupMode } from '../services/rajarshiRates';
+import { bandHotels, formatClientExport, isQuotable, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { buildRajarshiWall } from '../services/rajarshiWall';
+import { RateWallControls } from '../components/ratewall/RateWallControls';
+import { RateWallCard } from '../components/ratewall/RateWallCard';
+import { RateWallTray } from '../components/ratewall/RateWallTray';
 
-type Mode = 'package' | 'options';
+type Mode = 'package' | 'rates';
 const CITIES = Object.keys(hotelsByCity()) as RajCity[];
 const fmtDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -46,7 +51,7 @@ export const RajarshiBuilder: React.FC = () => {
   const navigate = useNavigate();
   const { theme, getTextColor, getSecondaryTextColor, getInputClass, getBorderClass } = useTheme();
 
-  const [mode, setMode] = useState<Mode>('package');
+  const [mode, setMode] = useState<Mode>('rates');
   const [clientName, setClientName] = useState('');
   const [markupMode, setMarkupMode] = useState<MarkupMode>('percent');
   const [markupValue, setMarkupValue] = useState(15);
@@ -73,29 +78,43 @@ export const RajarshiBuilder: React.FC = () => {
 
   const anyOnRequest = legQuotes.some(l => l.quote.anyOnRequest);
 
-  // ── Options mode ──
-  const [optCity, setOptCity] = useState<RajCity>(CITIES[0]);
-  const [optCheckIn, setOptCheckIn] = useState('2026-11-15');
-  const [optNights, setOptNights] = useState(1);
-  const [optRooms, setOptRooms] = useState(1);
-  const [optPlan, setOptPlan] = useState<RajPlan>('CPAI');
-  const [selectedHotelRooms, setSelectedHotelRooms] = useState<Set<string>>(new Set());
+  // ── Rate wall mode ──
+  const todayISO = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+  const [wall, setWall] = useState({ city: CITIES[0] as string, checkIn: todayISO, nights: 1, rooms: 1, pax: 2, plan: 'CPAI' });
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const togglePick = (key: string) => setPicked(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
-  const cityHotels = hotelsByCity()[optCity] || [];
-  const toggleOption = (key: string) => setSelectedHotelRooms(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const wallEntries = useMemo(() => buildRajarshiWall({
+    city: wall.city as RajCity, checkIn: wall.checkIn, nights: wall.nights,
+    rooms: wall.rooms, pax: wall.pax, plan: wall.plan as RajPlan,
+    markupMode, markupValue,
+  }), [wall, markupMode, markupValue]);
 
-  const optionResults = useMemo(() => {
-    const out: { key: string; hotel: typeof RAJARSHI_HOTELS[number]; room: typeof RAJARSHI_HOTELS[number]['rooms'][number]; quote: StayQuoteResult }[] = [];
-    for (const hotel of cityHotels) {
-      for (let ri = 0; ri < hotel.rooms.length; ri++) {
-        const key = `${hotel.id}::${ri}`;
-        if (!selectedHotelRooms.has(key)) continue;
-        const room = hotel.rooms[ri];
-        out.push({ key, hotel, room, quote: quoteStay({ hotel, room, plan: optPlan, checkIn: optCheckIn, nights: optNights, rooms: optRooms, extraPersons: 0, markupMode, markupValue }) });
+  const banded = useMemo(() => bandHotels(wallEntries), [wallEntries]);
+
+  const pickedSelections = useMemo(() => {
+    // isQuotable rather than row.quotable — the repo's tsconfig omits strict, so
+    // the boolean discriminant alone will not narrow row to QuotableRow and this
+    // array would not typecheck.
+    const out: { entry: WallEntry; row: QuotableRow }[] = [];
+    for (const entry of wallEntries) {
+      for (const row of entry.rows) {
+        if (isQuotable(row) && picked.has(row.key)) out.push({ entry, row });
       }
     }
-    return out.sort((a, b) => a.quote.sellingPrice - b.quote.sellingPrice);
-  }, [cityHotels, selectedHotelRooms, optPlan, optCheckIn, optNights, optRooms, markupMode, markupValue]);
+    return out.sort((a, b) => a.row.sellingTotal - b.row.sellingTotal);
+  }, [wallEntries, picked]);
+
+  const pickedTotal = pickedSelections.reduce((s, x) => s + x.row.sellingTotal, 0);
+
+  const wallCheckOut = useMemo(() => {
+    const [y, m, d] = wall.checkIn.split('-').map(Number);
+    const dt = new Date(y, m - 1, d + wall.nights);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  }, [wall.checkIn, wall.nights]);
 
   // ── Shared output builders ──
   const nightsLabel = (n: number) => `${n}N/${n + 1}D`;
@@ -119,24 +138,20 @@ export const RajarshiBuilder: React.FC = () => {
     return L.join('\n');
   };
 
-  const buildOptionsText = (): string => {
-    if (!optionResults.length) return '';
-    const L: string[] = ['*THE TOURISM EXPERTS*', `*${optCity} — Hotel Options*`, ''];
-    if (clientName) L.push(`Guest: ${clientName}`);
-    L.push(`Check-in: ${fmtDate(optCheckIn)}  |  ${nightsLabel(optNights)}  |  Rooms: ${optRooms}  |  ${optPlan}`);
-    L.push('');
-    optionResults.forEach((o, i) => {
-      L.push(`*Option ${i + 1}: ${o.hotel.name}*`);
-      L.push(`${o.room.name}${o.hotel.descriptor ? ` · ${o.hotel.descriptor}` : ''}`);
-      L.push(o.quote.anyOnRequest ? 'Price: On Request' : `Price: ${fmtINR(o.quote.sellingPrice)}`);
-      L.push('');
-    });
-    L.push('_Rates as quoted. Subject to availability at time of booking._');
-    L.push('The Tourism Experts');
-    return L.join('\n');
-  };
+  const buildRatesText = (): string => formatClientExport(pickedSelections, {
+    supplierName: RAJARSHI_SUPPLIER.name,
+    cityLabel: wall.city,
+    clientName,
+    checkIn: wall.checkIn,
+    checkOut: wallCheckOut,
+    nights: wall.nights,
+    rooms: wall.rooms,
+    pax: wall.pax,
+    mealLabel: wall.plan,
+    inclusions: `${wall.plan} · GST included`,
+  });
 
-  const activeText = mode === 'package' ? buildPackageText : buildOptionsText;
+  const activeText = mode === 'package' ? buildPackageText : buildRatesText;
 
   const copyText = () => {
     const t = activeText();
@@ -153,7 +168,7 @@ export const RajarshiBuilder: React.FC = () => {
     if (pdfBusy) return;
     const rows = mode === 'package'
       ? legQuotes.map(l => ({ title: `${l.hotel.name} (${l.hotel.city})`, sub: `${l.room.name} · ${l.leg.plan} · ${fmtDate(l.leg.checkIn)} · ${nightsLabel(l.leg.nights)} · ${l.leg.rooms} room(s)`, price: l.quote.anyOnRequest ? 'On Request' : fmtINR(l.quote.sellingPrice) }))
-      : optionResults.map(o => ({ title: o.hotel.name, sub: `${o.room.name}${o.hotel.descriptor ? ` · ${o.hotel.descriptor}` : ''}`, price: o.quote.anyOnRequest ? 'On Request' : fmtINR(o.quote.sellingPrice) }));
+      : pickedSelections.map(s => ({ title: s.entry.hotelName, sub: `${s.row.roomName}${s.entry.starLabel ? ` · ${s.entry.starLabel}` : ''}`, price: fmtINR(s.row.sellingTotal) }));
     if (!rows.length) { toast.error('Add at least one hotel first.'); return; }
     setPdfBusy(true);
     try {
@@ -166,7 +181,7 @@ export const RajarshiBuilder: React.FC = () => {
       doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
       doc.text('THE TOURISM EXPERTS', 14, 14);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(203, 213, 225);
-      doc.text(mode === 'package' ? 'Kutch Package Quotation' : `${optCity} — Hotel Options`, 14, 22);
+      doc.text(mode === 'package' ? 'Kutch Package Quotation' : `${wall.city} — Hotel Options`, 14, 22);
       y = 40;
 
       doc.setTextColor(...slate); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
@@ -190,7 +205,7 @@ export const RajarshiBuilder: React.FC = () => {
         doc.text(fmtINR(packageTotal.sellingPrice), W - 18, y + 3.5, { align: 'right' });
       }
 
-      doc.save(`${mode === 'package' ? 'Kutch Package' : optCity + ' Options'} — ${clientName || 'Guest'}.pdf`);
+      doc.save(`${mode === 'package' ? 'Kutch Package' : wall.city + ' Options'} — ${clientName || 'Guest'}.pdf`);
       toast.success('PDF downloaded');
     } catch (e: any) {
       toast.error('PDF failed: ' + (e?.message || 'error'));
@@ -214,7 +229,7 @@ export const RajarshiBuilder: React.FC = () => {
       </div>
 
       <div className={cn('inline-flex p-1 rounded-xl border mb-6', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
-        {([['package', 'Build Package', LayoutGrid], ['options', 'Compare Options', ListChecks]] as [Mode, string, any][]).map(([m, label, Icon]) => (
+        {([['package', 'Build Package', LayoutGrid], ['rates', 'Rates', Zap]] as [Mode, string, any][]).map(([m, label, Icon]) => (
           <button key={m} onClick={() => setMode(m)}
             className={cn('flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-all active:scale-[0.98]',
               mode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'text-slate-500 hover:text-slate-800' : 'text-white/50 hover:text-white/80'))}>
@@ -331,69 +346,65 @@ export const RajarshiBuilder: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className={cn('rounded-2xl border p-4 space-y-3', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>City</label>
-                    <select value={optCity} className={cn(inputCls, '[&>option]:text-black')}
-                      onChange={e => { setOptCity(e.target.value as RajCity); setSelectedHotelRooms(new Set()); }}>
-                      {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Meal plan</label>
-                    <select value={optPlan} className={cn(inputCls, '[&>option]:text-black')} onChange={e => setOptPlan(e.target.value as RajPlan)}>
-                      {(['EPAI', 'CPAI', 'MAPAI'] as RajPlan[]).map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className={labelCls}>Check-in</label>
-                    <input type="date" value={optCheckIn} onChange={e => setOptCheckIn(e.target.value)} className={cn(inputCls, 'font-mono')} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Nights</label>
-                    <Stepper value={optNights} set={setOptNights} min={1} max={14} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Rooms</label>
-                    <Stepper value={optRooms} set={setOptRooms} min={1} max={20} />
-                  </div>
-                </div>
-              </div>
+              <RateWallControls
+                values={wall}
+                cities={CITIES as string[]}
+                plans={['EPAI', 'CPAI', 'MAPAI']}
+                onChange={patch => { setWall(w => ({ ...w, ...patch })); if (patch.city) setPicked(new Set()); }}
+              />
 
-              <div className={cn('rounded-2xl border divide-y', theme === 'light' ? 'bg-white border-slate-200 divide-slate-100' : 'bg-white/5 border-white/10 divide-white/10')}>
-                {cityHotels.map(hotel => (
-                  <div key={hotel.id} className="p-3.5">
-                    <div className={cn('text-[13px] font-bold mb-1.5', getTextColor())}>{hotel.name}</div>
-                    <div className="space-y-1">
-                      {hotel.rooms.map((room, ri) => {
-                        const key = `${hotel.id}::${ri}`;
-                        const checked = selectedHotelRooms.has(key);
-                        return (
-                          <label key={key} className={cn('flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px] cursor-pointer select-none', theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5')}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleOption(key)} className="w-3.5 h-3.5 accent-slate-900 shrink-0" />
-                            <span className={getTextColor()}>{room.name}</span>
-                          </label>
-                        );
-                      })}
+              {banded.bands.length === 0 && banded.onRequestOnly.length === 0 && (
+                <p className={cn('text-[12px] text-center py-8', getSecondaryTextColor())}>
+                  No hotels listed for {wall.city}.
+                </p>
+              )}
+
+              {banded.bands.map(band => (
+                <div key={band.id} className="space-y-2">
+                  {band.label && (
+                    <div className="flex items-center gap-2">
+                      <span className={cn('text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full',
+                        band.id === 'premium' ? 'bg-violet-100 text-violet-700'
+                          : band.id === 'mid' ? 'bg-sky-100 text-sky-700'
+                          : band.id === 'similar' ? 'bg-slate-100 text-slate-700'
+                          : 'bg-emerald-100 text-emerald-700')}>{band.label}</span>
+                      <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
                     </div>
+                  )}
+                  <div className="space-y-2">
+                    {band.entries.map(entry => (
+                      <RateWallCard key={entry.hotelId} entry={entry}
+                        bandTone={band.id === 'premium' ? 'border-l-violet-400' : band.id === 'mid' ? 'border-l-sky-400' : band.id === 'similar' ? 'border-l-slate-400' : 'border-l-emerald-400'}
+                        selectedKeys={picked} onToggle={togglePick} />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+
+              {banded.onRequestOnly.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">On request</span>
+                    <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
+                  </div>
+                  {banded.onRequestOnly.map(entry => (
+                    <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400"
+                      selectedKeys={picked} onToggle={togglePick} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
 
         <div className="lg:col-span-2">
-          <div className={cn('rounded-2xl border p-5 lg:sticky lg:top-4', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]' : 'bg-white/5 border-white/10')}>
-            <div className="flex items-center gap-2 mb-4">
-              <MapPin size={16} className="opacity-60" />
-              <span className={cn('font-bold text-sm', getTextColor())}>{mode === 'package' ? 'Package Summary' : 'Compared Options'}</span>
-            </div>
+          {mode === 'package' ? (
+            <div className={cn('rounded-2xl border p-5 lg:sticky lg:top-4', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]' : 'bg-white/5 border-white/10')}>
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin size={16} className="opacity-60" />
+                <span className={cn('font-bold text-sm', getTextColor())}>Package Summary</span>
+              </div>
 
-            {mode === 'package' ? (
               <div className="space-y-2.5">
                 {legQuotes.map(l => (
                   <div key={l.leg.id} className={cn('flex justify-between items-start text-[12.5px] pb-2 border-b', getBorderClass())}>
@@ -419,43 +430,33 @@ export const RajarshiBuilder: React.FC = () => {
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="space-y-2.5">
-                {optionResults.length === 0 && (
-                  <p className={cn('text-[12px] text-center py-6', getSecondaryTextColor())}>Tick room types on the left to compare them here.</p>
-                )}
-                {optionResults.map((o, i) => (
-                  <div key={o.key} className={cn('p-3 rounded-xl border', i === 0 && !o.quote.anyOnRequest ? (theme === 'light' ? 'border-emerald-300 bg-emerald-50/50' : 'border-emerald-500/30 bg-emerald-500/5') : getBorderClass())}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className={cn('text-[13px] font-bold', getTextColor())}>{o.hotel.name}</div>
-                        <div className={cn('text-[11px]', getSecondaryTextColor())}>{o.room.name}{o.hotel.descriptor ? ` · ${o.hotel.descriptor}` : ''}</div>
-                      </div>
-                      <span className={cn('font-mono font-bold text-[13px] shrink-0', o.quote.anyOnRequest ? 'text-amber-500' : getTextColor())}>
-                        {o.quote.anyOnRequest ? 'On Req.' : fmtINR(o.quote.sellingPrice)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
 
-            <div className="grid grid-cols-2 gap-2 pt-4">
-              <button onClick={downloadPdf} disabled={pdfBusy}
-                className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-slate-900 text-white text-[13px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
-                {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} PDF
-              </button>
-              <button onClick={copyText}
-                className={cn('flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold border active:scale-[0.97] transition',
-                  theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80')}>
-                <Copy size={15} /> Copy
+              <div className="grid grid-cols-2 gap-2 pt-4">
+                <button onClick={downloadPdf} disabled={pdfBusy}
+                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-slate-900 text-white text-[13px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
+                  {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} PDF
+                </button>
+                <button onClick={copyText}
+                  className={cn('flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold border active:scale-[0.97] transition',
+                    theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80')}>
+                  <Copy size={15} /> Copy
+                </button>
+              </div>
+              <button onClick={openWhatsApp}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg bg-emerald-600 text-white text-[13px] font-bold hover:bg-emerald-500 active:scale-[0.97] transition">
+                Share on WhatsApp
               </button>
             </div>
-            <button onClick={openWhatsApp}
-              className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg bg-emerald-600 text-white text-[13px] font-bold hover:bg-emerald-500 active:scale-[0.97] transition">
-              Share on WhatsApp
-            </button>
-          </div>
+          ) : (
+            <RateWallTray
+              count={pickedSelections.length}
+              clientTotal={pickedTotal}
+              pdfBusy={pdfBusy}
+              onCopy={copyText}
+              onPdf={downloadPdf}
+              onWhatsApp={openWhatsApp}
+            />
+          )}
         </div>
       </div>
     </div>
