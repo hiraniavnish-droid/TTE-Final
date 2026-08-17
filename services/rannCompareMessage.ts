@@ -42,8 +42,9 @@ export interface CompareGroup {
   lowest: number;
 }
 
-// Local date formatting only — `toISOString()` is banned in this repo because
-// it rolls an IST date back to the previous day.
+// Local date formatting only. The UTC-based ISO serialiser is banned in this
+// repo (and asserted against in verify-rann-options.ts) because it rolls an IST
+// date back to the previous day.
 export const fmtCompareDate = (d: Date) =>
   d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -122,10 +123,28 @@ export function buildCompareMessage(i: CompareMessageInput): string {
   }
 
   if (i.includeItinerary) {
-    for (const n of compareDurations(i.rates)) {
+    const durs = compareDurations(i.rates);
+    if (durs.length === 1) {
       L.push('');
-      L.push(`*${n}-Night itinerary*`);
-      condensedItinerary(n).forEach(line => L.push(line));
+      L.push(`*${durs[0]}-Night itinerary*`);
+      condensedItinerary(durs[0]).forEach(line => L.push(line));
+    } else if (durs.length > 1) {
+      // Printing one itinerary per duration repeats Day 1 verbatim in every
+      // block and Day 2 in all but the shortest, which is neither condensed nor
+      // professional. The packages share a prefix — an n-night stay runs the
+      // longest itinerary's Days 1..n and then checks out on Day n+1 — so the
+      // longest itinerary plus a line of end-points says the same thing once.
+      // `verify-rann-options.ts` pins that shared-prefix property; if a future
+      // brochure edit breaks it, the test fails rather than this message
+      // quietly misdescribing a shorter package.
+      const longest = durs[durs.length - 1];
+      L.push('');
+      L.push('*Itinerary*');
+      condensedItinerary(longest).forEach(line => L.push(line));
+      L.push('');
+      L.push('_' + durs.slice(0, -1)
+        .map(n => `${n}-Night stay concludes after Day ${n + 1}`)
+        .join('; ') + '._');
     }
   }
 

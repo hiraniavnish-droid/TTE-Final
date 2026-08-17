@@ -9,6 +9,7 @@ import {
 import {
   RANN_ITINERARIES, RANN_PLACES, condensedItinerary, itineraryWarnings,
 } from '../services/rannItinerary';
+import { buildCompareMessage } from '../services/rannCompareMessage';
 
 let checks = 0;
 const fail: string[] = [];
@@ -250,8 +251,120 @@ for (const nights of DURATIONS) {
     'a Wednesday CHECK-IN is not a Wednesday museum day for a 1N stay');
 }
 
+// ══════════════════════════════════════════════════════════════
+// Comparison message: itinerary consolidation
+// ══════════════════════════════════════════════════════════════
+
+const msgFor = (durs: OptionDuration[], includeItinerary = true) => buildCompareMessage({
+  checkIn: d(2026, 12, 23),
+  rooms: 1, single: false, extraMattress: 0,
+  rates: durs.map(n => ({ category: 'Non-AC Swiss Cottage' as TCTentType, nights: n, sellingPrice: 10000 * n })),
+  includeItinerary,
+});
+
+const countOf = (hay: string, needle: string) => hay.split(needle).length - 1;
+
+// ── THE LOAD-BEARING PROPERTY ──
+// Sending one itinerary for several durations is only honest because the
+// packages share a prefix: an n-night stay runs the longest itinerary's
+// Days 1..n unchanged and then checks out on Day n+1. If a brochure edit ever
+// makes, say, the 2-night Day 2 differ from the 3-night Day 2, the
+// consolidated message would silently describe a day the guest never gets —
+// so this must fail loudly rather than the message misdescribing a package.
+for (const n of DURATIONS) {
+  ok(condensedItinerary(n).length === n + 1,
+    `${n}N itinerary must have ${n + 1} day lines, has ${condensedItinerary(n).length}`);
+}
+for (const longest of DURATIONS) {
+  const longLines = condensedItinerary(longest);
+  for (const shorter of DURATIONS.filter(x => x < longest)) {
+    const shortLines = condensedItinerary(shorter);
+    for (let day = 1; day <= shorter; day++) {
+      ok(shortLines[day - 1] === longLines[day - 1],
+        `shared-prefix broken: ${shorter}N Day ${day} differs from ${longest}N Day ${day} — ` +
+        `the consolidated comparison message would misdescribe the ${shorter}-night package.\n` +
+        `      ${shorter}N: ${shortLines[day - 1]}\n      ${longest}N: ${longLines[day - 1]}`);
+    }
+  }
+}
+// The days deliberately NOT covered by the property: a shorter stay's own
+// check-out day (Day n+1) is its own, and must not be assumed to match.
+ok(condensedItinerary(1)[1] !== condensedItinerary(3)[1],
+  '1N Day 2 is a check-out day and is expected to differ from 3N Day 2 — ' +
+  'if these ever match, the concludes-after line is describing the wrong thing');
+
+// ── one duration ticked: unchanged behaviour, numbered heading ──
+for (const n of DURATIONS) {
+  const m = msgFor([n]);
+  ok(m.includes(`*${n}-Night itinerary*`), `single duration ${n}N must keep the numbered heading`);
+  ok(!m.includes('*Itinerary*'), `single duration ${n}N must not use the consolidated heading`);
+  ok(!m.includes('concludes after Day'), `single duration ${n}N must not emit a concludes-after line`);
+  ok(countOf(m, '*Day 1*') === 1, `single duration ${n}N must contain exactly one *Day 1* line`);
+  ok(countOf(m, '*Day ') === n + 1, `single duration ${n}N must list ${n + 1} days`);
+}
+
+// ── two or more ticked: one consolidated itinerary, no repeated days ──
+const COMBOS: OptionDuration[][] = [[1, 2], [1, 3], [2, 3], [1, 2, 3]];
+for (const combo of COMBOS) {
+  const m = msgFor(combo);
+  const longest = combo[combo.length - 1];
+  const shorter = combo.slice(0, -1);
+  const label = combo.join('+');
+
+  ok(m.includes('*Itinerary*'), `${label}: must use the unnumbered consolidated heading`);
+  for (const n of DURATIONS) {
+    ok(!m.includes(`*${n}-Night itinerary*`), `${label}: must not emit a numbered itinerary heading (${n}N)`);
+  }
+
+  // The whole point of the change: Day 1 appears once, not once per duration.
+  ok(countOf(m, '*Day 1*') === 1, `${label}: expected exactly one *Day 1* line, found ${countOf(m, '*Day 1*')}`);
+  ok(countOf(m, '*Day ') === longest + 1,
+    `${label}: expected ${longest + 1} day lines (the ${longest}N itinerary), found ${countOf(m, '*Day ')}`);
+  // Every day line printed must genuinely be the longest itinerary's.
+  condensedItinerary(longest).forEach(line => {
+    ok(m.includes(line), `${label}: consolidated block is missing a ${longest}N day line`);
+  });
+
+  // The concludes-after line names every ticked shorter duration, ascending,
+  // and no others — including never the longest, which is fully written out.
+  const expected = '_' + shorter.map(n => `${n}-Night stay concludes after Day ${n + 1}`).join('; ') + '._';
+  ok(m.includes(expected), `${label}: expected concludes-after line\n      ${expected}\n      message had: ` +
+    (m.split('\n').find(l => l.includes('concludes after Day')) ?? '(none)'));
+  ok(countOf(m, 'concludes after Day') === shorter.length,
+    `${label}: expected ${shorter.length} concludes-after clause(s), found ${countOf(m, 'concludes after Day')}`);
+  for (const n of DURATIONS) {
+    const named = m.includes(`${n}-Night stay concludes`);
+    ok(named === shorter.includes(n),
+      `${label}: ${n}N ${named ? 'must not be' : 'must be'} named in the concludes-after line`);
+  }
+}
+
+// The exact line the brief specifies, pinned verbatim.
+ok(msgFor([1, 2, 3]).includes('_1-Night stay concludes after Day 2; 2-Night stay concludes after Day 3._'),
+  '1+2+3 must produce the specified concludes-after wording');
+ok(msgFor([2, 3]).includes('_2-Night stay concludes after Day 3._'),
+  '2+3 must produce the same wording shape with a single clause');
+
+// ── itinerary off: no itinerary content at all, either shape ──
+for (const combo of [[1] as OptionDuration[], [1, 2, 3] as OptionDuration[]]) {
+  const m = msgFor(combo, false);
+  ok(!m.includes('*Day '), `itinerary off (${combo.join('+')}): no day lines may appear`);
+  ok(!m.includes('concludes after Day'), `itinerary off (${combo.join('+')}): no concludes-after line may appear`);
+  ok(!m.includes('*Itinerary*'), `itinerary off (${combo.join('+')}): no itinerary heading may appear`);
+}
+
+// ── no internal figure may reach the client-facing message ──
+{
+  const src = readFileSync(new URL('../services/rannCompareMessage.ts', import.meta.url), 'utf8');
+  const code = src.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  for (const banned of ['netCost', 'profit', 'commissionPct', 'discountPct']) {
+    ok(!code.includes(banned),
+      `rannCompareMessage.ts references ${banned} outside a comment — internal figures must not be in scope`);
+  }
+}
+
 // ── toISOString must not appear in either new service file ──
-for (const file of ['rannItinerary.ts', 'rannOptions.ts']) {
+for (const file of ['rannItinerary.ts', 'rannOptions.ts', 'rannCompareMessage.ts']) {
   const src = readFileSync(new URL(`../services/${file}`, import.meta.url), 'utf8');
   ok(!src.includes('toISOString'),
     `${file}: toISOString is banned — it forces UTC and shifts IST dates back a day`);
