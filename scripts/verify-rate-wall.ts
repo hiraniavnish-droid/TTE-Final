@@ -111,6 +111,112 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
   ok(cheapestQuotable([rows[0]]) === null, 'all-blocked rows must yield null');
 }
 
+// ── the priciest hotel must never be labelled below the top band ──
+{
+  const cases: number[][] = [
+    [100, 5000, 5000, 5000],
+    [100, 100, 100, 100, 100, 20000],
+    [1, 2, 999, 999, 999, 999, 999, 999, 999],
+    [5, 5, 5, 5, 5, 5, 5, 5, 900],
+    [100, 500, 500, 500, 500, 500, 500, 9000],
+  ];
+  for (const prices of cases) {
+    const w = bandHotels(prices.map((p, i) => entry('h' + i, p)));
+    const last = w.bands[w.bands.length - 1];
+    const dearest = Math.max(...prices);
+    ok(last.entries.some(e => e.cheapestSelling === dearest),
+      `[${prices}]: dearest ${dearest} is not in the top band (bands: ${w.bands.map(b => b.label || 'unlabelled').join('|')})`);
+    ok(w.bands.length !== 2 || (w.bands[0].label === 'Value' && w.bands[1].label === 'Premium'),
+      `[${prices}]: two surviving groups must be labelled Value/Premium, got ${w.bands.map(b => b.label).join('/')}`);
+    ok(w.bands.length !== 1 || w.bands[0].label === '',
+      `[${prices}]: a single surviving group must be unlabelled, got '${w.bands[0].label}'`);
+  }
+}
+
+// ── zero and negative totals are data errors, not cheap rooms ──
+{
+  const w = bandHotels([entry('a', 0), entry('b', 1000), entry('c', 1050), entry('d', 1100)]);
+  ok(w.onRequestOnly.some(e => e.hotelId === 'a'), 'a zero price must be treated as on-request');
+  ok(w.bands.length === 1 && w.bands[0].id === 'similar',
+    `a zero price must not disable the Similar pricing collapse, got ${w.bands.length} band(s) id '${w.bands[0]?.id}'`);
+
+  const neg = bandHotels([entry('a', -500), entry('b', 1000), entry('c', 5000), entry('d', 9000)]);
+  ok(neg.onRequestOnly.some(e => e.hotelId === 'a'), 'a negative price must be treated as on-request');
+  ok(neg.bands.flatMap(b => b.entries).every(e => (e.cheapestSelling as number) > 0), 'a non-positive price leaked into a band');
+}
+
+// ── Infinity behaves like NaN, not like a real price ──
+{
+  const w = bandHotels([entry('a', Infinity), entry('b', -Infinity), entry('c', 1000), entry('d', 5000), entry('e', 9000)]);
+  ok(w.onRequestOnly.length === 2, `both infinities must be on-request, got ${w.onRequestOnly.length}`);
+  ok(w.bands.flatMap(b => b.entries).every(e => Number.isFinite(e.cheapestSelling)), 'an infinite price leaked into a band');
+}
+
+// ── empty input ──
+{
+  const w = bandHotels([]);
+  ok(w.bands.length === 0 && w.onRequestOnly.length === 0, 'empty input must produce empty output');
+}
+
+// ── one corrupt room must not hide a hotel's good rooms ──
+{
+  const rows: WallRoomRow[] = [
+    { key: 'bad', roomName: 'Corrupt', quotable: true, netTotal: NaN, markupAmount: 0, sellingTotal: NaN, sellingPerNight: NaN },
+    { key: 'good', roomName: 'Fine', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 500 },
+  ];
+  ok(cheapestQuotable(rows) === 1000, `one corrupt room must not poison the hotel, got ${cheapestQuotable(rows)}`);
+
+  const negRows: WallRoomRow[] = [
+    { key: 'neg', roomName: 'Negative', quotable: true, netTotal: -100, markupAmount: 0, sellingTotal: -100, sellingPerNight: -50 },
+    { key: 'good', roomName: 'Fine', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 500 },
+  ];
+  ok(cheapestQuotable(negRows) === 1000, `a negative room total must be skipped, got ${cheapestQuotable(negRows)}`);
+}
+
+// ── property sweep: the invariants must hold for arbitrary input ──
+{
+  // Deterministic PRNG so a failure is reproducible. Never Math.random() here.
+  let seed = 20260817;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const POOL = [100, 100, 100, 500, 500, 1000, 2500, 5000, 5000, 20000, NaN, Infinity, -Infinity, 0, -50];
+
+  let violations = 0;
+  for (let iter = 0; iter < 3000; iter++) {
+    const len = Math.floor(rnd() * 20);
+    const es = Array.from({ length: len }, (_, i) => entry('h' + i, POOL[Math.floor(rnd() * POOL.length)]));
+    const w = bandHotels(es);
+
+    const flat = w.bands.flatMap(b => b.entries);
+    // conservation: every input appears exactly once, nothing lost or duplicated
+    if (flat.length + w.onRequestOnly.length !== len) violations++;
+    if (new Set([...flat, ...w.onRequestOnly].map(e => e.hotelId)).size !== len) violations++;
+    // no empty bands
+    if (w.bands.some(b => b.entries.length === 0)) violations++;
+    // nothing unpriced inside a band
+    if (flat.some(e => !Number.isFinite(e.cheapestSelling) || (e.cheapestSelling as number) <= 0)) violations++;
+    // bands ordered cheapest first, and no price straddles two bands
+    const seen = new Map<number, number>();
+    for (let bi = 0; bi < w.bands.length; bi++) {
+      for (const e of w.bands[bi].entries) {
+        const p = e.cheapestSelling as number;
+        if (seen.has(p) && seen.get(p) !== bi) violations++;
+        seen.set(p, bi);
+      }
+    }
+    for (let bi = 1; bi < w.bands.length; bi++) {
+      const prevMax = Math.max(...w.bands[bi - 1].entries.map(e => e.cheapestSelling as number));
+      const curMin = Math.min(...w.bands[bi].entries.map(e => e.cheapestSelling as number));
+      if (prevMax > curMin) violations++;
+    }
+    // the dearest hotel always sits in the last band
+    if (flat.length) {
+      const dearest = Math.max(...flat.map(e => e.cheapestSelling as number));
+      if (!w.bands[w.bands.length - 1].entries.some(e => e.cheapestSelling === dearest)) violations++;
+    }
+  }
+  ok(violations === 0, `property sweep: ${violations} invariant violation(s) across 3000 random walls`);
+}
+
 console.log(`\nChecks: ${checks}`);
 if (fail.length) { console.error(`FAILURES: ${fail.length}\n` + fail.map(f => '  - ' + f).join('\n')); process.exit(1); }
 console.log('ALL CHECKS PASS');
