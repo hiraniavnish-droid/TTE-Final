@@ -164,3 +164,59 @@ export function bandHotels(entries: WallEntry[]): BandedWall {
 }
 
 export const fmtINR = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
+
+export interface ExportSelection {
+  entry: WallEntry;
+  row: QuotableRow;
+}
+
+export interface ExportContext {
+  supplierName: string;        // deliberately NOT printed — for callers' logging only
+  cityLabel: string;
+  clientName: string;
+  checkIn: string;             // ISO
+  checkOut: string;            // ISO
+  nights: number;
+  rooms: number;
+  pax: number;
+  mealLabel: string;
+  inclusions: string;
+}
+
+// Local numeric arithmetic only — never toISOString(), which forces UTC and in
+// IST renders the day before the one the agent selected.
+const fmtDateOut = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Everything the client receives. Never contains net cost, markup, margin, the
+// supplier's name, or band labels — the on-screen grouping is an internal
+// scanning aid, and calling a hotel 'Value' to a customer editorialises about a
+// property the agent may be actively recommending. Price order carries the same
+// ranking without the judgement.
+export function formatClientExport(selections: ExportSelection[], ctx: ExportContext): string {
+  if (!selections.length) return '';
+
+  const ordered = [...selections].sort((a, b) => a.row.sellingTotal - b.row.sellingTotal);
+
+  const L: string[] = ['*THE TOURISM EXPERTS*', `*${ctx.cityLabel} — Hotel Options*`, ''];
+  if (ctx.clientName) L.push(`Guest: ${ctx.clientName}`);
+  L.push(`${fmtDateOut(ctx.checkIn)} to ${fmtDateOut(ctx.checkOut)} · ${ctx.nights}N/${ctx.nights + 1}D`);
+  L.push(`${ctx.pax} guest(s) · ${ctx.rooms} room(s) · ${ctx.mealLabel}`);
+  L.push('');
+
+  ordered.forEach((s, i) => {
+    L.push(`*${i + 1}. ${s.entry.hotelName}*`);
+    const sub = [s.row.roomName, s.entry.starLabel].filter(Boolean).join(' · ');
+    if (sub) L.push(sub);
+    L.push(`${fmtINR(s.row.sellingTotal)} total · ${fmtINR(s.row.sellingPerNight)} per night`);
+    if (s.entry.festiveFlag) L.push(`_${s.entry.festiveFlag}_`);
+    L.push('');
+  });
+
+  L.push(ctx.inclusions);
+  L.push('_Rates as quoted. Subject to availability at time of booking._');
+  L.push('The Tourism Experts');
+  return L.join('\n');
+}

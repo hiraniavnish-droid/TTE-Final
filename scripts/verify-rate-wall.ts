@@ -1,11 +1,21 @@
 // Verification for the Rate Wall. Run: npx tsx scripts/verify-rate-wall.ts
 // Covers price banding: strict partition, tie handling, spread collapse, and
 // exclusion of anything that cannot be priced. Later tasks extend this file.
-import { bandHotels, cheapestQuotable, type WallEntry, type WallRoomRow } from '../services/rateWall';
+import { bandHotels, cheapestQuotable, formatClientExport, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
 
 let checks = 0;
 const fail: string[] = [];
 const ok = (cond: boolean, msg: string) => { checks++; if (!cond) fail.push(msg); };
+
+// Matches an amount only as a standalone figure. A bare `includes('450')`
+// would both false-positive inside '₹3,450' and, worse, silently miss a real
+// leak whenever the leaked figure happened to sit inside a larger number.
+// The lookbehind rejects a match that continues a longer number to the left.
+const containsAmount = (text: string, n: number) => {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const test = (s: string) => new RegExp(`(?<![\\d,.])${esc(s)}(?![\\d])`).test(text);
+  return test(n.toLocaleString('en-IN')) || test(String(n));
+};
 
 const entry = (id: string, cheapest: number | null): WallEntry => ({
   hotelId: id, hotelName: id, resolutionChip: '', resolutionOk: true,
@@ -215,6 +225,61 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
     }
   }
   ok(violations === 0, `property sweep: ${violations} invariant violation(s) across 3000 random walls`);
+}
+
+// ── the leak detector must itself work in both directions ──
+{
+  ok(containsAmount('Total ₹450 today', 450), 'containsAmount missed a standalone amount');
+  ok(containsAmount('Total ₹1,200 today', 1200), 'containsAmount missed a grouped amount');
+  ok(!containsAmount('Total ₹3,450 today', 450), 'containsAmount false-positived inside a larger number');
+  ok(!containsAmount('Total ₹11,500 today', 1500), 'containsAmount false-positived inside a larger number');
+}
+
+// ── the export must never leak internal figures ──
+{
+  const rows: QuotableRow[] = [
+    { key: 'h1::0', roomName: 'Deluxe', quotable: true, netTotal: 8000, markupAmount: 1200, sellingTotal: 9200, sellingPerNight: 4600 },
+    { key: 'h2::0', roomName: 'Suite', quotable: true, netTotal: 3000, markupAmount: 450, sellingTotal: 3450, sellingPerNight: 1725 },
+  ];
+  const sel = [
+    { entry: entry('h1', 9200), row: rows[0] },
+    { entry: entry('h2', 3450), row: rows[1] },
+  ];
+  const text = formatClientExport(sel, {
+    supplierName: 'Rajarshi Travels', cityLabel: 'Bhuj', clientName: 'Mr Test',
+    checkIn: '2026-11-15', checkOut: '2026-11-17', nights: 2, rooms: 1, pax: 2,
+    mealLabel: 'CPAI', inclusions: 'CPAI · GST included',
+  });
+
+  ok(!containsAmount(text, 8000) && !containsAmount(text, 3000), 'export leaked a net figure');
+  ok(!containsAmount(text, 1200) && !containsAmount(text, 450), 'export leaked a margin figure');
+  ok(!/net/i.test(text), "export contains the word 'net'");
+  ok(!/margin|markup/i.test(text), 'export mentions margin or markup');
+  ok(!/\bValue\b|\bMid\b|\bPremium\b/.test(text), 'export contains a band label');
+  ok(!text.includes('Rajarshi'), 'export leaked the supplier name');
+  ok(text.indexOf('₹3,450') < text.indexOf('₹9,200'), 'export must list cheapest first');
+  ok(text.includes('Mr Test'), 'export dropped the guest name');
+  ok(text.includes('CPAI · GST included'), 'export dropped the inclusions line');
+}
+
+// ── empty selection produces nothing, not a header with no rows ──
+{
+  const text = formatClientExport([], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-15',
+    checkOut: '2026-11-16', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI',
+  });
+  ok(text === '', 'an empty selection must produce an empty string');
+}
+
+// ── a festive note reaches the client, since it explains the rate ──
+{
+  const row: QuotableRow = { key: 'k', roomName: 'Deluxe', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 1000 };
+  const e2 = { ...entry('h', 1000), festiveFlag: 'Diwali Date' };
+  const text = formatClientExport([{ entry: e2, row }], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-15',
+    checkOut: '2026-11-16', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI',
+  });
+  ok(text.includes('Diwali Date'), 'a festive note must reach the client');
 }
 
 console.log(`\nChecks: ${checks}`);
