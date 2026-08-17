@@ -6,37 +6,47 @@ import { VendorDetail, Lead } from '../types';
 import { cn, formatCurrency, generateId } from '../utils/helpers';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
-import { Trash2, Plus, AlertCircle } from 'lucide-react';
+import { Trash2, Plus, AlertCircle, RotateCcw } from 'lucide-react';
 
 interface VendorManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   leadId: string | null;
-  onSave: (leadId: string, vendors: VendorDetail[]) => void;
+  onSave: (leadId: string, vendors: VendorDetail[], overrideTotalPrice?: number) => void;
 }
 
-export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  leadId, 
-  onSave 
+export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
+  isOpen,
+  onClose,
+  leadId,
+  onSave
 }) => {
   const { leads, suppliers } = useLeads();
   const { theme, getTextColor, getInputClass } = useTheme();
-  
+
   const [vendors, setVendors] = useState<VendorDetail[]>([]);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  // null = auto (sum of each vendor's Selling); a string = a manually typed
+  // single quoted total that overrides the per-vendor sum. Lets you buy from
+  // several vendors (taxi, hotel, ...) but quote the guest one lump number.
+  const [manualTotalPrice, setManualTotalPrice] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && leadId) {
       const lead = leads.find(l => l.id === leadId);
       if (lead) {
         // Initialize with existing vendors or a blank row if empty
-        if (lead.vendors && lead.vendors.length > 0) {
-            setVendors(lead.vendors);
-        } else {
-            setVendors([{ id: generateId(), name: '', cost: 0, price: 0 }]);
-        }
+        const initialVendors = lead.vendors && lead.vendors.length > 0
+            ? lead.vendors
+            : [{ id: generateId(), name: '', cost: 0, price: 0 }];
+        setVendors(initialVendors);
+
+        // If the saved quoted total doesn't match the sum of vendor Selling
+        // prices, an override was used last time — restore it instead of
+        // silently reverting to the auto-sum.
+        const autoSum = initialVendors.reduce((acc, v) => acc + (Number(v.price) || 0), 0);
+        const savedTotal = lead.commercials?.sellingPrice;
+        setManualTotalPrice(savedTotal != null && savedTotal !== autoSum ? String(savedTotal) : null);
       }
     }
     setErrors({});
@@ -80,13 +90,14 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
     }
 
     if (leadId) {
-        onSave(leadId, vendors);
+        onSave(leadId, vendors, manualTotalPrice !== null ? (Number(manualTotalPrice) || 0) : undefined);
         onClose();
     }
   };
 
   const totalCost = vendors.reduce((acc, v) => acc + (Number(v.cost) || 0), 0);
-  const totalPrice = vendors.reduce((acc, v) => acc + (Number(v.price) || 0), 0);
+  const autoTotalPrice = vendors.reduce((acc, v) => acc + (Number(v.price) || 0), 0);
+  const totalPrice = manualTotalPrice !== null ? (Number(manualTotalPrice) || 0) : autoTotalPrice;
 
   // Suggestions for autocomplete
   const supplierNames = suppliers.map(s => s.name);
@@ -169,14 +180,39 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
         </Button>
 
         <div className={cn("pt-4 mt-4 border-t border-dashed", theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
-            <div className="flex justify-between items-center text-sm mb-1">
+            <div className="flex justify-between items-center text-sm mb-3">
                 <span className="opacity-60 font-medium">Total Purchase Cost:</span>
                 <span className="font-mono">{formatCurrency(totalCost)}</span>
             </div>
-            <div className="flex justify-between items-center text-lg font-bold">
-                <span className={getTextColor()}>Total Quoted Price:</span>
-                <span className="font-mono text-emerald-600">{formatCurrency(totalPrice)}</span>
+            <div className="flex justify-between items-center gap-3">
+                <div>
+                    <span className={cn("text-lg font-bold block", getTextColor())}>Total Quoted Price</span>
+                    {manualTotalPrice !== null && (
+                        <button
+                            onClick={() => setManualTotalPrice(null)}
+                            className="flex items-center gap-1 text-[11px] font-semibold opacity-60 hover:opacity-100 transition-opacity"
+                        >
+                            <RotateCcw size={11} /> Reset to sum of vendors ({formatCurrency(autoTotalPrice)})
+                        </button>
+                    )}
+                </div>
+                <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-mono font-bold">₹</span>
+                    <input
+                        type="number"
+                        value={manualTotalPrice ?? String(autoTotalPrice || '')}
+                        onChange={(e) => setManualTotalPrice(e.target.value)}
+                        placeholder="0"
+                        className={cn(
+                            "w-40 pl-6 pr-3 py-2 rounded-lg border outline-none text-lg font-mono font-bold text-right text-emerald-600",
+                            getInputClass()
+                        )}
+                    />
+                </div>
             </div>
+            <p className="text-[11px] opacity-50 mt-1.5 text-right">
+                Auto-sums each vendor's Selling price — type your own number here to quote the guest one combined total instead.
+            </p>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
