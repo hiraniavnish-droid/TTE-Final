@@ -10,6 +10,7 @@ export type PriceBandId = 'value' | 'mid' | 'premium' | 'similar' | 'single';
 interface WallRoomBase {
   key: string;                 // stable and unique, e.g. `${hotelId}::${roomIdx}`
   roomName: string;
+  planLabel?: string;          // e.g. 'CPAI' — set when a row represents one meal plan of a room
 }
 
 // A room we can actually price. Carries money; carries no reason.
@@ -196,7 +197,12 @@ export interface ExportContext {
   // ( 302 Sq. Ft)' are legitimate, and no reliable rule separates those from a
   // stray rate. The safety property lives at the call site, which builds these
   // from a meal-plan enum, not at this boundary.
-  mealLabel: string;
+  //
+  // mealLabel is optional: a selection can now mix rows from several meal
+  // plans (each row carries its own planLabel, printed per line), so there is
+  // no single global plan left to state on the guest/rooms summary line. When
+  // absent it is simply omitted from that line.
+  mealLabel?: string;
   inclusions: string;
 }
 
@@ -263,7 +269,8 @@ export function formatClientExport(selections: ExportSelection[], ctx: ExportCon
 
   ordered.forEach((s, i) => {
     L.push(`*${i + 1}. ${safeHotelName(s.entry.hotelName)}*`);
-    const sub = [safeText(s.row.roomName, 'Room'), safeText(s.entry.starLabel, '')].filter(Boolean).join(' · ');
+    const roomWithPlan = s.row.roomName + (s.row.planLabel ? ' · ' + s.row.planLabel : '');
+    const sub = [safeText(roomWithPlan, 'Room'), safeText(s.entry.starLabel, '')].filter(Boolean).join(' · ');
     if (sub) L.push(sub);
     // 'per night' is a rate claim. On a multi-night stay the nights can carry
     // different tier rates, so this figure is an average no single night costs

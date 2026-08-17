@@ -14,13 +14,14 @@ import { type RajCity, type RajPlan, type RajRoom } from './rajarshiData';
 import { quoteStay, hotelsByCity, type MarkupMode } from './rajarshiRates';
 import { cheapestQuotable, type WallEntry, type WallRoomRow } from './rateWall';
 
+export const RAJARSHI_PLANS = ['EPAI', 'CPAI', 'MAPAI'] as const;
+
 export interface RajarshiWallInput {
-  city: RajCity;
+  city: RajCity | 'ALL';
   checkIn: string;             // ISO
   nights: number;
   rooms: number;
   pax: number;                 // total guests across all rooms
-  plan: RajPlan;
   markupMode: MarkupMode;
   markupValue: number;
 }
@@ -42,8 +43,30 @@ function addDays(iso: string, n: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
+// A room "publishes" a plan when that plan appears under ANY tier's rate
+// table for that room — the union of keys across all of room.rates' tier
+// objects, not just 'base'. Checked against every hotel in rajarshiData.ts:
+// no room ever adds a plan under a peak/festive tier that is absent from
+// base (the one asymmetric case in the data runs the other way — Hotel White
+// Desert prints EPAI under base but not under its peak tier, so that room's
+// EPAI row is quotable on ordinary dates and correctly falls to on-request
+// during the blackout window via quoteStay's own on-request handling, not
+// because we omitted the row). So the union rule cannot manufacture a plan
+// that is priced-on-peak-but-on-request-on-base; it can only do the reverse,
+// which is real supplier data, not a modelling bug.
+function publishedPlans(room: RajRoom): RajPlan[] {
+  const plans = new Set<RajPlan>();
+  for (const tierRates of Object.values(room.rates)) {
+    for (const p of Object.keys(tierRates) as RajPlan[]) plans.add(p);
+  }
+  return Array.from(plans);
+}
+
 export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
-  const hotels = hotelsByCity()[input.city] || [];
+  const byCity = hotelsByCity();
+  const hotels = input.city === 'ALL'
+    ? Object.values(byCity).flat()
+    : (byCity[input.city] || []);
   const paxPerRoom = Math.ceil(input.pax / Math.max(1, input.rooms));
   const lastNight = addDays(input.checkIn, Math.max(0, input.nights - 1));
 
@@ -52,44 +75,47 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
       ? 'Closed for these dates'
       : undefined;
 
-    const rows: WallRoomRow[] = hotel.rooms.map((room, ri) => {
-      const key = `${hotel.id}::${ri}`;
+    const rows: WallRoomRow[] = hotel.rooms.flatMap((room, ri) => {
       const cap = baseCapacity(room);
       const extraPerRoom = Math.max(0, paxPerRoom - cap);
-      const hasExtraRate = (hotel.extraPerson?.base?.[input.plan] ?? 0) > 0;
 
-      const blocked = closedReason
-        ? closedReason
-        : extraPerRoom > MAX_EXTRA_BEDS_PER_ROOM
-          ? `Too small for ${paxPerRoom} pax`
-          : extraPerRoom > 0 && !hasExtraRate
-            ? `No extra bed rate for ${paxPerRoom} pax`
-            : undefined;
+      return publishedPlans(room).map((plan): WallRoomRow => {
+        const key = `${hotel.id}::${ri}::${plan}`;
+        const hasExtraRate = (hotel.extraPerson?.base?.[plan] ?? 0) > 0;
 
-      if (blocked) {
-        return { key, roomName: room.name, quotable: false, blockedReason: blocked };
-      }
+        const blocked = closedReason
+          ? closedReason
+          : extraPerRoom > MAX_EXTRA_BEDS_PER_ROOM
+            ? `Too small for ${paxPerRoom} pax`
+            : extraPerRoom > 0 && !hasExtraRate
+              ? `No extra bed rate for ${paxPerRoom} pax`
+              : undefined;
 
-      const q = quoteStay({
-        hotel, room, plan: input.plan, checkIn: input.checkIn, nights: input.nights,
-        rooms: input.rooms, extraPersons: extraPerRoom * input.rooms,
-        markupMode: input.markupMode, markupValue: input.markupValue,
+        if (blocked) {
+          return { key, roomName: room.name, planLabel: plan, quotable: false, blockedReason: blocked };
+        }
+
+        const q = quoteStay({
+          hotel, room, plan, checkIn: input.checkIn, nights: input.nights,
+          rooms: input.rooms, extraPersons: extraPerRoom * input.rooms,
+          markupMode: input.markupMode, markupValue: input.markupValue,
+        });
+
+        // A non-finite or non-positive total means the data is wrong, not that
+        // the room is cheap. Block it here rather than let '₹0' or '₹NaN' reach
+        // a card the agent reads out to a customer.
+        if (q.anyOnRequest || !Number.isFinite(q.sellingPrice) || q.sellingPrice <= 0) {
+          return { key, roomName: room.name, planLabel: plan, quotable: false, blockedReason: 'On request' };
+        }
+
+        return {
+          key, roomName: room.name, planLabel: plan, quotable: true,
+          netTotal: q.netCost,
+          markupAmount: q.markupAmount,
+          sellingTotal: q.sellingPrice,
+          sellingPerNight: Math.round(q.sellingPrice / Math.max(1, input.nights)),
+        };
       });
-
-      // A non-finite or non-positive total means the data is wrong, not that
-      // the room is cheap. Block it here rather than let '₹0' or '₹NaN' reach
-      // a card the agent reads out to a customer.
-      if (q.anyOnRequest || !Number.isFinite(q.sellingPrice) || q.sellingPrice <= 0) {
-        return { key, roomName: room.name, quotable: false, blockedReason: 'On request' };
-      }
-
-      return {
-        key, roomName: room.name, quotable: true,
-        netTotal: q.netCost,
-        markupAmount: q.markupAmount,
-        sellingTotal: q.sellingPrice,
-        sellingPerNight: Math.round(q.sellingPrice / Math.max(1, input.nights)),
-      };
     });
 
     // Festive/blackout is exact here: the sheet prints its own tier labels, so
@@ -117,11 +143,13 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
     // re-implements the rule and banding can drift from what the cards render.
     const cheapestSelling = cheapestQuotable(rows);
 
-    // The chip answers "why this rate", which for Rajarshi is the meal plan and
-    // the date tier. Pax is deliberately not mentioned: it drives extra beds,
-    // not rate selection, and room capacity varies (a quad room holds 4 with no
-    // extra bed), so a hotel-level chip cannot state it accurately. The
-    // extra-bed cost is already visible in the money on each row.
+    // The chip answers "why this rate", which for Rajarshi is now just the
+    // date tier — a hotel spans several meal plans at once, each printed on
+    // its own row, so the chip can no longer name a single plan. Pax is
+    // deliberately not mentioned: it drives extra beds, not rate selection,
+    // and room capacity varies (a quad room holds 4 with no extra bed), so a
+    // hotel-level chip cannot state it accurately. The extra-bed cost is
+    // already visible in the money on each row.
     //
     // This carries the supplier's raw wording, including any rupee figure in a
     // tier label. That is correct here: the agent should see it. The client
@@ -130,9 +158,9 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
       hotelId: hotel.id,
       hotelName: hotel.name,
       starLabel: hotel.descriptor,
-      resolutionChip: `${input.plan} · ${festiveFlag ? festiveFlag : 'standard dates'}`,
+      resolutionChip: festiveFlag ? festiveFlag : 'standard dates',
       resolutionOk: true,   // Rajarshi is fully date-driven; nothing is inferred
-      inclusions: `${input.plan} · GST included`,
+      inclusions: 'GST included',
       festiveFlag,
       closedReason,
       rows,

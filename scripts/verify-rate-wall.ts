@@ -2,8 +2,8 @@
 // Covers price banding: strict partition, tie handling, spread collapse, and
 // exclusion of anything that cannot be priced. Later tasks extend this file.
 import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
-import { buildRajarshiWall } from '../services/rajarshiWall';
-import { RAJARSHI_HOTELS, type RajPlan } from '../services/rajarshiData';
+import { buildRajarshiWall, RAJARSHI_PLANS } from '../services/rajarshiWall';
+import { RAJARSHI_HOTELS, type RajPlan, type RajRoom } from '../services/rajarshiData';
 import { quoteStay } from '../services/rajarshiRates';
 
 let checks = 0;
@@ -378,6 +378,17 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
   ok((text.match(/\*/g) || []).length % 2 === 0, 'sanitising left WhatsApp markup unbalanced');
 }
 
+// A room "publishes" a plan when that plan appears under ANY tier's rate
+// table for that room — mirrors the adapter's own rule, kept independent
+// here rather than imported so this is a real check, not a tautology.
+function publishedPlansT(room: RajRoom): RajPlan[] {
+  const plans = new Set<RajPlan>();
+  for (const tierRates of Object.values(room.rates)) {
+    for (const p of Object.keys(tierRates) as RajPlan[]) plans.add(p);
+  }
+  return Array.from(plans);
+}
+
 // ── Rajarshi adapter reconciles to the real resolver, exhaustively ──
 {
   // Local numeric date arithmetic — never toISOString(), which shifts the date
@@ -397,21 +408,32 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
     for (const t of hotel.tiers) if (t.windows[0]) dates.push(t.windows[0].from);
 
     for (const checkIn of dates) {
-      for (const plan of ['EPAI', 'CPAI', 'MAPAI'] as RajPlan[]) {
-        const entries = buildRajarshiWall({
-          city: hotel.city, checkIn, nights: 2, rooms: 1, pax: 2,
-          plan, markupMode: 'percent', markupValue: 0,
-        });
-        const e = entries.find(x => x.hotelId === hotel.id);
-        if (!e) { ok(false, `${hotel.id}: missing from its own city wall`); continue; }
+      // Build the wall ONCE per (hotel city, checkIn) — no plan is passed in.
+      const entries = buildRajarshiWall({
+        city: hotel.city, checkIn, nights: 2, rooms: 1, pax: 2,
+        markupMode: 'percent', markupValue: 0,
+      });
+      const e = entries.find(x => x.hotelId === hotel.id);
+      if (!e) { ok(false, `${hotel.id}: missing from its own city wall`); continue; }
 
-        for (let ri = 0; ri < hotel.rooms.length; ri++) {
-          const row = e.rows.find(r => r.key === `${hotel.id}::${ri}`);
-          if (!row) { ok(false, `${hotel.id}::${ri}: room row missing`); continue; }
+      for (let ri = 0; ri < hotel.rooms.length; ri++) {
+        const room = hotel.rooms[ri];
+        const plans = publishedPlansT(room);
+
+        for (const plan of RAJARSHI_PLANS) {
+          const row = e.rows.find(r => r.key === `${hotel.id}::${ri}::${plan}`);
+
+          if (!plans.includes(plan)) {
+            ok(!row, `${hotel.id}::${ri}::${plan} ${checkIn}: row exists for a plan the room does not publish`);
+            continue;
+          }
+
+          if (!row) { ok(false, `${hotel.id}::${ri}::${plan} ${checkIn}: room row missing`); continue; }
+          ok(row.planLabel === plan, `${hotel.id}::${ri}::${plan} ${checkIn}: planLabel is '${row.planLabel}', expected '${plan}'`);
           if (!row.quotable) continue;
 
           const truth = quoteStay({
-            hotel, room: hotel.rooms[ri], plan, checkIn, nights: 2, rooms: 1,
+            hotel, room, plan, checkIn, nights: 2, rooms: 1,
             extraPersons: 0, markupMode: 'percent', markupValue: 0,
           });
           ok(row.netTotal === truth.netCost,
@@ -422,28 +444,28 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
             `${hotel.id}::${ri} ${plan} ${checkIn}: per-night does not reconcile to the total`);
           ok(!truth.anyOnRequest, `${hotel.id}::${ri} ${plan} ${checkIn}: on-request night was priced as quotable`);
         }
-
-        // Festive flag is set exactly when a night of the stay falls inside a
-        // printed tier window. Derived from the windows themselves, NOT from a
-        // sampled room's resolved tier — a room with no printed peak rate falls
-        // back to 'base', which would wrongly report a blackout stay as normal.
-        const expectFestive = [0, 1].some(n =>
-          hotel.tiers.some(t => t.windows.some(w => {
-            const d = addDaysT(checkIn, n);
-            return d >= w.from && d <= w.to;
-          }))
-        );
-        ok(!!e.festiveFlag === expectFestive,
-          `${hotel.id} ${plan} ${checkIn}: festive flag ${!!e.festiveFlag}, expected ${expectFestive}`);
       }
+
+      // Festive flag is set exactly when a night of the stay falls inside a
+      // printed tier window. Derived from the windows themselves, NOT from a
+      // sampled room's resolved tier — a room with no printed peak rate falls
+      // back to 'base', which would wrongly report a blackout stay as normal.
+      const expectFestive = [0, 1].some(n =>
+        hotel.tiers.some(t => t.windows.some(w => {
+          const d = addDaysT(checkIn, n);
+          return d >= w.from && d <= w.to;
+        }))
+      );
+      ok(!!e.festiveFlag === expectFestive,
+        `${hotel.id} ${checkIn}: festive flag ${!!e.festiveFlag}, expected ${expectFestive}`);
     }
   }
 }
 
 // ── markup is applied on top, not folded into net ──
 {
-  const at0 = buildRajarshiWall({ city: RAJARSHI_HOTELS[0].city, checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, plan: 'CPAI', markupMode: 'percent', markupValue: 0 });
-  const at20 = buildRajarshiWall({ city: RAJARSHI_HOTELS[0].city, checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, plan: 'CPAI', markupMode: 'percent', markupValue: 20 });
+  const at0 = buildRajarshiWall({ city: RAJARSHI_HOTELS[0].city, checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 });
+  const at20 = buildRajarshiWall({ city: RAJARSHI_HOTELS[0].city, checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 20 });
   const a = at0.flatMap(e => e.rows).find((r): r is QuotableRow => r.quotable);
   const b = at20.flatMap(e => e.rows).find((r): r is QuotableRow => r.quotable && r.key === a?.key);
   if (a && b) {
@@ -456,7 +478,7 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
 {
   const entries = buildRajarshiWall({
     city: RAJARSHI_HOTELS[0].city, checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 9,
-    plan: 'CPAI', markupMode: 'percent', markupValue: 0,
+    markupMode: 'percent', markupValue: 0,
   });
   const allRows = entries.flatMap(e => e.rows);
   ok(allRows.length > 0, 'rooms must still be listed for an oversized party');
@@ -470,10 +492,44 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
 {
   const entries = buildRajarshiWall({
     city: RAJARSHI_HOTELS[0].city, checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2,
-    plan: 'CPAI', markupMode: 'percent', markupValue: 0,
+    markupMode: 'percent', markupValue: 0,
   });
   const keys = entries.flatMap(e => e.rows.map(r => r.key));
   ok(new Set(keys).size === keys.length, 'room row keys must be unique across the wall');
+}
+
+// ── city: 'ALL' sums every per-city wall, with globally unique keys ──
+{
+  const CITIES: Array<'Bhuj' | 'Mandvi' | 'Dholavira' | 'Dhordo' | 'Hodka' | 'Gorewali'> =
+    ['Bhuj', 'Mandvi', 'Dholavira', 'Dhordo', 'Hodka', 'Gorewali'];
+  const perCityCount = CITIES.reduce((sum, city) => {
+    const entries = buildRajarshiWall({ city, checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 });
+    return sum + entries.length;
+  }, 0);
+  const allEntries = buildRajarshiWall({ city: 'ALL', checkIn: '2026-09-02', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 });
+  ok(allEntries.length === perCityCount,
+    `city 'ALL' entry count ${allEntries.length} != sum over cities ${perCityCount}`);
+  const allKeys = allEntries.flatMap(e => e.rows.map(r => r.key));
+  ok(new Set(allKeys).size === allKeys.length, "city 'ALL': row keys must be unique across the whole set");
+}
+
+// ── export: a selection mixing two different plans shows each line's own plan ──
+{
+  const rows: QuotableRow[] = [
+    { key: 'h1::0::EPAI', roomName: 'Deluxe', planLabel: 'EPAI', quotable: true, netTotal: 8000, markupAmount: 1200, sellingTotal: 9200, sellingPerNight: 4600 },
+    { key: 'h2::0::MAPAI', roomName: 'Suite', planLabel: 'MAPAI', quotable: true, netTotal: 3000, markupAmount: 450, sellingTotal: 3450, sellingPerNight: 1725 },
+  ];
+  const sel = [
+    { entry: entry('h1', 9200), row: rows[0] },
+    { entry: entry('h2', 3450), row: rows[1] },
+  ];
+  const text = formatClientExport(sel, {
+    supplierName: 'Rajarshi Travels', cityLabel: 'Bhuj', clientName: 'Mr Test',
+    checkIn: '2026-11-15', checkOut: '2026-11-17', nights: 2, rooms: 1, pax: 2,
+    inclusions: 'GST included',
+  });
+  ok(text.includes('Deluxe · EPAI'), 'export must show the plan on the EPAI line');
+  ok(text.includes('Suite · MAPAI'), 'export must show the plan on the MAPAI line');
 }
 
 console.log(`\nChecks: ${checks}`);
