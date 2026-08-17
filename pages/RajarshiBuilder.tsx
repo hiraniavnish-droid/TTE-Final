@@ -13,7 +13,6 @@ import { bandHotels, formatClientExport, isQuotable, type WallEntry, type Quotab
 import { buildRajarshiWall } from '../services/rajarshiWall';
 import { RateWallControls } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
-import { RateWallTray } from '../components/ratewall/RateWallTray';
 
 type Mode = 'package' | 'rates';
 const CITIES = Object.keys(hotelsByCity()) as RajCity[];
@@ -83,13 +82,13 @@ export const RajarshiBuilder: React.FC = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
-  const [wall, setWall] = useState({ city: CITIES[0] as string, checkIn: todayISO, nights: 1, rooms: 1, pax: 2, plan: 'CPAI' });
+  const [wall, setWall] = useState({ city: CITIES[0] as string, checkIn: todayISO, nights: 1, rooms: 1, pax: 2 });
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const togglePick = (key: string) => setPicked(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   const wallEntries = useMemo(() => buildRajarshiWall({
-    city: wall.city as RajCity, checkIn: wall.checkIn, nights: wall.nights,
-    rooms: wall.rooms, pax: wall.pax, plan: wall.plan as RajPlan,
+    city: wall.city as RajCity | 'ALL', checkIn: wall.checkIn, nights: wall.nights,
+    rooms: wall.rooms, pax: wall.pax,
     markupMode, markupValue,
   }), [wall, markupMode, markupValue]);
 
@@ -116,6 +115,8 @@ export const RajarshiBuilder: React.FC = () => {
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
   }, [wall.checkIn, wall.nights]);
 
+  const cityLabel = wall.city === 'ALL' ? 'Kutch' : wall.city;
+
   // ── Shared output builders ──
   const nightsLabel = (n: number) => `${n}N/${n + 1}D`;
 
@@ -138,17 +139,18 @@ export const RajarshiBuilder: React.FC = () => {
     return L.join('\n');
   };
 
+  // mealLabel is deliberately omitted: a selection can now mix meal plans, and
+  // each line prints its own, so there is no single plan to state up top.
   const buildRatesText = (): string => formatClientExport(pickedSelections, {
     supplierName: RAJARSHI_SUPPLIER.name,
-    cityLabel: wall.city,
+    cityLabel,
     clientName,
     checkIn: wall.checkIn,
     checkOut: wallCheckOut,
     nights: wall.nights,
     rooms: wall.rooms,
     pax: wall.pax,
-    mealLabel: wall.plan,
-    inclusions: `${wall.plan} · GST included`,
+    inclusions: 'GST included',
   });
 
   const activeText = mode === 'package' ? buildPackageText : buildRatesText;
@@ -168,7 +170,7 @@ export const RajarshiBuilder: React.FC = () => {
     if (pdfBusy) return;
     const rows = mode === 'package'
       ? legQuotes.map(l => ({ title: `${l.hotel.name} (${l.hotel.city})`, sub: `${l.room.name} · ${l.leg.plan} · ${fmtDate(l.leg.checkIn)} · ${nightsLabel(l.leg.nights)} · ${l.leg.rooms} room(s)`, price: l.quote.anyOnRequest ? 'On Request' : fmtINR(l.quote.sellingPrice) }))
-      : pickedSelections.map(s => ({ title: s.entry.hotelName, sub: `${s.row.roomName}${s.entry.starLabel ? ` · ${s.entry.starLabel}` : ''}`, price: fmtINR(s.row.sellingTotal) }));
+      : pickedSelections.map(s => ({ title: s.entry.hotelName, sub: `${s.row.roomName}${s.row.planLabel ? ' · ' + s.row.planLabel : ''}`, price: fmtINR(s.row.sellingTotal) }));
     if (!rows.length) { toast.error('Add at least one hotel first.'); return; }
     setPdfBusy(true);
     try {
@@ -181,7 +183,7 @@ export const RajarshiBuilder: React.FC = () => {
       doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
       doc.text('THE TOURISM EXPERTS', 14, 14);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(203, 213, 225);
-      doc.text(mode === 'package' ? 'Kutch Package Quotation' : `${wall.city} — Hotel Options`, 14, 22);
+      doc.text(mode === 'package' ? 'Kutch Package Quotation' : `${cityLabel} — Hotel Options`, 14, 22);
       y = 40;
 
       doc.setTextColor(...slate); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
@@ -205,7 +207,7 @@ export const RajarshiBuilder: React.FC = () => {
         doc.text(fmtINR(packageTotal.sellingPrice), W - 18, y + 3.5, { align: 'right' });
       }
 
-      doc.save(`${mode === 'package' ? 'Kutch Package' : wall.city + ' Options'} — ${clientName || 'Guest'}.pdf`);
+      doc.save(`${mode === 'package' ? 'Kutch Package' : cityLabel + ' Options'} — ${clientName || 'Guest'}.pdf`);
       toast.success('PDF downloaded');
     } catch (e: any) {
       toast.error('PDF failed: ' + (e?.message || 'error'));
@@ -215,58 +217,86 @@ export const RajarshiBuilder: React.FC = () => {
   };
 
   const inputCls = cn('w-full px-3 py-2 rounded-lg border outline-none text-sm', getInputClass());
+  const compactInput = cn('px-2 py-1.5 rounded-lg border outline-none text-[13px]', getInputClass());
   const labelCls = cn('text-[10.5px] font-bold uppercase tracking-wider mb-1 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
+  const miniLabel = cn('text-[10px] font-bold uppercase tracking-wider mb-0.5 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
+
+  // The header's running total follows whichever mode is on screen, because the
+  // export buttons beside it do too.
+  const headerCount = mode === 'package' ? legQuotes.length : pickedSelections.length;
+  const headerTotal = mode === 'package' ? packageTotal.sellingPrice : pickedTotal;
+  const headerTotalUnknown = mode === 'package' && anyOnRequest;
+
+  const headerBtn = cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11.5px] font-bold border active:scale-[0.97] transition',
+    theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30');
 
   return (
-    <div className="max-w-6xl mx-auto animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/builder')} className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={20} /></button>
-        <div className={cn('p-2 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Building2 size={20} /></div>
-        <div>
-          <h1 className={cn('text-2xl font-bold tracking-tight leading-none', getTextColor())}>{RAJARSHI_SUPPLIER.name}</h1>
-          <p className={cn('text-[12px] mt-1', getSecondaryTextColor())}>Season {RAJARSHI_SUPPLIER.season} · {RAJARSHI_SUPPLIER.location} · {RAJARSHI_HOTELS.length} hotels</p>
+    <div className="max-w-6xl mx-auto animate-in fade-in duration-500 pb-16">
+      <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+        <button onClick={() => navigate('/builder')} title="Back to the builder list" className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
+        <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Building2 size={16} /></div>
+        <div className="mr-1">
+          <h1 className={cn('text-[17px] font-bold tracking-tight leading-none', getTextColor())}>{RAJARSHI_SUPPLIER.name}</h1>
+          <p className={cn('text-[10px] mt-1 leading-none', getSecondaryTextColor())}>Season {RAJARSHI_SUPPLIER.season} · {RAJARSHI_SUPPLIER.location} · {RAJARSHI_HOTELS.length} hotels</p>
+        </div>
+
+        <div className={cn('inline-flex p-0.5 rounded-lg border', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+          {([['package', 'Build Package', LayoutGrid], ['rates', 'Rates', Zap]] as [Mode, string, any][]).map(([m, label, Icon]) => (
+            <button key={m} onClick={() => setMode(m)}
+              className={cn('flex items-center gap-1 px-2.5 py-1 rounded-md text-[12px] font-bold transition-all active:scale-[0.98]',
+                mode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'text-slate-500 hover:text-slate-800' : 'text-white/50 hover:text-white/80'))}>
+              <Icon size={13} /> {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          <span className={cn('text-[11.5px] font-semibold tabular-nums', headerCount ? getTextColor() : getSecondaryTextColor())}>
+            {headerCount === 0
+              ? (mode === 'rates' ? 'Tick any plan to add it' : 'No nights added')
+              : `${headerCount} selected · ${headerTotalUnknown ? 'On request' : fmtINR(headerTotal)}`}
+          </span>
+          <button onClick={copyText} title="Copy the quotation as WhatsApp-ready text — exports carry final rates only, never net or margin" className={headerBtn}>
+            <Copy size={13} /> Copy
+          </button>
+          <button onClick={downloadPdf} disabled={pdfBusy} title="Download the quotation as a PDF — exports carry final rates only, never net or margin"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11.5px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
+            {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF
+          </button>
+          <button onClick={openWhatsApp} title="Open WhatsApp with the quotation — exports carry final rates only, never net or margin"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11.5px] font-bold hover:bg-emerald-500 active:scale-[0.97] transition">
+            Send
+          </button>
         </div>
       </div>
 
-      <div className={cn('inline-flex p-1 rounded-xl border mb-6', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
-        {([['package', 'Build Package', LayoutGrid], ['rates', 'Rates', Zap]] as [Mode, string, any][]).map(([m, label, Icon]) => (
-          <button key={m} onClick={() => setMode(m)}
-            className={cn('flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-all active:scale-[0.98]',
-              mode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'text-slate-500 hover:text-slate-800' : 'text-white/50 hover:text-white/80'))}>
-            <Icon size={14} /> {label}
-          </button>
-        ))}
+      <div className={cn('flex flex-wrap items-end gap-x-4 gap-y-2 rounded-xl border px-3 py-2.5 mb-3',
+        theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+        <div className="flex-1 min-w-[200px]">
+          <label className={miniLabel}>Guest name</label>
+          <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Mr. Avnish Hirani" className={cn(compactInput, 'w-full')} />
+        </div>
+        <div>
+          <label className={miniLabel}>Markup</label>
+          <div className={cn('flex rounded-lg border overflow-hidden', getBorderClass())}>
+            {(['percent', 'flat'] as MarkupMode[]).map(m => (
+              <button key={m} onClick={() => setMarkupMode(m)}
+                className={cn('px-2.5 py-1.5 text-[12px] font-bold transition', markupMode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                {m === 'percent' ? '%' : '₹ flat/room-night'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className={miniLabel}>{markupMode === 'percent' ? 'Markup %' : 'Markup ₹/room/night'}</label>
+          <input type="number" inputMode="decimal" min={0} value={markupValue}
+            onChange={e => setMarkupValue(Math.max(0, Number(e.target.value) || 0))} className={cn(compactInput, 'font-mono w-28')} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-3 space-y-4">
-          <div className={cn('rounded-2xl border p-5 space-y-4', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]' : 'bg-white/5 border-white/10')}>
-            <div>
-              <label className={labelCls}>Guest name</label>
-              <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Mr. Avnish Hirani" className={inputCls} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Markup</label>
-                <div className={cn('flex rounded-lg border overflow-hidden', getBorderClass())}>
-                  {(['percent', 'flat'] as MarkupMode[]).map(m => (
-                    <button key={m} onClick={() => setMarkupMode(m)}
-                      className={cn('flex-1 py-2 text-[12px] font-bold transition', markupMode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
-                      {m === 'percent' ? '%' : '₹ flat/room-night'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>{markupMode === 'percent' ? 'Markup %' : 'Markup ₹/room/night'}</label>
-                <input type="number" inputMode="decimal" min={0} value={markupValue}
-                  onChange={e => setMarkupValue(Math.max(0, Number(e.target.value) || 0))} className={cn(inputCls, 'font-mono')} />
-              </div>
-            </div>
-          </div>
-
-          {mode === 'package' ? (
+      {mode === 'package' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-3">
             <div className="space-y-3">
               {legs.map((leg, idx) => {
                 const cHotels = hotelsByCity()[leg.city] || [];
@@ -344,61 +374,9 @@ export const RajarshiBuilder: React.FC = () => {
                 + Add another night / hotel
               </button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <RateWallControls
-                values={wall}
-                cities={CITIES as string[]}
-                plans={['EPAI', 'CPAI', 'MAPAI']}
-                onChange={patch => { setWall(w => ({ ...w, ...patch })); if (patch.city) setPicked(new Set()); }}
-              />
+          </div>
 
-              {banded.bands.length === 0 && banded.onRequestOnly.length === 0 && (
-                <p className={cn('text-[12px] text-center py-8', getSecondaryTextColor())}>
-                  No hotels listed for {wall.city}.
-                </p>
-              )}
-
-              {banded.bands.map(band => (
-                <div key={band.id} className="space-y-2">
-                  {band.label && (
-                    <div className="flex items-center gap-2">
-                      <span className={cn('text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full',
-                        band.id === 'premium' ? 'bg-violet-100 text-violet-700'
-                          : band.id === 'mid' ? 'bg-sky-100 text-sky-700'
-                          : band.id === 'similar' ? 'bg-slate-100 text-slate-700'
-                          : 'bg-emerald-100 text-emerald-700')}>{band.label}</span>
-                      <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    {band.entries.map(entry => (
-                      <RateWallCard key={entry.hotelId} entry={entry}
-                        bandTone={band.id === 'premium' ? 'border-l-violet-400' : band.id === 'mid' ? 'border-l-sky-400' : band.id === 'similar' ? 'border-l-slate-400' : 'border-l-emerald-400'}
-                        selectedKeys={picked} onToggle={togglePick} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {banded.onRequestOnly.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">On request</span>
-                    <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
-                  </div>
-                  {banded.onRequestOnly.map(entry => (
-                    <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400"
-                      selectedKeys={picked} onToggle={togglePick} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="lg:col-span-2">
-          {mode === 'package' ? (
+          <div className="lg:col-span-2">
             <div className={cn('rounded-2xl border p-5 lg:sticky lg:top-4', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]' : 'bg-white/5 border-white/10')}>
               <div className="flex items-center gap-2 mb-4">
                 <MapPin size={16} className="opacity-60" />
@@ -447,18 +425,58 @@ export const RajarshiBuilder: React.FC = () => {
                 Share on WhatsApp
               </button>
             </div>
-          ) : (
-            <RateWallTray
-              count={pickedSelections.length}
-              clientTotal={pickedTotal}
-              pdfBusy={pdfBusy}
-              onCopy={copyText}
-              onPdf={downloadPdf}
-              onWhatsApp={openWhatsApp}
-            />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <RateWallControls
+            values={wall}
+            cities={CITIES as string[]}
+            onChange={patch => { setWall(w => ({ ...w, ...patch })); if (patch.city) setPicked(new Set()); }}
+          />
+
+          {banded.bands.length === 0 && banded.onRequestOnly.length === 0 && (
+            <p className={cn('text-[12px] text-center py-8', getSecondaryTextColor())}>
+              No hotels listed for {cityLabel}.
+            </p>
+          )}
+
+          {banded.bands.map(band => (
+            <div key={band.id} className="space-y-1.5">
+              {band.label && (
+                <div className="flex items-center gap-2">
+                  <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                    band.id === 'premium' ? 'bg-violet-100 text-violet-700'
+                      : band.id === 'mid' ? 'bg-sky-100 text-sky-700'
+                      : band.id === 'similar' ? 'bg-slate-100 text-slate-700'
+                      : 'bg-emerald-100 text-emerald-700')}>{band.label}</span>
+                  <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                {band.entries.map(entry => (
+                  <RateWallCard key={entry.hotelId} entry={entry}
+                    bandTone={band.id === 'premium' ? 'border-l-violet-400' : band.id === 'mid' ? 'border-l-sky-400' : band.id === 'similar' ? 'border-l-slate-400' : 'border-l-emerald-400'}
+                    selectedKeys={picked} onToggle={togglePick} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {banded.onRequestOnly.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">On request</span>
+                <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
+              </div>
+              {banded.onRequestOnly.map(entry => (
+                <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400"
+                  selectedKeys={picked} onToggle={togglePick} />
+              ))}
+            </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
