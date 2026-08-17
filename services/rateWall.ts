@@ -179,6 +179,14 @@ export interface ExportContext {
   nights: number;
   rooms: number;
   pax: number;
+  // mealLabel and inclusions must be caller-normalised values — a meal-plan
+  // code, or a short phrase built from one. Never raw supplier text.
+  //
+  // Sanitising here collapses newlines and strips currency-marked amounts, but
+  // it deliberately does NOT redact bare numbers: 'GST 18%' and 'CLUB ROOM
+  // ( 302 Sq. Ft)' are legitimate, and no reliable rule separates those from a
+  // stray rate. The safety property lives at the call site, which builds these
+  // from a meal-plan enum, not at this boundary.
   mealLabel: string;
   inclusions: string;
 }
@@ -190,32 +198,76 @@ const fmtDateOut = (iso: string) => {
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+// Everything interpolated into an export is transcribed from supplier PDFs and
+// spreadsheets, so it is not trusted. Newlines would inject their own lines
+// into the message (real supplier fields contain embedded newlines carrying
+// rupee figures), and a stray WhatsApp markup character breaks the formatting
+// of everything after it — 'RE:GEN:TA INN -3*' is a real hotel name.
+const sanitizeLine = (s: string) =>
+  s.replace(/[\r\n\t]+/g, ' ').replace(/[*_]/g, '').replace(/\s{2,}/g, ' ').trim();
+
+const AMOUNT_RE = /(?:₹|\bRs\.?)\s?[\d,]+/i;
+
+// A rupee figure in a descriptive field is never legitimate in an export: the
+// only prices a customer may see are the ones we computed. Verified against
+// the rate data — no real room name contains a currency marker, and the three
+// that carry numbers are square footage ('CLUB ROOM ( 302 Sq. Ft)'), which
+// AMOUNT_RE ignores because it requires a ₹/Rs prefix.
+//
+// The whole field is replaced rather than surgically edited. Cutting the amount
+// out of supplier prose can leave a sentence that reads as a different offer —
+// 'Black-Out Date Rate (Additional  on room rate)' is worse than saying nothing.
+const safeText = (s: string | undefined, fallback: string): string => {
+  const clean = sanitizeLine(s ?? '');
+  if (!clean) return '';
+  return AMOUNT_RE.test(clean) ? fallback : clean;
+};
+
+// The hotel identity must survive even a suspect field, so amount tokens are
+// stripped rather than triggering a fallback that would hide which hotel this is.
+const safeHotelName = (s: string) =>
+  sanitizeLine(s).replace(new RegExp(AMOUNT_RE.source, 'gi'), '').replace(/\s{2,}/g, ' ').trim();
+
 // Everything the client receives. Never contains net cost, markup, margin, the
 // supplier's name, or band labels — the on-screen grouping is an internal
 // scanning aid, and calling a hotel 'Value' to a customer editorialises about a
 // property the agent may be actively recommending. Price order carries the same
 // ranking without the judgement.
 export function formatClientExport(selections: ExportSelection[], ctx: ExportContext): string {
-  if (!selections.length) return '';
+  // A non-finite or non-positive total is a data fault, not a price. Left in,
+  // it makes the comparator below return NaN — which V8 treats as "leave as
+  // is", silently putting the dearest hotel first in a cheapest-first quote —
+  // and prints '₹NaN' to the customer.
+  const priceable = selections.filter(
+    s => Number.isFinite(s.row.sellingTotal) && s.row.sellingTotal > 0
+  );
+  if (!priceable.length) return '';
 
-  const ordered = [...selections].sort((a, b) => a.row.sellingTotal - b.row.sellingTotal);
+  const ordered = [...priceable].sort((a, b) => a.row.sellingTotal - b.row.sellingTotal);
 
-  const L: string[] = ['*THE TOURISM EXPERTS*', `*${ctx.cityLabel} — Hotel Options*`, ''];
-  if (ctx.clientName) L.push(`Guest: ${ctx.clientName}`);
+  const L: string[] = ['*THE TOURISM EXPERTS*', `*${sanitizeLine(ctx.cityLabel)} — Hotel Options*`, ''];
+  if (ctx.clientName.trim()) L.push(`Guest: ${sanitizeLine(ctx.clientName)}`);
   L.push(`${fmtDateOut(ctx.checkIn)} to ${fmtDateOut(ctx.checkOut)} · ${ctx.nights}N/${ctx.nights + 1}D`);
-  L.push(`${ctx.pax} guest(s) · ${ctx.rooms} room(s) · ${ctx.mealLabel}`);
+  const meal = safeText(ctx.mealLabel, '');
+  L.push([`${ctx.pax} guest(s)`, `${ctx.rooms} room(s)`, meal].filter(Boolean).join(' · '));
   L.push('');
 
   ordered.forEach((s, i) => {
-    L.push(`*${i + 1}. ${s.entry.hotelName}*`);
-    const sub = [s.row.roomName, s.entry.starLabel].filter(Boolean).join(' · ');
+    L.push(`*${i + 1}. ${safeHotelName(s.entry.hotelName)}*`);
+    const sub = [safeText(s.row.roomName, 'Room'), safeText(s.entry.starLabel, '')].filter(Boolean).join(' · ');
     if (sub) L.push(sub);
-    L.push(`${fmtINR(s.row.sellingTotal)} total · ${fmtINR(s.row.sellingPerNight)} per night`);
-    if (s.entry.festiveFlag) L.push(`_${s.entry.festiveFlag}_`);
+    // 'per night' is a rate claim. On a multi-night stay the nights can carry
+    // different tier rates, so this figure is an average no single night costs
+    // — label it as one. On a one-night stay it just repeats the total.
+    L.push(ctx.nights > 1
+      ? `${fmtINR(s.row.sellingTotal)} total · ${fmtINR(s.row.sellingPerNight)} avg/night`
+      : `${fmtINR(s.row.sellingTotal)} total`);
+    if (s.entry.festiveFlag) L.push(`_${safeText(s.entry.festiveFlag, 'Peak / festive dates')}_`);
     L.push('');
   });
 
-  L.push(ctx.inclusions);
+  const inclusions = safeText(ctx.inclusions, '');
+  if (inclusions) L.push(inclusions);
   L.push('_Rates as quoted. Subject to availability at time of booking._');
   L.push('The Tourism Experts');
   return L.join('\n');

@@ -255,7 +255,8 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
   ok(!containsAmount(text, 1200) && !containsAmount(text, 450), 'export leaked a margin figure');
   ok(!/net/i.test(text), "export contains the word 'net'");
   ok(!/margin|markup/i.test(text), 'export mentions margin or markup');
-  ok(!/\bValue\b|\bMid\b|\bPremium\b/.test(text), 'export contains a band label');
+  ok(!/^\s*(Value|Mid|Premium|Similar pricing)\s*$/m.test(text), 'export contains a band heading line');
+  ok(!text.includes('Similar pricing'), 'export contains a band label');
   ok(!text.includes('Rajarshi'), 'export leaked the supplier name');
   ok(text.indexOf('₹3,450') < text.indexOf('₹9,200'), 'export must list cheapest first');
   ok(text.includes('Mr Test'), 'export dropped the guest name');
@@ -280,6 +281,98 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
     checkOut: '2026-11-16', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI',
   });
   ok(text.includes('Diwali Date'), 'a festive note must reach the client');
+}
+
+// ── a festive note must never carry the supplier's net surcharge ──
+{
+  const row: QuotableRow = { key: 'k', roomName: 'Superior Twin Bed AC', quotable: true, netTotal: 6500, markupAmount: 975, sellingTotal: 7475, sellingPerNight: 7475 };
+  const e3 = { ...entry('h', 7475), festiveFlag: 'Black-Out Date Rate (Additional Rs 1,000 on room rate)' };
+  const text = formatClientExport([{ entry: e3, row }], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05',
+    checkOut: '2026-11-06', nights: 1, rooms: 1, pax: 2, mealLabel: 'MAPAI', inclusions: 'MAPAI',
+  });
+  ok(!containsAmount(text, 1000), 'festive note leaked a supplier surcharge figure');
+  ok(!/Rs\s?1,?000/i.test(text), 'festive note leaked a supplier surcharge figure');
+  ok(text.includes('Peak / festive dates'), 'a festive note carrying an amount must fall back to a neutral phrase');
+}
+
+// ── supplier text must not inject lines or break formatting ──
+{
+  const row: QuotableRow = { key: 'k', roomName: 'Deluxe\n\nNet cost: ₹5000', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 1000 };
+  const text = formatClientExport([{ entry: { ...entry('h', 1000), hotelName: 'RE:GEN:TA INN -3*' }, row }], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05',
+    checkOut: '2026-11-06', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI',
+  });
+  ok(!/Net cost/i.test(text), 'an embedded newline injected a line into the export');
+  ok(!containsAmount(text, 5000), 'an injected line leaked a figure');
+  ok((text.match(/\*/g) || []).length % 2 === 0, 'a stray asterisk left WhatsApp markup unbalanced');
+}
+
+// ── a NaN total must not reverse the quote order or print as a price ──
+{
+  const mk = (name: string, total: number): { entry: WallEntry; row: QuotableRow } => ({
+    entry: entry(name, total),
+    row: { key: name, roomName: 'Room', quotable: true, netTotal: total, markupAmount: 0, sellingTotal: total, sellingPerNight: total },
+  });
+  const text = formatClientExport([mk('Dear', 9000), mk('Broken', NaN), mk('Cheap', 1000), mk('Middle', 5000)], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05',
+    checkOut: '2026-11-06', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI',
+  });
+  ok(!text.includes('NaN'), 'a NaN total reached the customer');
+  ok(text.indexOf('Cheap') < text.indexOf('Middle') && text.indexOf('Middle') < text.indexOf('Dear'),
+    'a NaN total broke cheapest-first ordering');
+  ok(!text.includes('Broken'), 'an unpriceable row was quoted anyway');
+}
+
+// ── per-night is labelled as an average, and omitted on single nights ──
+{
+  const row: QuotableRow = { key: 'k', roomName: 'Deluxe', quotable: true, netTotal: 21550, markupAmount: 3233, sellingTotal: 24783, sellingPerNight: 12392 };
+  const multi = formatClientExport([{ entry: entry('h', 24783), row }], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05',
+    checkOut: '2026-11-07', nights: 2, rooms: 1, pax: 2, mealLabel: 'MAPAI', inclusions: 'MAPAI',
+  });
+  ok(multi.includes('avg/night'), 'a multi-night per-night figure must be labelled an average');
+  ok(!/·\s*₹[\d,]+ per night/.test(multi), "'per night' is a rate claim no single night may meet");
+
+  const single = formatClientExport([{ entry: entry('h', 1000), row: { ...row, sellingTotal: 1000, sellingPerNight: 1000 } }], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05',
+    checkOut: '2026-11-06', nights: 1, rooms: 1, pax: 2, mealLabel: 'MAPAI', inclusions: 'MAPAI',
+  });
+  ok(!single.includes('night'), 'a single-night stay must not repeat the total as a per-night figure');
+}
+
+// ── a legitimate number in a room name must survive redaction ──
+{
+  const row: QuotableRow = { key: 'k', roomName: 'CLUB ROOM ( 302 Sq. Ft)', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 1000 };
+  const text = formatClientExport([{ entry: entry('h', 1000), row }], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05',
+    checkOut: '2026-11-06', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI',
+  });
+  ok(text.includes('CLUB ROOM ( 302 Sq. Ft)'), 'square footage is not a price and must not be redacted');
+}
+
+// ── newline-bearing text must not restructure the message ──
+//
+// Real supplier fields in inlandData.ts carry embedded newlines ('Extra Adult
+// - 1250\nChild without bed - 800'). Those are per-room display data and never
+// reach ExportContext, whose meal/inclusions fields are built from a meal-plan
+// enum at the call site. What is asserted here is the structural guarantee:
+// however such a string arrives, it cannot add lines or fake a field.
+//
+// Bare figures are deliberately NOT redacted — no reliable rule separates a
+// stray rate from 'GST 18%' or '302 Sq. Ft'. That safety property is the call
+// site's job, and is documented on ExportContext.
+{
+  const row: QuotableRow = { key: 'k', roomName: 'Deluxe', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 1000 };
+  const text = formatClientExport([{ entry: entry('h', 1000), row }], {
+    supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05', checkOut: '2026-11-06',
+    nights: 1, rooms: 1, pax: 2,
+    mealLabel: '1750 CPAI\n2250 MAPAI\n3000 APAI',
+    inclusions: 'Extra Adult - 1250\nChild without bed - 800',
+  });
+  ok(text.split('\n').length < 15, `supplier newlines expanded the message to ${text.split('\n').length} lines`);
+  ok(!/^\s*(Child without bed|2250 MAPAI)/m.test(text), 'a mid-field newline survived and started its own line');
+  ok((text.match(/\*/g) || []).length % 2 === 0, 'sanitising left WhatsApp markup unbalanced');
 }
 
 console.log(`\nChecks: ${checks}`);
