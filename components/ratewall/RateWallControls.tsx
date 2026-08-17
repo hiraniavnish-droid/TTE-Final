@@ -1,8 +1,7 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils/helpers';
 import { Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { RAJARSHI_HOTELS } from '../../services/rajarshiData';
 
 // The meal plan is deliberately absent: every plan a room publishes is now
 // priced on its own cell inside the card, so there is nothing global to pick.
@@ -14,9 +13,19 @@ export interface RateWallControlValues {
   pax: number;
 }
 
+export interface JumpChip {
+  label: string;
+  date: string;   // ISO
+}
+
 interface Props {
   values: RateWallControlValues;
   cities: string[];
+  // Supplied by the page, not derived here. These chips come from one
+  // supplier's own festive windows, and this control is shared across
+  // suppliers — deriving them internally would show Rajarshi's Kutch dates
+  // on an Inland Gujarat wall.
+  jumps: JumpChip[];
   onChange: (patch: Partial<RateWallControlValues>) => void;
 }
 
@@ -39,54 +48,6 @@ const shortDate = (iso: string) => {
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 
-// ── Festive jump chips, derived from the sheet's own windows ──────────────
-//
-// Deduping by the window's `from` date (the obvious rule) does NOT work on this
-// data: eight hotels each print their own Diwali start between 05 and 08 Nov,
-// so a from-date dedupe yields four chips all reading 'Diwali Date' and the
-// agent never reaches Christmas or Uttrayan. Dedupe by FESTIVAL instead —
-// first matching token in the label wins — and take the earliest window for
-// each. That is the question the chip actually answers: "jump me to Diwali".
-const FESTIVALS: { re: RegExp; label: string }[] = [
-  { re: /diwali/i, label: 'Diwali' },
-  { re: /christmas/i, label: 'Christmas' },
-  { re: /new year/i, label: 'New Year' },
-  { re: /uttrayan/i, label: 'Uttrayan' },
-  { re: /republic/i, label: 'Republic Day' },
-  { re: /full moon/i, label: 'Full Moon' },
-];
-
-// Which festival a label names is decided by whichever token appears EARLIEST
-// in the printed text, not by the order of the table above: 'Christmas Date &
-// Dec 2026 Full Moon' is a Christmas window, and 'Uttrayan, Republic Day & Jan
-// 2027 Full Moon' is an Uttrayan one.
-function festivalOf(label: string): string | null {
-  let best: { at: number; label: string } | null = null;
-  for (const f of FESTIVALS) {
-    const at = label.search(f.re);
-    if (at < 0) continue;
-    if (!best || at < best.at) best = { at, label: f.label };
-  }
-  return best ? best.label : null;
-}
-
-function festiveJumps(): { label: string; date: string }[] {
-  const earliest = new Map<string, string>();
-  for (const h of RAJARSHI_HOTELS) {
-    for (const t of h.tiers) {
-      for (const w of t.windows) {
-        const fest = festivalOf(w.label || t.label);
-        if (!fest) continue;
-        const prev = earliest.get(fest);
-        if (!prev || w.from < prev) earliest.set(fest, w.from);
-      }
-    }
-  }
-  return Array.from(earliest, ([label, date]) => ({ label, date }))
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-    .slice(0, 4);
-}
-
 const Stepper: React.FC<{ value: number; set: (n: number) => void; min: number; max: number }> = ({ value, set, min, max }) => {
   const { theme, getTextColor } = useTheme();
   return (
@@ -98,9 +59,8 @@ const Stepper: React.FC<{ value: number; set: (n: number) => void; min: number; 
   );
 };
 
-export const RateWallControls: React.FC<Props> = ({ values, cities, onChange }) => {
+export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, onChange }) => {
   const { theme, getInputClass, getSecondaryTextColor } = useTheme();
-  const jumps = useMemo(festiveJumps, []);
 
   const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-0.5 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
   const fieldCls = cn('px-2 py-1.5 rounded-lg border outline-none text-[13px]', getInputClass());

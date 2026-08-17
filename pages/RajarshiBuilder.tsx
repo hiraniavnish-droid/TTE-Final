@@ -10,11 +10,13 @@ import {
 import { RAJARSHI_HOTELS, RAJARSHI_SUPPLIER, type RajCity, type RajPlan } from '../services/rajarshiData';
 import { quoteStay, hotelsByCity, fmtINR, type MarkupMode } from '../services/rajarshiRates';
 import { bandHotels, formatClientExport, isQuotable, type WallEntry, type QuotableRow } from '../services/rateWall';
-import { buildRajarshiWall } from '../services/rajarshiWall';
+import { buildRajarshiWall, rajarshiJumpChips } from '../services/rajarshiWall';
 import { RateWallControls } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
 
 type Mode = 'package' | 'rates';
+// Derived once at module load from the sheet's own festive windows.
+const JUMP_CHIPS = rajarshiJumpChips();
 const CITIES = Object.keys(hotelsByCity()) as RajCity[];
 const fmtDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -430,7 +432,7 @@ export const RajarshiBuilder: React.FC = () => {
       ) : (
         <div className="space-y-3">
           <RateWallControls
-            values={wall}
+jumps={JUMP_CHIPS}             values={wall}
             cities={CITIES as string[]}
             onChange={patch => { setWall(w => ({ ...w, ...patch })); if (patch.city) setPicked(new Set()); }}
           />

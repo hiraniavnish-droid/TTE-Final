@@ -10,7 +10,7 @@
 // exactly why each supplier gets its own adapter.
 // ============================================================
 
-import { type RajCity, type RajPlan, type RajRoom } from './rajarshiData';
+import { RAJARSHI_HOTELS, type RajCity, type RajPlan, type RajRoom } from './rajarshiData';
 import { quoteStay, hotelsByCity, type MarkupMode } from './rajarshiRates';
 import { cheapestQuotable, type WallEntry, type WallRoomRow } from './rateWall';
 
@@ -167,4 +167,52 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
       cheapestSelling,
     };
   });
+}
+
+// ── Festive jump chips, derived from the sheet's own windows ──────────────
+//
+// Deduping by the window's `from` date (the obvious rule) does NOT work on this
+// data: eight hotels each print their own Diwali start between 05 and 08 Nov,
+// so a from-date dedupe yields four chips all reading 'Diwali Date' and the
+// agent never reaches Christmas or Uttrayan. Dedupe by FESTIVAL instead —
+// first matching token in the label wins — and take the earliest window for
+// each. That is the question the chip actually answers: "jump me to Diwali".
+const FESTIVALS: { re: RegExp; label: string }[] = [
+  { re: /diwali/i, label: 'Diwali' },
+  { re: /christmas/i, label: 'Christmas' },
+  { re: /new year/i, label: 'New Year' },
+  { re: /uttrayan/i, label: 'Uttrayan' },
+  { re: /republic/i, label: 'Republic Day' },
+  { re: /full moon/i, label: 'Full Moon' },
+];
+
+// Which festival a label names is decided by whichever token appears EARLIEST
+// in the printed text, not by the order of the table above: 'Christmas Date &
+// Dec 2026 Full Moon' is a Christmas window, and 'Uttrayan, Republic Day & Jan
+// 2027 Full Moon' is an Uttrayan one.
+function festivalOf(label: string): string | null {
+  let best: { at: number; label: string } | null = null;
+  for (const f of FESTIVALS) {
+    const at = label.search(f.re);
+    if (at < 0) continue;
+    if (!best || at < best.at) best = { at, label: f.label };
+  }
+  return best ? best.label : null;
+}
+
+export function rajarshiJumpChips(): { label: string; date: string }[] {
+  const earliest = new Map<string, string>();
+  for (const h of RAJARSHI_HOTELS) {
+    for (const t of h.tiers) {
+      for (const w of t.windows) {
+        const fest = festivalOf(w.label || t.label);
+        if (!fest) continue;
+        const prev = earliest.get(fest);
+        if (!prev || w.from < prev) earliest.set(fest, w.from);
+      }
+    }
+  }
+  return Array.from(earliest, ([label, date]) => ({ label, date }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .slice(0, 4);
 }
