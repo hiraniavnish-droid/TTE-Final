@@ -61,7 +61,7 @@ const TourCard: React.FC<{ tour: Tour }> = ({ tour }) => {
   }, [tour.tour_dates]);
 
   return (
-    <Card noPadding className="flex flex-col h-full hover:shadow-2xl transition-all duration-300 group relative cursor-pointer" onClick={() => navigate(`/group-tours/${tour.id}`)}>
+    <Card noPadding className="flex flex-col h-full shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)] hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.2)] hover:-translate-y-1 transition-all duration-300 group relative cursor-pointer" onClick={() => navigate(`/group-tours/${tour.id}`)}>
       {/* Visual Header */}
       <div className="p-6 pb-2">
         <div className="flex justify-between items-start mb-4">
@@ -83,7 +83,7 @@ const TourCard: React.FC<{ tour: Tour }> = ({ tour }) => {
           )}
         </div>
 
-        <h3 className={cn("text-xl font-bold font-serif leading-tight group-hover:text-blue-600 transition-colors", getTextColor())}>
+        <h3 className={cn("text-xl font-bold tracking-tight leading-tight group-hover:text-slate-900 transition-colors", getTextColor())}>
             {tour.name || 'Untitled Tour'}
         </h3>
         <div className="flex items-center gap-1.5 text-xs opacity-60 mt-2">
@@ -102,10 +102,10 @@ const TourCard: React.FC<{ tour: Tour }> = ({ tour }) => {
             </p>
           </div>
           
-          <Button 
-            variant="primary" 
-            size="sm" 
-            className="rounded-full w-10 h-10 p-0 shadow-lg shadow-blue-500/20"
+          <Button
+            variant="primary"
+            size="sm"
+            className="rounded-full w-10 h-10 p-0 shadow-sm"
           >
             <ArrowRight size={18} />
           </Button>
@@ -156,22 +156,22 @@ export const GroupTours = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-            <h1 className={cn("text-4xl font-bold font-serif", getTextColor())}>Signature Group Tours</h1>
-            <p className={cn("text-sm opacity-60 mt-1", getTextColor())}>Expertly crafted fixed departures with guaranteed batches.</p>
+            <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Signature Group Tours</h1>
+            <p className={cn("text-sm opacity-60 mt-0.5", getTextColor())}>Expertly crafted fixed departures with guaranteed batches.</p>
         </div>
-        
+
         <div className="relative w-full md:w-96 group">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-700 transition-colors">
                 <Search size={18} />
             </div>
-            <input 
-                type="text" 
-                placeholder="Search destinations..." 
+            <input
+                type="text"
+                placeholder="Search destinations..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className={cn("w-full pl-12 pr-4 py-3 rounded-2xl border outline-none shadow-sm transition-all focus:ring-4 focus:ring-blue-500/10", getInputClass())}
+                className={cn("w-full pl-12 pr-4 py-3 rounded-2xl border outline-none shadow-sm transition-all focus:ring-4 focus:ring-slate-900/10", getInputClass())}
             />
         </div>
       </div>
@@ -187,7 +187,7 @@ export const GroupTours = () => {
               <ShoppingBag size={48} className="mb-4 opacity-20" />
               <p className="text-xl font-medium">No results found.</p>
               <p className="text-xs mt-2">Check the console logs if you expected data.</p>
-              <Button variant="ghost" onClick={() => setSearch('')} className="mt-2 text-blue-500">Clear filters</Button>
+              <Button variant="ghost" onClick={() => setSearch('')} className="mt-2 text-slate-700">Clear filters</Button>
           </div>
       )}
     </div>

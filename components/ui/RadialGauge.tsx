@@ -39,7 +39,7 @@ export const RadialGauge: React.FC<RadialGaugeProps> = ({
     <div
       onClick={onClick}
       className={cn(
-        'p-4 md:p-5 rounded-2xl border transition-all duration-300 group cursor-pointer relative overflow-hidden',
+        'h-full flex flex-col justify-center p-4 md:p-5 rounded-2xl border transition-all duration-300 group cursor-pointer relative overflow-hidden',
         'hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]',
         getCardBg(),
         theme === 'light' ? 'border-slate-100 shadow-sm' : ''

@@ -44,9 +44,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (theme === 'ocean') return 'bg-blue-900/50 hover:bg-blue-800/60 border border-blue-600/30 rounded-xl';
     if (theme === 'dark') return 'bg-slate-800 hover:bg-slate-700 border border-slate-600/60 rounded-xl';
 
-    // Technical Luxury Interactive Card
-    // Uses the Double Ring border
-    return 'bg-white border border-slate-200 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] ring-1 ring-slate-900/5 transition-all duration-200 ease-out hover:shadow-md hover:-translate-y-0.5 rounded-xl';
+    // Editorial Luxury Interactive Card
+    return 'bg-white border border-slate-200/70 shadow-[0_2px_12px_-2px_rgba(15,23,42,0.08),0_1px_3px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/[0.05] transition-all duration-200 ease-out hover:shadow-[0_8px_24px_-4px_rgba(15,23,42,0.12),0_2px_6px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 rounded-2xl';
   };
 
   const getInputClass = () => {

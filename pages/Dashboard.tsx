@@ -9,6 +9,7 @@ import { Sparkline } from '../components/ui/Sparkline';
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { useLeads } from '../contexts/LeadContext';
 import { useAuth } from '../contexts/AuthContext';
+import { usePaymentSummary, LeadPaymentSummary } from '../hooks/usePaymentSummary';
 import { formatCurrency, formatCompactCurrency, cn, formatDate } from '../utils/helpers';
 import {
   BarChart,
@@ -41,6 +42,8 @@ import {
   PlaneLanding,
   Calendar,
   Crown,
+  Medal,
+  Award,
   Filter,
   Eye,
   Zap,
@@ -124,9 +127,9 @@ const formatDelta = (curr: number, prev: number): { text: string; isUp: boolean 
 
 const getGreeting = (name: string) => {
     const hour = new Date().getHours();
-    if (hour < 12) return `Good Morning, ${name} ☀️`;
-    if (hour < 17) return `Good Afternoon, ${name} 🌤️`; 
-    return `Good Evening, ${name} 🌙`;
+    if (hour < 12) return `Good Morning, ${name}`;
+    if (hour < 17) return `Good Afternoon, ${name}`;
+    return `Good Evening, ${name}`;
 };
 
 // --- Activity Monitor Component (Admin Only) ---
@@ -204,12 +207,12 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
         <Card className="mb-8">
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
                 <div className="flex items-center gap-2">
-                    <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-indigo-100 text-indigo-600' : 'bg-indigo-500/20 text-indigo-300')}>
-                        <Zap size={20} />
+                    <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-slate-700/50 text-slate-200')}>
+                        <Zap size={20} strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>Daily Activity Pulse</h3>
-                        <p className={cn("text-xs opacity-60", getTextColor())}>Monitor team flow & responsiveness</p>
+                        <h3 className={cn("text-lg font-bold tracking-tight leading-none", getTextColor())}>Daily Activity Pulse</h3>
+                        <p className={cn("text-[11px] opacity-50 mt-0.5", getTextColor())}>Team flow & responsiveness</p>
                     </div>
                 </div>
 
@@ -220,9 +223,9 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
                                 key={r}
                                 onClick={() => setRange(r)}
                                 className={cn(
-                                    "px-3 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-1 md:flex-none text-center",
+                                    "px-3 py-1.5 rounded-md text-xs font-bold transition-all active:scale-[0.97] whitespace-nowrap flex-1 md:flex-none text-center",
                                     range === r
-                                        ? (theme === 'light' ? "bg-white shadow text-indigo-600" : theme === 'ocean' ? "bg-blue-900 text-indigo-300 shadow" : "bg-slate-700 text-indigo-300 shadow")
+                                        ? (theme === 'light' ? "bg-slate-900 shadow-sm text-white" : theme === 'ocean' ? "bg-blue-800 text-white shadow" : "bg-slate-600 text-white shadow")
                                         : "opacity-50 hover:opacity-100"
                                 )}
                             >
@@ -322,7 +325,7 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
                     )}>
                         <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>{selectedAgent}'s Timeline</h3>
+                                <h3 className={cn("text-xl font-bold tracking-tight", getTextColor())}>{selectedAgent}'s Timeline</h3>
                                 <p className="text-xs opacity-60 mt-1">
                                     {range === 'Custom Range' ? `${customStart} to ${customEnd}` : range}
                                 </p>
@@ -355,7 +358,7 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
                                     
                                     <p className={cn("text-sm font-medium", getTextColor())}>{log.details}</p>
                                     {log.metadata?.leadName && (
-                                        <Link to={`/leads/${log.leadId}`} className="text-xs text-indigo-500 hover:underline flex items-center gap-1 mt-1">
+                                        <Link to={`/leads/${log.leadId}`} className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1">
                                             View {log.metadata.leadName} <ArrowRight size={10} />
                                         </Link>
                                     )}
@@ -374,29 +377,31 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
 
 // --- Admin Components ---
 
-type LeaderSortKey = 'revenue' | 'leads' | 'winrate';
+type LeaderSortKey = 'revenue' | 'leads' | 'winrate' | 'profit';
 
 const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
     const { theme, getTextColor } = useTheme();
     const [sortBy, setSortBy] = useState<LeaderSortKey>('revenue');
 
     const agentStats = useMemo(() => {
-        const agents: Record<string, { name: string, leads: number, won: number, revenue: number }> = {};
+        const agents: Record<string, { name: string, leads: number, won: number, revenue: number, profit: number }> = {};
 
         leads.forEach(l => {
             const agent = l.assignedTo || 'Unassigned';
-            if (!agents[agent]) agents[agent] = { name: agent, leads: 0, won: 0, revenue: 0 };
+            if (!agents[agent]) agents[agent] = { name: agent, leads: 0, won: 0, revenue: 0, profit: 0 };
 
             agents[agent].leads++;
-            if (l.status === 'Won') {
+            if (l.status === 'Won' && !l.legacy) { // legacy deals stay out of leaderboard financials
                 agents[agent].won++;
                 agents[agent].revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0);
+                agents[agent].profit += l.commercials ? (l.commercials.sellingPrice - l.commercials.netCost) : 0;
             }
         });
 
         const arr = Object.values(agents);
         arr.sort((a, b) => {
             if (sortBy === 'leads') return b.leads - a.leads;
+            if (sortBy === 'profit') return b.profit - a.profit;
             if (sortBy === 'winrate') {
                 const ar = a.leads ? a.won / a.leads : 0;
                 const br = b.leads ? b.won / b.leads : 0;
@@ -418,13 +423,13 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                         <div className={cn("p-1.5 rounded bg-amber-500/10 text-amber-500")}>
                             <Crown size={18} />
                         </div>
-                        <h3 className={cn("font-bold font-serif", getTextColor())}>Team Leaderboard</h3>
+                        <h3 className={cn("font-bold tracking-tight", getTextColor())}>Team Leaderboard</h3>
                     </div>
                     <div className={cn("flex items-center rounded-lg p-0.5 border text-[10px] font-bold", theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/60 border-slate-700/40')}>
-                        {(['revenue', 'leads', 'winrate'] as LeaderSortKey[]).map(k => (
+                        {(['revenue', 'profit', 'leads', 'winrate'] as LeaderSortKey[]).map(k => (
                             <button key={k} onClick={() => setSortBy(k)} className={cn(
-                                "px-2.5 py-1 rounded-md transition-colors uppercase tracking-wide",
-                                sortBy === k ? (theme === 'light' ? 'bg-white text-blue-600 shadow-sm' : 'bg-slate-700 text-indigo-300') : 'opacity-50 hover:opacity-100'
+                                "px-2.5 py-1 rounded-md transition-all active:scale-[0.97] uppercase tracking-wide",
+                                sortBy === k ? (theme === 'light' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-600 text-white') : 'opacity-50 hover:opacity-100'
                             )}>{k === 'winrate' ? 'Win %' : k}</button>
                         ))}
                     </div>
@@ -439,7 +444,8 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                                 <th className="pb-3 text-center">Total Leads</th>
                                 <th className="pb-3 text-center">Won</th>
                                 <th className="pb-3 text-center">Conversion</th>
-                                <th className="pb-3 text-right pr-3">Revenue</th>
+                                <th className="pb-3 text-right">Revenue</th>
+                                <th className="pb-3 text-right pr-3">Profit</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-500/5">
@@ -451,7 +457,13 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                                     : idx === 2
                                       ? (theme === 'light' ? 'bg-gradient-to-r from-orange-50/60 to-amber-50/40' : 'bg-orange-500/5')
                                       : '';
-                                const rankEmoji = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+                                const rankIcon = idx === 0
+                                  ? <Trophy size={14} strokeWidth={2.5} className="text-amber-500" />
+                                  : idx === 1
+                                    ? <Medal size={14} strokeWidth={2.5} className="text-slate-400" />
+                                    : idx === 2
+                                      ? <Award size={14} strokeWidth={2.5} className="text-orange-400" />
+                                      : null;
                                 const convRate = agent.leads > 0 ? ((agent.won / agent.leads) * 100) : 0;
                                 return (
                                 <tr key={agent.name} className={cn("group transition-colors rounded-xl", rankBg)}>
@@ -461,7 +473,7 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                                                 <UserAvatar name={agent.name} size={30} animate={false} />
                                             </div>
                                             <span>{agent.name}</span>
-                                            {rankEmoji && <span className="text-base leading-none">{rankEmoji}</span>}
+                                            {rankIcon}
                                         </div>
                                     </td>
                                     <td className="py-3.5 text-center">
@@ -485,8 +497,13 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="py-3.5 text-right pr-3 font-mono font-bold tracking-tight">
+                                    <td className="py-3.5 text-right font-mono font-bold tracking-tight">
                                         <span className={cn(idx === 0 ? "text-amber-600" : "")}>{formatCompactCurrency(agent.revenue)}</span>
+                                    </td>
+                                    <td className="py-3.5 text-right pr-3 font-mono font-bold tracking-tight">
+                                        <span className={agent.profit < 0 ? 'text-rose-500' : 'text-indigo-500'}>
+                                            {agent.profit < 0 ? '-' : ''}{formatCompactCurrency(Math.abs(agent.profit)) || '₹0'}
+                                        </span>
                                     </td>
                                 </tr>
                                 );
@@ -497,7 +514,7 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
             </Card>
 
             <Card className="flex flex-col items-center justify-center">
-                <h3 className={cn("font-bold font-serif mb-4 self-start", getTextColor())}>Lead Distribution</h3>
+                <h3 className={cn("font-bold tracking-tight mb-4 self-start", getTextColor())}>Lead Distribution</h3>
                 <div className="h-[250px] md:h-[200px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -534,8 +551,8 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
 
 // --- Standard Agent Dashboard Components ---
 
-const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick, delta, deltaLabel, emptyHint }: any) => {
-    const { getTextColor, getCardBg, theme } = useTheme();
+const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick, delta, deltaLabel, emptyHint, extraFaded, collected, pending, loading }: any) => {
+    const { getTextColor, theme } = useTheme();
     const animated = useCountUp(typeof rawValue === 'number' ? rawValue : 0, 1200);
     const displayValue = (typeof rawValue === 'number' && formatFn)
       ? formatFn(animated)
@@ -544,45 +561,93 @@ const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: I
     const isEmpty = (typeof rawValue === 'number' && rawValue === 0);
 
     return (
-        <div
-            onClick={onClick}
-            className={cn(
-                "p-4 md:p-5 rounded-xl border transition-all duration-300 group relative overflow-hidden",
-                onClick ? "cursor-pointer hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]" : "",
-                getCardBg(),
-                theme === 'light' ? "border-slate-100 shadow-sm" : ""
-            )}
-        >
-            <div className={cn("absolute top-0 left-0 right-0 h-[3px] rounded-t-xl", colorClass)} />
-            <div className={cn("absolute -bottom-4 -right-4 w-20 h-20 rounded-full blur-2xl opacity-20 pointer-events-none", colorClass)} />
-            <div className="flex justify-between items-start mb-2 mt-1">
-                <div className={cn("p-2 rounded-lg", colorClass)}>
-                    <Icon size={18} className="text-white" />
+        // ── Double-Bezel outer shell ──────────────────────────────────────────
+        <div className={cn(
+            "h-full p-[2px] rounded-[1.75rem] transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]",
+            onClick ? "cursor-pointer group hover:-translate-y-1 active:scale-[0.97]" : "",
+            theme === 'light'
+                ? cn(
+                    "bg-gradient-to-br from-slate-200/80 via-slate-100/40 to-transparent",
+                    "shadow-[0_4px_24px_-4px_rgba(15,23,42,0.08),0_1px_4px_rgba(15,23,42,0.04)]",
+                    onClick ? "hover:shadow-[0_16px_48px_-8px_rgba(15,23,42,0.14),0_4px_12px_rgba(15,23,42,0.06)]" : ""
+                )
+                : "bg-gradient-to-br from-white/[0.08] to-white/[0.03] shadow-lg shadow-black/20"
+        )}>
+            {/* ── Inner core ───────────────────────────────────────────────── */}
+            <div
+                onClick={onClick}
+                className={cn(
+                    "h-full p-5 md:p-6 rounded-[calc(1.75rem-2px)] relative overflow-hidden flex flex-col",
+                    theme === 'light'
+                        ? "bg-white shadow-[inset_0_1px_0_rgba(255,255,255,1)]"
+                        : "bg-slate-800/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                )}
+            >
+                {/* Top accent stripe */}
+                <div className={cn("absolute top-0 left-0 right-0 h-[3px] rounded-t-[calc(1.75rem-2px)]", colorClass)} />
+                <div className="flex justify-between items-start mb-4 mt-1">
+                    <div className={cn("p-2 rounded-xl", colorClass)}>
+                        <Icon size={18} className="text-white" />
+                    </div>
+                    {onClick && (
+                        <div className={cn(
+                            "w-7 h-7 rounded-full flex items-center justify-center transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]",
+                            "opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 scale-90 group-hover:scale-100",
+                            theme === 'light' ? "bg-slate-100" : "bg-white/10"
+                        )}>
+                            <ArrowRight size={12} className={theme === 'light' ? "text-slate-500" : "text-white/60"} />
+                        </div>
+                    )}
                 </div>
-                {onClick && <ArrowRight size={16} className="opacity-0 group-hover:opacity-60 transition-all -translate-x-2 group-hover:translate-x-0" />}
-            </div>
-            <div className="mt-1 relative z-10">
-                <p className={cn("text-[10px] md:text-xs font-bold uppercase tracking-wider opacity-60 mb-0.5", getTextColor())}>{title}</p>
-                <h3 className={cn("text-xl md:text-2xl font-bold font-mono tracking-tight tabular-nums", getTextColor())}>{displayValue}</h3>
-                {delta && (
-                    <div className="flex items-center gap-1 mt-1">
-                        <span className={cn(
-                            "text-[10px] font-bold font-mono",
-                            delta.isUp === true ? 'text-emerald-500' : delta.isUp === false ? 'text-rose-500' : 'opacity-40'
-                        )}>{delta.text}</span>
-                        {deltaLabel && <span className={cn("text-[10px] opacity-50", getTextColor())}>vs {deltaLabel}</span>}
-                    </div>
-                )}
-                {breakdown ? (
-                    <div className={cn("text-[9px] md:text-[10px] mt-2 pt-2 border-t border-dashed border-gray-500/20 font-mono opacity-80", getTextColor())}>
-                        {breakdown}
-                    </div>
-                ) : (
-                    subtext && <p className={cn("text-[9px] md:text-[10px] mt-1 opacity-50 truncate", getTextColor())}>{subtext}</p>
-                )}
-                {isEmpty && emptyHint && (
-                    <p className={cn("text-[9px] md:text-[10px] mt-1 italic opacity-50", getTextColor())}>{emptyHint}</p>
-                )}
+                <div className="relative z-10">
+                    <p className={cn("text-[9px] font-semibold uppercase tracking-[0.18em] opacity-45 mb-1.5", getTextColor())}>{title}</p>
+                    {loading ? (
+                        <div className="space-y-2 py-1">
+                            <div className={cn("h-7 w-28 rounded-lg animate-pulse", theme === 'light' ? 'bg-slate-100' : 'bg-white/10')} />
+                            <div className={cn("h-3 w-20 rounded animate-pulse", theme === 'light' ? 'bg-slate-100' : 'bg-white/10')} />
+                        </div>
+                    ) : (
+                    <>
+                    <h3 className={cn("text-2xl md:text-3xl font-bold tracking-tight tabular-nums", getTextColor())}>{displayValue}</h3>
+                    {delta && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                            <span className={cn(
+                                "text-[10px] font-semibold tabular-nums",
+                                delta.isUp === true ? 'text-emerald-500' : delta.isUp === false ? 'text-rose-500' : 'opacity-40'
+                            )}>{delta.text}</span>
+                            {deltaLabel && <span className={cn("text-[10px] opacity-40", getTextColor())}>vs {deltaLabel}</span>}
+                        </div>
+                    )}
+                    {breakdown ? (
+                        <div className={cn("text-[9px] mt-2.5 pt-2 border-t border-dashed border-gray-500/15 font-mono opacity-70", getTextColor())}>
+                            {breakdown}
+                        </div>
+                    ) : (
+                        subtext && <p className={cn("text-[9px] mt-1.5 opacity-40 truncate", getTextColor())}>{subtext}</p>
+                    )}
+                    {isEmpty && emptyHint && (
+                        <p className={cn("text-[9px] mt-1.5 italic opacity-40", getTextColor())}>{emptyHint}</p>
+                    )}
+                    {/* Simple Collected / Pending split — always sums to the headline value above */}
+                    {typeof collected === 'number' && !isEmpty && (
+                        <div className="flex items-center gap-3 mt-2">
+                            <div>
+                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>Collected</p>
+                                <p className={cn("text-sm font-extrabold tabular-nums", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>{collected === 0 ? '₹0' : formatCurrency(collected)}</p>
+                            </div>
+                            <div>
+                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>Pending</p>
+                                <p className={cn("text-sm font-bold tabular-nums opacity-60", getTextColor())}>{pending === 0 ? '₹0' : formatCurrency(pending)}</p>
+                            </div>
+                        </div>
+                    )}
+                    {/* Reference line(s) — e.g. paid/owed to vendors */}
+                    {extraFaded && (Array.isArray(extraFaded) ? extraFaded : [extraFaded]).filter(Boolean).map((line: string, i: number) => (
+                        <p key={i} className={cn("text-[10px] mt-1 opacity-45 truncate", getTextColor())}>{line}</p>
+                    ))}
+                    </>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -604,20 +669,55 @@ const TOOLTIP_TRANSPARENT_CURSOR = { fill: 'transparent' };
 const ACTIVE_STAGES = new Set(['New', 'Contacted', 'Proposal Sent', 'Discussion']);
 const WIP_STAGES = new Set(['Contacted', 'Proposal Sent', 'Discussion']);
 
-const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter, override?: { start: Date | null; end: Date | null }) => {
+const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter, override?: { start: Date | null; end: Date | null }, paymentMap: Record<string, LeadPaymentSummary> = {}) => {
     const range = override ?? getPeriodRange(timeFilter);
     const startMs = range.start ? range.start.getTime() : null;
     const endMs = range.end ? range.end.getTime() : null;
+    const inPeriod = (t: number) => startMs === null || (t >= startMs && (endMs === null || t <= endMs));
 
-    const filteredLeads = leads.filter(l => {
-        if (startMs === null) return true;
-        const t = new Date(l.createdAt).getTime();
-        return t >= startMs && (endMs === null || t <= endMs);
-    });
+    const filteredLeads = leads.filter(l => inPeriod(new Date(l.createdAt).getTime()));
 
-    // Single accumulation pass
-    let totalRevenue = 0, totalNetCost = 0, wonCount = 0, lostCount = 0, pendingCount = 0, activePipelineCount = 0;
+    // ── Revenue & Profit — attributed to the month a deal was actually WON, not the month the
+    // lead was first created. A lead created in June that closes in July counts as July's sale.
+    // `wonAt` is stamped once, the first time a lead becomes Won, and never overwritten by later
+    // status changes (including cycling out of Won and back in) — so re-flipping a deal can't
+    // shift which month it's credited to. Older Won leads predating this field fall back to
+    // createdAt. Split into what's actually been collected/paid so far vs what's still pending —
+    // Collected + Pending always equals the headline number, by construction. ──
+    let totalRevenue = 0, revenueCollected = 0, totalCost = 0, costPaid = 0, profitCollected = 0;
     const revenueByAgent: Record<string, number> = {};
+    for (const l of leads) {
+        if (l.status !== 'Won') continue;
+        if (l.legacy) continue; // old-company / handled-differently deals never enter financial figures
+        const wonDate = l.wonAt || l.createdAt;
+        if (!inPeriod(new Date(wonDate).getTime())) continue;
+
+        const rev = l.commercials?.sellingPrice || 0;
+        const cost = l.commercials?.netCost || 0;
+        const revCollected = Math.min(paymentMap[l.id]?.collected || 0, rev || (paymentMap[l.id]?.collected || 0));
+        let vendorPaid = 0;
+        if (l.vendors && l.vendors.length > 0) {
+            for (const v of l.vendors) {
+                const paid = (v.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+                vendorPaid += Math.min(paid, v.cost || 0);
+            }
+        }
+        totalRevenue += rev;
+        revenueCollected += revCollected;
+        totalCost += cost;
+        costPaid += Math.min(vendorPaid, cost || vendorPaid);
+        // Profit collected — PER LEAD, capped at that lead's own margin. Never pool one
+        // deal's collected revenue against another deal's vendor payment: a thin-margin
+        // deal that's fully paid by the customer is NOT mostly profit — most of that cash
+        // is still owed to its own vendor, whether or not that vendor's been paid yet.
+        profitCollected += Math.max(0, revCollected - cost);
+        const agent = l.assignedTo || 'Unassigned';
+        revenueByAgent[agent] = (revenueByAgent[agent] || 0) + rev;
+    }
+
+    // ── Pipeline/funnel/conversion metrics — a separate question ("how is the pipeline of leads
+    // CREATED this period moving"), so these intentionally stay on createdAt, not wonAt. ──
+    let wonCount = 0, lostCount = 0, pendingCount = 0, activePipelineCount = 0;
     const funnelCounts: Record<string, number> = { 'New': 0, 'Contacted': 0, 'Proposal Sent': 0, 'Discussion': 0, 'Won': 0 };
     const pipelineValues: Record<string, number> = { 'New': 0, 'Contacted': 0, 'Proposal Sent': 0, 'Discussion': 0 };
     const destMap = new Map<string, any>();
@@ -625,21 +725,14 @@ const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter, override?: { s
     const sourceMap: Record<string, { total: number; won: number }> = {};
 
     for (const l of filteredLeads) {
-        const agent = l.assignedTo || 'Unassigned';
         const status = l.status;
         const isWon = status === 'Won';
         const isLost = status === 'Lost';
         const isActive = ACTIVE_STAGES.has(status);
         const isWip = WIP_STAGES.has(status);
 
-        // Revenue / win-loss
-        if (isWon) {
-            wonCount++;
-            const rev = l.commercials?.sellingPrice || 0;
-            totalRevenue += rev;
-            totalNetCost += l.commercials?.netCost || 0;
-            revenueByAgent[agent] = (revenueByAgent[agent] || 0) + rev;
-        } else if (isLost) {
+        if (isWon) wonCount++;
+        else if (isLost) {
             lostCount++;
         } else if (status === 'New') {
             pendingCount++;
@@ -682,7 +775,12 @@ const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter, override?: { s
 
     const totalClosed = wonCount + lostCount;
     const winRate = totalClosed > 0 ? (wonCount / totalClosed) * 100 : 0;
-    const netProfit = totalRevenue - totalNetCost;
+
+    // Clamp: collected/paid can exceed the recorded price/cost (overpayment) — never show negative "pending".
+    const revenuePending = Math.max(totalRevenue - revenueCollected, 0);
+    const costPending = Math.max(totalCost - costPaid, 0);
+    const netProfit = totalRevenue - totalCost;
+    const profitPending = netProfit - profitCollected;
 
     const funnelData = Object.entries(funnelCounts).map(([name, value]) => ({ name, value }));
     const pipelineByStage = ['New', 'Contacted', 'Proposal Sent', 'Discussion'].map(stage => ({
@@ -695,7 +793,7 @@ const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter, override?: { s
         .map(([name, d]) => ({ name, Total: d.total, Won: d.won, rate: d.total > 0 ? Math.round((d.won / d.total) * 100) : 0 }))
         .sort((a, b) => b.Total - a.Total);
 
-    return { totalRevenue, netProfit, winRate, pendingCount, funnelData, topDestinations, productStats, revenueByAgent, pipelineByStage, totalPipelineValue, activePipelineCount, sourceData };
+    return { totalRevenue, revenueCollected, revenuePending, netProfit, profitCollected, profitPending, costPending, winRate, pendingCount, funnelData, topDestinations, productStats, revenueByAgent, pipelineByStage, totalPipelineValue, activePipelineCount, sourceData };
 };
 
 const getStartOfDay = (date: Date) => { 
@@ -730,7 +828,10 @@ const getOperationalLeads = (leads: Lead[], tab: OpTab) => {
     return leads.filter(l => {
         if (l.status !== 'Won') return false;
         const startDate = getStartOfDay(new Date(l.tripDetails.startDate));
-        const endDate = addDays(startDate, 5); 
+        // Trip length comes from the lead's own "nights" field; a trip with no nights
+        // set is a 1-day trip (ongoing only on its start date) — never assume longer.
+        const nights = Number(l.tripDetails.nights) || 0;
+        const endDate = addDays(startDate, nights); // checkout day (start day itself when 0 nights)
 
         switch (tab) {
             case 'Ongoing Now': return startDate <= today && endDate >= today;
@@ -746,8 +847,14 @@ const getOperationalLeads = (leads: Lead[], tab: OpTab) => {
 // --- Main Page Component ---
 
 export const Dashboard = () => {
-  const { leads, allLeads, reminders, activityLogs } = useLeads();
+  const { leads, allLeads, reminders, activityLogs, isLoading: leadsLoading } = useLeads();
   const { user, users } = useAuth();
+  const { paymentSummary, paymentSummaryLoaded } = usePaymentSummary();
+  // Only the Revenue/Net Profit cards depend on payment data — everything else on the page
+  // only needs `leads`, so gating the WHOLE page on payments too just makes it feel slow.
+  // Skeleton the page on leads only; the two payment-dependent cards skeleton independently.
+  const dataReady = !leadsLoading;
+  const cashDataReady = paymentSummaryLoaded;
   const { theme, getTextColor, getSecondaryTextColor, getGlassClass } = useTheme();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -761,6 +868,15 @@ export const Dashboard = () => {
   const [viewAsAgent, setViewAsAgent] = useState<string>(initialAgent);
   const [compareMode, setCompareMode] = useState<boolean>(initialCompare);
   const [mobileAnalyticsTab, setMobileAnalyticsTab] = useState<'pipeline' | 'funnel' | 'sources'>('pipeline');
+  const [showCustomRange, setShowCustomRange] = useState(false);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [summarySending, setSummarySending] = useState(false);
+
+  // Derived: are custom dates fully filled in?
+  const customOverride = (showCustomRange && customStart && customEnd)
+    ? { start: new Date(customStart), end: new Date(customEnd + 'T23:59:59') }
+    : null;
 
   // Sticky quote — same all day
   const quote = useMemo(() => pickQuoteForToday(), []);
@@ -781,19 +897,29 @@ export const Dashboard = () => {
       return allLeads.filter(l => l.assignedTo === viewAsAgent);
   }, [user, leads, allLeads, viewAsAgent]);
 
-  const stats = useMemo(() => getDashboardStats(dashboardLeads, timeFilter), [dashboardLeads, timeFilter]);
+  const stats = useMemo(() => getDashboardStats(dashboardLeads, timeFilter, customOverride ?? undefined, paymentSummary), [dashboardLeads, timeFilter, customOverride, paymentSummary]);
 
   const prevStats = useMemo(() => {
       const r = getPeriodRange(timeFilter);
       if (!r.prevStart || !r.prevEnd) return null;
-      return getDashboardStats(dashboardLeads, timeFilter, { start: r.prevStart, end: r.prevEnd });
-  }, [dashboardLeads, timeFilter]);
+      return getDashboardStats(dashboardLeads, timeFilter, { start: r.prevStart, end: r.prevEnd }, paymentSummary);
+  }, [dashboardLeads, timeFilter, paymentSummary]);
 
   const periodLabel = useMemo(() => getPeriodRange(timeFilter).label, [timeFilter]);
 
   const opLeads = useMemo(() => getOperationalLeads(dashboardLeads, opTab), [dashboardLeads, opTab]);
 
-  const handleNav = (path: string) => navigate(path);
+  const handleNav = (path: string) => {
+    // Append the active date range so Leads pre-filters to the same period
+    const range = customOverride ?? getPeriodRange(timeFilter);
+    if (range.start) {
+      const from = range.start.toISOString().split('T')[0];
+      const to = range.end ? range.end.toISOString().split('T')[0] : '';
+      const sep = path.includes('?') ? '&' : '?';
+      path = path + sep + `from=${from}` + (to ? `&to=${to}` : '');
+    }
+    navigate(path);
+  };
 
   const hotLeads = useMemo(() => dashboardLeads
         .filter((l) => l.temperature === 'Hot' && l.status !== 'Won' && l.status !== 'Lost')
@@ -856,7 +982,7 @@ export const Dashboard = () => {
           if (!byAgent.has(a)) byAgent.set(a, { name: a, leads: 0, won: 0, revenue: 0, cost: 0 });
           const r = byAgent.get(a)!;
           r.leads++;
-          if (l.status === 'Won') {
+          if (l.status === 'Won' && !l.legacy) {
               r.won++;
               r.revenue += (l.commercials?.sellingPrice || l.tripDetails.budget || 0);
               r.cost += (l.commercials?.netCost || 0);
@@ -873,24 +999,6 @@ export const Dashboard = () => {
           new Date(l.lastStatusUpdate || l.createdAt).getTime() < cutoff
       ).length;
   }, [dashboardLeads]);
-
-  const bannerStyle: React.CSSProperties = theme === 'light'
-    ? {
-        backgroundImage: 'linear-gradient(135deg, #fffbeb, #fef3c7, #fff7ed, #fefce8, #fef9c3, #fffbeb)',
-        backgroundSize: '300% 300%',
-        animation: 'shimmerGradient 14s ease infinite',
-      }
-    : theme === 'ocean'
-    ? {
-        backgroundImage: 'linear-gradient(135deg, #1c1a14, #2a2310, #1f1c10, #2d2512, #1c1a14)',
-        backgroundSize: '300% 300%',
-        animation: 'shimmerGradient 18s ease infinite',
-      }
-    : {
-        backgroundImage: 'linear-gradient(135deg, #1c1a14, #211e10, #1a1810, #272210, #1c1a14)',
-        backgroundSize: '300% 300%',
-        animation: 'shimmerGradient 18s ease infinite',
-      };
 
   const isAdminGlobalView = user?.role === 'admin' && viewAsAgent === 'all';
 
@@ -910,7 +1018,7 @@ export const Dashboard = () => {
                 <Bell size={18} className={overdueReminders.length > 0 ? 'text-rose-500' : 'text-slate-400'} />
                 <div>
                     <div className={cn("text-xl font-extrabold leading-none", overdueReminders.length > 0 ? 'text-rose-500' : getTextColor())}>{overdueReminders.length}</div>
-                    <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Overdue Tasks</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 mt-1">Overdue Tasks</div>
                 </div>
                 <ArrowRight size={14} className="ml-auto opacity-30" />
             </button>
@@ -918,7 +1026,7 @@ export const Dashboard = () => {
                 <Radio size={18} className={staleLeads.length > 0 ? 'text-amber-500' : 'text-slate-400'} />
                 <div>
                     <div className={cn("text-xl font-extrabold leading-none", staleLeads.length > 0 ? 'text-amber-500' : getTextColor())}>{staleLeads.length}</div>
-                    <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Stale Leads (24h+)</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 mt-1">Stale Leads (24h+)</div>
                 </div>
                 <ArrowRight size={14} className="ml-auto opacity-30" />
             </button>
@@ -926,7 +1034,7 @@ export const Dashboard = () => {
                 <Plane size={18} className={departingLeads.length > 0 ? 'text-sky-500' : 'text-slate-400'} />
                 <div>
                     <div className={cn("text-xl font-extrabold leading-none", departingLeads.length > 0 ? 'text-sky-500' : getTextColor())}>{departingLeads.length}</div>
-                    <div className={cn("text-[11px] font-semibold mt-0.5", getSecondaryTextColor())}>Departing This Week</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 mt-1">Departing This Week</div>
                 </div>
                 <ArrowRight size={14} className="ml-auto opacity-30" />
             </button>
@@ -938,17 +1046,17 @@ export const Dashboard = () => {
     <div className="space-y-4">
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-                <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-orange-100 text-orange-600' : 'bg-orange-500/20 text-orange-300')}><PlaneTakeoff size={20} /></div>
+                <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-orange-100 text-orange-600' : 'bg-orange-500/20 text-orange-300')}><PlaneTakeoff size={20} strokeWidth={2.5} /></div>
                 <div>
-                    <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>Operations & Departures</h3>
-                    <p className={cn("text-xs opacity-60", getTextColor())}>Monitor active trips and upcoming departures</p>
+                    <h3 className={cn("text-lg font-bold tracking-tight leading-none", getTextColor())}>Operations & Departures</h3>
+                    <p className={cn("text-[11px] opacity-50 mt-0.5", getTextColor())}>Active trips & upcoming departures</p>
                 </div>
             </div>
         </div>
         <div className={cn("rounded-2xl border overflow-hidden", getGlassClass())}>
             <div className={cn("flex overflow-x-auto w-full whitespace-nowrap no-scrollbar p-2 gap-2 border-b", theme === 'light' ? 'bg-slate-50 border-slate-200' : theme === 'ocean' ? 'bg-blue-950/50 border-blue-800/40' : 'bg-slate-800/60 border-slate-700/50')}>
                 {(['Ongoing Now', 'Starts Tomorrow', 'This Week', 'Next Week', 'This Month'] as OpTab[]).map(tab => (
-                    <button key={tab} onClick={() => setOpTab(tab)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0", opTab === tab ? (theme === 'light' ? 'bg-white shadow text-blue-600' : theme === 'ocean' ? 'bg-blue-900 text-indigo-300 shadow border border-blue-700/50' : 'bg-slate-700 text-indigo-300 shadow') : "opacity-50 hover:opacity-100")}>{tab}</button>
+                    <button key={tab} onClick={() => setOpTab(tab)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all active:scale-[0.97] shrink-0", opTab === tab ? (theme === 'light' ? 'bg-slate-900 shadow-sm text-white' : theme === 'ocean' ? 'bg-blue-800 text-white shadow border border-blue-700/50' : 'bg-slate-600 text-white shadow') : "opacity-50 hover:opacity-100")}>{tab}</button>
                 ))}
             </div>
             <div className="p-4 md:p-6">
@@ -993,18 +1101,31 @@ export const Dashboard = () => {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-full flex flex-col">
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2"><Briefcase size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold font-serif", getTextColor())}>Priority Leads</h3></div>
+                <div className="flex items-center gap-2"><Briefcase size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold tracking-tight", getTextColor())}>Priority Leads</h3></div>
                 <Link to="/leads" className="text-xs text-blue-500 hover:underline">View All</Link>
             </div>
             <div className="space-y-3">
                 {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> :
                     hotLeads.map(lead => (
-                        <Link key={lead.id} to={`/leads/${lead.id}`} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all hover:border-blue-500/30 group", theme === 'light' ? "bg-slate-50 border-slate-100" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40 hover:border-blue-700/50" : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/40")}>
+                        <Link key={lead.id} to={`/leads/${lead.id}`} className={cn(
+                            "flex items-center justify-between p-3 rounded-2xl border group",
+                            "transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5",
+                            theme === 'light'
+                                ? "bg-slate-50/80 border-slate-100 hover:border-slate-200 hover:shadow-[0_4px_20px_-4px_rgba(15,23,42,0.10)]"
+                                : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40 hover:border-blue-700/50" : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/40"
+                        )}>
                             <div className="flex items-center gap-3">
                                 <UserAvatar name={lead.name} size={32} />
-                                <div><p className={cn("text-sm font-bold", getTextColor())}>{lead.name}</p><p className={cn("text-[10px] font-mono", getSecondaryTextColor())}>{lead.tripDetails.destination} • {formatCompactCurrency(lead.tripDetails.budget)}</p></div>
+                                <div><p className={cn("text-sm font-bold tracking-tight", getTextColor())}>{lead.name}</p><p className={cn("text-[10px] tabular-nums tracking-wide", getSecondaryTextColor())}>{lead.tripDetails.destination} · {formatCompactCurrency(lead.tripDetails.budget)}</p></div>
                             </div>
-                            <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-blue-500" />
+                            <div className={cn(
+                                "w-6 h-6 rounded-full flex items-center justify-center",
+                                "opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 scale-75 group-hover:scale-100",
+                                "transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
+                                theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-white/10 text-white/60"
+                            )}>
+                                <ArrowRight size={11} />
+                            </div>
                         </Link>
                     ))
                 }
@@ -1012,7 +1133,7 @@ export const Dashboard = () => {
         </Card>
         <Card className="h-full flex flex-col">
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2"><CalendarDays size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold font-serif", getTextColor())}>Today's Tasks</h3></div>
+                <div className="flex items-center gap-2"><CalendarDays size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold tracking-tight", getTextColor())}>Today's Tasks</h3></div>
                 <Link to="/reminders" className="text-xs text-blue-500 hover:underline">View Agenda</Link>
             </div>
             <div className="space-y-3">
@@ -1030,50 +1151,85 @@ export const Dashboard = () => {
   );
 
   const kpiSection = (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <KPICard
-            title={isAdminGlobalView ? "Total Revenue" : "Revenue"}
-            value={formatCurrency(stats.totalRevenue)}
-            rawValue={stats.totalRevenue}
-            formatFn={formatCurrency}
-            subtext="Closed Won Deals"
-            breakdown={revenueBreakdown}
-            icon={DollarSign}
-            colorClass="bg-emerald-500"
-            delta={deltas?.revenue}
-            deltaLabel={periodLabel}
-            emptyHint="Add a lead and close it to start tracking revenue"
-            onClick={() => handleNav('/leads?status=Won')}
-        />
-        <KPICard
-            title="Net Profit"
-            value={formatCurrency(stats.netProfit)}
-            rawValue={stats.netProfit}
-            formatFn={formatCurrency}
-            subtext="Revenue - Net Cost"
-            icon={TrendingUp}
-            colorClass="bg-blue-500"
-            delta={deltas?.profit}
-            deltaLabel={periodLabel}
-            emptyHint="No closed deals yet"
-            onClick={() => handleNav('/leads?status=Won')}
-        />
-        <div onClick={() => handleNav('/leads?status=Won,Lost')} className="cursor-pointer">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 items-stretch">
+        {/* Revenue — double-wide anchor card */}
+        <motion.div
+            className="col-span-2 h-full"
+            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.6, delay: 0, ease: [0.32, 0.72, 0, 1] }}
+        >
+            <KPICard
+                title={isAdminGlobalView ? "Total Revenue" : "Revenue"}
+                value={formatCurrency(stats.totalRevenue)}
+                rawValue={stats.totalRevenue}
+                formatFn={formatCurrency}
+                subtext="Closed Won Deals"
+                breakdown={revenueBreakdown}
+                collected={stats.revenueCollected}
+                pending={stats.revenuePending}
+                icon={DollarSign}
+                colorClass="bg-emerald-500"
+                delta={deltas?.revenue}
+                deltaLabel={periodLabel}
+                emptyHint="Add a lead and close it to start tracking revenue"
+                onClick={() => handleNav('/leads?status=Won')}
+                loading={!cashDataReady}
+            />
+        </motion.div>
+        <motion.div
+            className="h-full"
+            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.6, delay: 0.07, ease: [0.32, 0.72, 0, 1] }}
+        >
+            <KPICard
+                title="Net Profit"
+                value={formatCurrency(stats.netProfit)}
+                rawValue={stats.netProfit}
+                formatFn={formatCurrency}
+                subtext="Revenue - Net Cost"
+                collected={stats.profitCollected}
+                pending={stats.profitPending}
+                extraFaded={user?.role === 'admin' && stats.costPending > 0 ? `${formatCompactCurrency(stats.costPending)} owed to vendors` : null}
+                icon={TrendingUp}
+                colorClass="bg-blue-500"
+                delta={deltas?.profit}
+                deltaLabel={periodLabel}
+                emptyHint="No cash movement in this period yet"
+                onClick={() => handleNav('/leads?status=Won')}
+                loading={!cashDataReady}
+            />
+        </motion.div>
+        <motion.div
+            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.6, delay: 0.14, ease: [0.32, 0.72, 0, 1] }}
+            onClick={() => handleNav('/leads?status=Won,Lost')}
+            className="cursor-pointer h-full"
+        >
             <RadialGauge value={stats.winRate} label="Win Rate" subtext={deltas?.winRate ? `${deltas.winRate.text} vs ${periodLabel}` : "Won vs Total Closed"} />
-        </div>
-        <KPICard
-            title="New Leads"
-            value={stats.pendingCount}
-            rawValue={stats.pendingCount}
-            formatFn={(n: number) => String(n)}
-            subtext={staleActiveCount > 0 ? `+ ${staleActiveCount} stale active` : "Untouched, status: New"}
-            icon={Clock}
-            colorClass="bg-rose-500"
-            delta={deltas?.pending}
-            deltaLabel={periodLabel}
-            emptyHint="No new leads in this period"
-            onClick={() => handleNav('/leads?status=New')}
-        />
+        </motion.div>
+        <motion.div
+            className="h-full"
+            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.6, delay: 0.21, ease: [0.32, 0.72, 0, 1] }}
+        >
+            <KPICard
+                title="New Leads"
+                value={stats.pendingCount}
+                rawValue={stats.pendingCount}
+                formatFn={(n: number) => String(n)}
+                subtext={staleActiveCount > 0 ? `+ ${staleActiveCount} stale active` : "Untouched, status: New"}
+                icon={Clock}
+                colorClass="bg-rose-500"
+                delta={deltas?.pending}
+                deltaLabel={periodLabel}
+                emptyHint="No new leads in this period"
+                onClick={() => handleNav('/leads?status=New')}
+            />
+        </motion.div>
     </div>
   );
 
@@ -1081,7 +1237,7 @@ export const Dashboard = () => {
     <Card className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
             <div>
-                <div className="flex items-center gap-2 mb-1"><div className={cn("p-1.5 rounded bg-indigo-500/10 text-indigo-500")}><TrendingUp size={15} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Pipeline Value</h3></div>
+                <div className="flex items-center gap-2 mb-1"><div className={cn("p-1.5 rounded bg-blue-500/10 text-blue-500")}><TrendingUp size={15} strokeWidth={2.5} /></div><h3 className={cn("font-bold tracking-tight", getTextColor())}>Pipeline Value</h3></div>
                 <p className={cn("text-2xl font-extrabold tracking-tight", getTextColor())}>{formatCompactCurrency(stats.totalPipelineValue)}</p>
                 <p className={cn("text-[11px] mt-0.5", getSecondaryTextColor())}>{stats.activePipelineCount} active leads across 4 stages</p>
             </div>
@@ -1106,7 +1262,7 @@ export const Dashboard = () => {
   const analyticsSection = (
     <div className={cn("grid grid-cols-1 xl:grid-cols-4 gap-6", viewAsAgent !== 'all' && "border-2 border-dashed border-amber-500/20 p-4 rounded-3xl relative")}>
         <Card className="xl:col-span-1 min-h-[300px] flex flex-col">
-            <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-blue-500/10 text-blue-500")}><Activity size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Lead Funnel</h3></div>
+            <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-blue-500/10 text-blue-500")}><Activity size={16} strokeWidth={2.5} /></div><h3 className={cn("font-bold tracking-tight", getTextColor())}>Lead Funnel</h3></div>
             <div className="flex-1 w-full min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart layout="vertical" data={stats.funnelData} margin={{ left: 0, right: 30, top: 10, bottom: 10 }}>
@@ -1124,7 +1280,7 @@ export const Dashboard = () => {
         </Card>
         <div className="xl:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="flex flex-col">
-                <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-teal-500/10 text-teal-500")}><Package size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Product Matrix</h3></div>
+                <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-teal-500/10 text-teal-500")}><Package size={16} strokeWidth={2.5} /></div><h3 className={cn("font-bold tracking-tight", getTextColor())}>Product Matrix</h3></div>
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left text-sm", getTextColor())}>
                         <thead><tr className={cn("border-b border-gray-500/10 text-xs uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75')}><th className="pb-3 font-bold pl-2">Service</th><th className="pb-3 font-bold text-center">Activity</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
@@ -1143,7 +1299,7 @@ export const Dashboard = () => {
                 </div>
             </Card>
             <Card className="flex flex-col">
-                <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-purple-500/10 text-purple-500")}><MapPin size={16} /></div><h3 className={cn("font-bold font-serif", getTextColor())}>Destination Matrix</h3></div>
+                <div className="flex items-center gap-2 mb-6"><div className={cn("p-1.5 rounded bg-purple-500/10 text-purple-500")}><MapPin size={16} strokeWidth={2.5} /></div><h3 className={cn("font-bold tracking-tight", getTextColor())}>Destination Matrix</h3></div>
                 <div className="overflow-x-auto">
                     <table className={cn("w-full text-left text-sm", getTextColor())}>
                         <thead><tr className={cn("border-b border-gray-500/10 text-xs uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75')}><th className="pb-3 font-bold pl-2">Dest</th><th className="pb-3 font-bold text-center">Trend</th><th className="pb-3 font-bold text-center">Won</th><th className="pb-3 font-bold text-right pr-2">Value</th></tr></thead>
@@ -1175,8 +1331,8 @@ export const Dashboard = () => {
               ['sources', 'Sources'],
           ] as const).map(([k, label]) => (
               <button key={k} onClick={() => setMobileAnalyticsTab(k)} className={cn(
-                  "flex-1 px-2 py-1.5 rounded-lg transition-colors",
-                  mobileAnalyticsTab === k ? (theme === 'light' ? 'bg-blue-100 text-blue-600' : 'bg-blue-500/20 text-indigo-300') : 'opacity-50'
+                  "flex-1 px-2 py-1.5 rounded-lg transition-all active:scale-[0.97]",
+                  mobileAnalyticsTab === k ? (theme === 'light' ? 'bg-slate-900 text-white' : 'bg-slate-600 text-white') : 'opacity-50'
               )}>{label}</button>
           ))}
       </div>
@@ -1189,7 +1345,7 @@ export const Dashboard = () => {
           <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                   <div className={cn("p-1.5 rounded bg-amber-500/10 text-amber-500")}><Crown size={16} /></div>
-                  <h3 className={cn("font-bold font-serif", getTextColor())}>Agent Comparison</h3>
+                  <h3 className={cn("font-bold tracking-tight", getTextColor())}>Agent Comparison</h3>
               </div>
               <button onClick={() => setCompareMode(false)} className="text-xs opacity-60 hover:opacity-100">Hide</button>
           </div>
@@ -1201,7 +1357,7 @@ export const Dashboard = () => {
                           <div className="flex items-center gap-2 mb-2">
                               <UserAvatar name={r.name} size={26} animate={false} />
                               <span className={cn("font-bold text-sm", getTextColor())}>{r.name}</span>
-                              {idx === 0 && <span className="text-xs">🥇</span>}
+                              {idx === 0 && <Trophy size={13} strokeWidth={2.5} className="text-amber-500" />}
                           </div>
                           {(() => {
                               const profit = r.revenue - r.cost;
@@ -1225,8 +1381,8 @@ export const Dashboard = () => {
   const sourcesSection = stats.sourceData.length > 0 ? (
     <Card className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-            <div className={cn("p-1.5 rounded bg-rose-500/10 text-rose-500")}><Filter size={15} /></div>
-            <h3 className={cn("font-bold font-serif", getTextColor())}>Lead Sources</h3>
+            <div className={cn("p-1.5 rounded bg-rose-500/10 text-rose-500")}><Filter size={15} strokeWidth={2.5} /></div>
+            <h3 className={cn("font-bold tracking-tight", getTextColor())}>Lead Sources</h3>
             <span className={cn("text-xs opacity-50 ml-1", getSecondaryTextColor())}>Which channel converts best?</span>
         </div>
         <div className="h-48 w-full">
@@ -1268,61 +1424,58 @@ export const Dashboard = () => {
 
   // ---- Render ----
 
+  // Don't paint a figure until leads + payment records have both loaded — otherwise the
+  // cash-basis Revenue/Net Profit cards flash ₹0 (or a stale number) before settling.
+  if (!dataReady) {
+    const pulse = theme === 'light' ? 'bg-slate-100' : 'bg-white/5';
+    return (
+      <div className="space-y-6 md:space-y-8 pb-20 px-2 md:px-0">
+        <div className="flex items-center justify-between">
+          <div className={cn('h-7 w-64 rounded-lg animate-pulse', pulse)} />
+          <div className={cn('h-9 w-72 rounded-lg animate-pulse', pulse)} />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+          <div className={cn('col-span-2 h-40 rounded-[1.75rem] animate-pulse', pulse)} />
+          <div className={cn('h-40 rounded-[1.75rem] animate-pulse', pulse)} />
+          <div className={cn('h-40 rounded-[1.75rem] animate-pulse', pulse)} />
+          <div className={cn('h-40 rounded-[1.75rem] animate-pulse', pulse)} />
+        </div>
+        <div className={cn('h-64 rounded-2xl animate-pulse', pulse)} />
+        <div className={cn('h-96 rounded-2xl animate-pulse', pulse)} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-20 px-2 md:px-0">
 
-      {/* Header — always first */}
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-2xl p-5 md:p-6",
-          theme === 'light'
-            ? "border border-amber-200/80 shadow-sm"
-            : theme === 'ocean'
-              ? "border border-amber-900/40"
-              : "border border-amber-900/30"
-        )}
-        style={bannerStyle}
-      >
-        <div className={cn("absolute -top-6 -right-6 w-32 h-32 rounded-full blur-2xl pointer-events-none", theme === 'light' ? 'bg-amber-200/60' : 'bg-amber-500/10')} />
-
-        {/* Travel theme: flight path + plane */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 600 110" fill="none">
-          <path d="M -10 95 Q 220 10 580 48" stroke='#d97706' strokeWidth="1.5" strokeDasharray="9 6" opacity={theme === 'light' ? '0.20' : '0.12'} />
-          <circle cx="0"   cy="95" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
-          <circle cx="220" cy="22" r="2.5" fill='#d97706' opacity={theme === 'light' ? '0.20' : '0.12'} />
-          <circle cx="580" cy="48" r="3"   fill='#d97706' opacity={theme === 'light' ? '0.25' : '0.15'} />
-        </svg>
-        <div className="absolute pointer-events-none select-none" style={{ right: '16px', top: '50%', transform: 'translateY(-50%) rotate(-10deg)', opacity: theme === 'light' ? 0.08 : 0.06 }}>
-          <PlaneTakeoff size={115} strokeWidth={0.75} className="text-amber-700" />
-        </div>
-
-        {/* Greeting + controls in one row */}
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h1 className="text-xl md:text-3xl font-extrabold leading-tight bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 bg-clip-text text-transparent">
+      {/* Header — compact toolbar row */}
+      <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="min-w-0 flex items-baseline gap-2.5 flex-wrap">
+            <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>
               {getGreeting(user?.name || 'Expert')}
             </h1>
-            <p className={cn("text-sm italic mt-1 font-medium line-clamp-1 md:line-clamp-none", theme === 'light' ? 'text-amber-800/60' : 'text-amber-200/50')}>
-              "{quote}"
-            </p>
+            <span className={cn("text-[11px] font-semibold hidden lg:inline truncate", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+              {quote}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {/* CEO Mode Switcher */}
             {user?.role === 'admin' && (
               <div className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all backdrop-blur-sm",
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all",
                 viewAsAgent !== 'all'
-                  ? "bg-amber-50/80 border-amber-300"
-                  : (theme === 'light' ? "bg-white/70 border-amber-200/60" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")
+                  ? "bg-amber-50 border-amber-300"
+                  : (theme === 'light' ? "bg-white border-slate-200 shadow-sm" : theme === 'ocean' ? "bg-blue-950/50 border-blue-800/40" : "bg-slate-800/60 border-slate-700/50")
               )}>
                 <Eye size={13} className={viewAsAgent !== 'all' ? "text-amber-600" : "opacity-50"} />
-                <span className={cn("text-xs font-bold uppercase tracking-wider opacity-70 hidden md:inline", viewAsAgent !== 'all' && "text-amber-700")}>Viewing:</span>
+                <span className={cn("text-[10px] font-semibold uppercase tracking-wider opacity-60 hidden md:inline", viewAsAgent !== 'all' && "text-amber-700")}>Viewing</span>
                 <select
                   value={viewAsAgent}
                   onChange={(e) => setViewAsAgent(e.target.value)}
                   className={cn(
-                    "bg-transparent outline-none text-sm font-bold cursor-pointer",
+                    "bg-transparent outline-none text-xs font-bold cursor-pointer",
                     viewAsAgent !== 'all' ? "text-amber-700" : getTextColor(),
                     "[&>option]:text-black"
                   )}
@@ -1340,10 +1493,10 @@ export const Dashboard = () => {
                 <button
                     onClick={() => setCompareMode(v => !v)}
                     className={cn(
-                        "px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all backdrop-blur-sm shadow-sm",
+                        "px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wider transition-all",
                         compareMode
-                            ? "bg-amber-500 border-amber-500 text-white"
-                            : (theme === 'light' ? "bg-white/70 border-amber-200/60 text-amber-800/70 hover:text-amber-900" : "bg-slate-800/60 border-slate-700/50 text-white/60 hover:text-white/90")
+                            ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                            : (theme === 'light' ? "bg-white border-slate-200 text-slate-500 shadow-sm hover:text-slate-800" : "bg-slate-800/60 border-slate-700/50 text-white/60 hover:text-white/90")
                     )}
                     title="Compare agents side-by-side"
                 >
@@ -1351,28 +1504,104 @@ export const Dashboard = () => {
                 </button>
             )}
 
-            {/* Time Filter */}
-            <div className={cn(
-              "relative p-1 rounded-xl flex gap-1 backdrop-blur-sm",
-              theme === 'light' ? "bg-white/70 border border-amber-200/60" : theme === 'ocean' ? "bg-blue-950/50 border border-blue-800/40" : "bg-slate-800/60 border border-slate-700/50"
-            )}>
-              {(['Today', 'This Week', 'This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
+            {/* Send WhatsApp summary now (admin only) */}
+            {user?.role === 'admin' && (
                 <button
-                  key={tf}
-                  onClick={() => setTimeFilter(tf)}
+                    onClick={async () => {
+                        if (summarySending) return;
+                        setSummarySending(true);
+                        try {
+                            const apiBase = (import.meta as any).env?.DEV ? 'https://ttecrm.vercel.app' : '';
+                            const r = await fetch(`${apiBase}/api/team-summary`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ period: 'daily' }),
+                            });
+                            const d = await r.json().catch(() => ({}));
+                            alert(r.ok && d.sent > 0 ? 'Summary sent to your WhatsApp ✓' : (d.skipped || d.error || 'Could not send — check your phone number in Team Settings.'));
+                        } catch { alert('Could not send summary.'); }
+                        finally { setSummarySending(false); }
+                    }}
+                    className={cn(
+                        "px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wider transition-all",
+                        theme === 'light' ? "bg-white border-slate-200 text-slate-500 shadow-sm hover:text-emerald-700 hover:border-emerald-300" : "bg-slate-800/60 border-slate-700/50 text-white/60 hover:text-white/90"
+                    )}
+                    title="WhatsApp today's summary to admin now"
+                >
+                    {summarySending ? 'Sending…' : '📊 Summary'}
+                </button>
+            )}
+
+            {/* Time Filter */}
+            <div className="flex flex-col items-end gap-1.5">
+              <div className={cn(
+                "relative p-1 rounded-lg flex gap-0.5",
+                theme === 'light' ? "bg-slate-100 border border-slate-200/60" : theme === 'ocean' ? "bg-blue-950/50 border border-blue-800/40" : "bg-slate-800/60 border border-slate-700/50"
+              )}>
+                {(['Today', 'This Week', 'This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
+                  <button
+                    key={tf}
+                    onClick={() => { setTimeFilter(tf); setShowCustomRange(false); }}
+                    className={cn(
+                      "px-2 md:px-2.5 py-1.5 rounded-md text-[10px] md:text-[11px] font-bold transition-all active:scale-[0.97] whitespace-nowrap",
+                      timeFilter === tf && !showCustomRange
+                        ? (theme === 'light' ? "bg-white shadow-sm text-indigo-600" : theme === 'ocean' ? "bg-blue-800 text-white shadow" : "bg-slate-600 text-white shadow")
+                        : (theme === 'light' ? "text-slate-500 hover:text-slate-800" : "text-white/50 hover:text-white/80")
+                    )}
+                  >
+                    {tf}
+                  </button>
+                ))}
+
+                {/* Custom Range toggle */}
+                <button
+                  onClick={() => setShowCustomRange(p => !p)}
                   className={cn(
-                    "px-2 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap",
-                    timeFilter === tf
-                      ? (theme === 'light' ? "bg-amber-500 shadow text-white" : theme === 'ocean' ? "bg-blue-900 text-indigo-300 shadow" : "bg-slate-700 text-indigo-300 shadow")
-                      : (theme === 'light' ? "text-amber-800/60 hover:text-amber-900" : "text-white/50 hover:text-white/80")
+                    "px-2 md:px-2.5 py-1.5 rounded-md text-[10px] md:text-[11px] font-bold transition-all active:scale-[0.97] whitespace-nowrap",
+                    showCustomRange
+                      ? (theme === 'light' ? "bg-slate-900 shadow text-white" : "bg-slate-600 text-white shadow")
+                      : (theme === 'light' ? "text-slate-500 hover:text-slate-800" : "text-white/50 hover:text-white/80")
                   )}
                 >
-                  {tf}
+                  Custom
                 </button>
-              ))}
+              </div>
+
+              {/* Date pickers — appear below pill when Custom is active */}
+              {showCustomRange && (
+                <div className={cn(
+                  "flex items-center gap-1.5 p-1 pl-2 rounded-xl border text-xs font-semibold animate-scale-pop",
+                  theme === 'light' ? "bg-white border-slate-300" : "bg-slate-800 border-slate-600/50"
+                )}>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">From</span>
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={e => setCustomStart(e.target.value)}
+                    className={cn(
+                      "text-[11px] font-bold outline-none bg-transparent cursor-pointer",
+                      theme === 'light' ? "text-slate-800" : "text-white"
+                    )}
+                  />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</span>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={e => setCustomEnd(e.target.value)}
+                    className={cn(
+                      "text-[11px] font-bold outline-none bg-transparent cursor-pointer",
+                      theme === 'light' ? "text-slate-800" : "text-white"
+                    )}
+                  />
+                  {customOverride && (
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 ml-1">
+                      Active
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        </div>
       </div>
 
       {/* --- ROLE-DIFFERENTIATED LAYOUT --- */}

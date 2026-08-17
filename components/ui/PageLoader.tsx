@@ -27,16 +27,26 @@ export const PageLoader = () => {
       {/* Card */}
       <div className={cn('flex flex-col items-center gap-6 px-10 py-9 rounded-3xl border', cardBg)}>
 
-        {/* Logo mark */}
-        <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+        {/* Logo mark with spinning accent ring */}
+        <div className="relative w-20 h-20 flex items-center justify-center">
+          {/* Rotating conic ring */}
+          <div
+            className="absolute inset-0 rounded-full animate-spin"
+            style={{
+              animationDuration: '2.4s',
+              background: 'conic-gradient(from 0deg, transparent 0deg, transparent 240deg, #8b5cf6 300deg, #3b82f6 340deg, #6366f1 360deg)',
+              WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+              mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+            }}
+          />
+          <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
             {/* Plane icon SVG */}
             <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-white" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 19.5 2.5S18 2 16.5 3.5L13 7 4.8 5.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
             </svg>
           </div>
-          {/* Pulse ring */}
-          <div className="absolute inset-0 rounded-2xl animate-ping opacity-20 bg-indigo-500" />
+          {/* Soft pulse halo */}
+          <div className="absolute w-16 h-16 rounded-2xl animate-ping opacity-15 bg-indigo-500" />
         </div>
 
         {/* App name */}

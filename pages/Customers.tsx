@@ -23,7 +23,9 @@ import {
   History,
   Globe,
   UserCheck,
-  MessageSquare
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -148,57 +150,70 @@ export const Customers = () => {
   return (
     <div className="relative min-h-[calc(100vh-100px)]">
       
-      {/* --- Header & Search --- */}
-      <div className="flex flex-col items-center justify-center py-8 space-y-6">
-          <h1 className={cn("text-4xl font-bold font-serif text-center", getTextColor())}>Customer Directory</h1>
-          
-          <div className="relative w-full max-w-xl group">
-              <div className={cn(
-                  "absolute inset-0 rounded-2xl blur-lg transition-opacity duration-300 opacity-20 group-hover:opacity-30",
-                   theme === 'light' ? 'bg-blue-300' : 'bg-blue-500'
-              )}></div>
-              <div className={cn(
-                  "relative flex items-center px-4 rounded-2xl transition-all border",
-                  theme === 'light' ? 'bg-white border-slate-200 shadow-xl' : 'bg-white/10 border-white/20 backdrop-blur-xl shadow-2xl'
-              )}>
-                  <Search size={20} className="opacity-50 shrink-0 mr-3" />
-                  <input 
-                      type="text" 
-                      placeholder="Search by Name, Mobile, or Destination (e.g., Bali)..." 
-                      className={cn("w-full py-4 bg-transparent outline-none text-lg", getInputClass(), "border-none focus:ring-0")}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      autoFocus
-                  />
-                  {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-500/10 rounded-full">
-                          <X size={16} />
-                      </button>
-                  )}
-              </div>
+      {/* --- Header & Search Toolbar --- */}
+      <div className="mb-6 space-y-4">
+          <div className="flex items-baseline gap-2.5">
+              <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Customers</h1>
+              <span className={cn("text-sm font-medium", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+                  {customers.length} {customers.length === 1 ? 'contact' : 'contacts'}
+              </span>
+          </div>
+
+          <div className={cn(
+              "flex items-center px-4 rounded-xl transition-all border focus-within:ring-1",
+              theme === 'light'
+                  ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] focus-within:ring-slate-300 focus-within:border-slate-300'
+                  : 'bg-white/5 border-white/10 focus-within:ring-white/20'
+          )}>
+              <Search size={18} strokeWidth={2} className="opacity-40 shrink-0 mr-3" />
+              <input
+                  type="text"
+                  placeholder="Search by name, mobile, or destination..."
+                  className={cn("w-full py-3 bg-transparent outline-none text-sm", getInputClass(), "border-none focus:ring-0")}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  autoFocus
+              />
+              {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-500/10 rounded-full transition-colors">
+                      <X size={16} strokeWidth={2} />
+                  </button>
+              )}
           </div>
       </div>
 
       {/* --- Customer List (Table) --- */}
-      <Card noPadding className="overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card noPadding className="overflow-hidden shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="overflow-x-auto">
             <table className={cn("w-full text-left border-collapse", getTextColor())}>
                 <thead>
                     <tr className={cn(theme === 'light' ? 'bg-slate-50 border-b border-slate-200' : 'bg-white/5 border-b border-white/10')}>
-                        <th className="p-5 font-bold font-serif text-sm w-1/3">Customer</th>
+                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 w-1/3">Customer</th>
                         {/* Admin Only: Agent Column */}
-                        {user?.role === 'admin' && <th className="p-5 font-bold font-serif text-sm">Agent</th>}
-                        <th className="p-5 font-bold font-serif text-sm hidden md:table-cell">Destinations Visited</th>
-                        <th className="p-5 font-bold font-serif text-sm hidden lg:table-cell">Stats</th>
-                        <th className="p-5 font-bold font-serif text-sm text-right">Action</th>
+                        {user?.role === 'admin' && <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50">Agent</th>}
+                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden md:table-cell">Destinations Visited</th>
+                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden lg:table-cell">Stats</th>
+                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody className={cn("divide-y", theme === 'light' ? 'divide-slate-100' : 'divide-white/5')}>
                     {filteredCustomers.length === 0 ? (
                         <tr>
-                            <td colSpan={user?.role === 'admin' ? 5 : 4} className="p-12 text-center opacity-50">
-                                <User size={48} className="mx-auto mb-2 opacity-30" />
-                                <p>No customers found matching "{searchQuery}".</p>
+                            <td colSpan={user?.role === 'admin' ? 5 : 4} className="p-16">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className={cn(
+                                        "w-14 h-14 rounded-2xl flex items-center justify-center mb-4",
+                                        theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-white/5 text-white/40'
+                                    )}>
+                                        <User size={24} strokeWidth={2} />
+                                    </div>
+                                    <p className={cn("text-base font-semibold", getTextColor())}>
+                                        {searchQuery ? `No customers match "${searchQuery}"` : 'No customers yet'}
+                                    </p>
+                                    <p className={cn("text-sm mt-1", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+                                        {searchQuery ? 'Try a different search term.' : 'Customers appear here as leads are added.'}
+                                    </p>
+                                </div>
                             </td>
                         </tr>
                     ) : filteredCustomers.map((customer) => (
@@ -222,15 +237,15 @@ export const Customers = () => {
 
                                 <div className="flex items-center gap-4">
                                     <div className={cn(
-                                        "w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 transition-transform duration-300 group-hover:scale-110", 
-                                        theme === 'light' ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md' : 'bg-white/10 border border-white/10 text-white'
+                                        "w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-transform duration-300 group-hover:scale-105",
+                                        theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10 border border-white/10 text-white'
                                     )}>
                                         {getInitials(customer.name)}
                                     </div>
                                     <div>
                                         <h3 className={cn(
                                             "font-bold text-base leading-tight transition-colors",
-                                            theme === 'light' ? "group-hover:text-blue-600" : "group-hover:text-blue-400"
+                                            getTextColor()
                                         )}>{customer.name}</h3>
                                         <div className={cn("flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1 text-xs opacity-70 transition-colors group-hover:text-slate-800", getSecondaryTextColor())}>
                                             <div className="flex items-center gap-1">
@@ -337,12 +352,12 @@ export const Customers = () => {
                         <div className="flex items-center gap-4">
                             <div className={cn(
                                 "w-16 h-16 rounded-full flex items-center justify-center font-bold text-2xl shadow-lg",
-                                theme === 'light' ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white' : 'bg-white/10 text-white border border-white/20'
+                                theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10 text-white border border-white/20'
                             )}>
                                 {getInitials(selectedCustomer.name)}
                             </div>
                             <div>
-                                <h2 className={cn("text-2xl font-bold font-serif", getTextColor())}>{selectedCustomer.name}</h2>
+                                <h2 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>{selectedCustomer.name}</h2>
                                 <p className={cn("text-sm opacity-60", getTextColor())}>Customer since {new Date(selectedCustomer.leads[selectedCustomer.leads.length - 1].createdAt).getFullYear()}</p>
                                 {/* Admin Only: Drawer Badge */}
                                 {user?.role === 'admin' && selectedCustomer.assignedTo && (
@@ -462,10 +477,10 @@ export const Customers = () => {
                                                         <span className={cn("text-[9px] font-bold uppercase tracking-wider opacity-60", getTextColor())}>{interaction.type}</span>
                                                         {interaction.sentiment && interaction.sentiment !== 'Neutral' && (
                                                             <span className={cn(
-                                                                "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none",
+                                                                "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none flex items-center gap-0.5",
                                                                 interaction.sentiment === 'Positive' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'
                                                             )}>
-                                                                {interaction.sentiment === 'Positive' ? '👍' : '👎'}
+                                                                {interaction.sentiment === 'Positive' ? <ThumbsUp size={9} strokeWidth={2.5} /> : <ThumbsDown size={9} strokeWidth={2.5} />}
                                                             </span>
                                                         )}
                                                         {fromLead && (

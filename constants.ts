@@ -259,169 +259,201 @@ export const STATUS_COLUMNS = ['New', 'Contacted', 'Proposal Sent', 'Discussion'
 
 // --- ITINERARY BUILDER DATA ---
 
-export const HOTEL_DATA: Record<string, Hotel[]> = { 
-  Bhuj: [ 
-    { 
-      name: 'Canyon Inn', 
-      rate: 2800, 
-      type: 'CPAI', 
-      tier: 'Budget', 
-      img: 'https://r2imghtlak.mmtcdn.com/r2-mmt-htl-image/htl-imgs/202408051554299523-ff55c592-4431-46f9-b238-45f37edfd52c.jpg',
-      roomTypes: [
-        { name: 'Standard Room', capacity: 2, rate: 2800 },
-        { name: 'Family Room', capacity: 4, rate: 4500 }
-      ]
-    }, 
-    { 
-      name: 'Kutch Elegance', 
-      rate: 2450, 
-      type: 'CPAI', 
-      tier: 'Budget', 
+export const HOTEL_DATA: Record<string, Hotel[]> = {
+  Bhuj: [
+    // --- Budget ---
+    {
+      name: 'Kutch Elegance', rate: 2450, type: 'CPAI', tier: 'Budget',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSswwJgLyDQKyWxDaptiV4q-V2FCrbKhhKXIQ&s',
       roomTypes: [
-        { name: 'Deluxe', capacity: 2, rate: 2450 },
-        { name: 'Super Deluxe', capacity: 2, rate: 2800 }
+        { name: 'Deluxe AC Room', capacity: 2, rate: 2450 }
       ]
-    }, 
-    { 
-      name: 'Dream Resort', 
-      rate: 3500, 
-      type: 'CPAI', 
-      tier: 'Budget', 
+    },
+    {
+      name: 'Canyon Inn', rate: 2800, type: 'CPAI', tier: 'Budget',
+      img: 'https://r2imghtlak.mmtcdn.com/r2-mmt-htl-image/htl-imgs/202408051554299523-ff55c592-4431-46f9-b238-45f37edfd52c.jpg',
+      roomTypes: [
+        { name: 'Deluxe AC', capacity: 2, rate: 2800 },
+        { name: 'Super Deluxe AC', capacity: 2, rate: 3200 }
+      ]
+    },
+    {
+      name: 'Dream Resort', rate: 3500, type: 'CPAI', tier: 'Budget',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSPITT_cvmmTWfZfvSGpkmQLC9qpjSPMuXrcg&s',
       roomTypes: [
-        { name: 'Cottage', capacity: 2, rate: 3500 },
-        { name: 'Family Cottage', capacity: 4, rate: 5500 }
+        { name: 'Super Deluxe AC', capacity: 2, rate: 3500 },
+        { name: 'Executive Super Deluxe AC', capacity: 2, rate: 4500 }
       ]
-    }, 
-    { 
-      name: 'Seven Sky Clarks', 
-      rate: 5500, 
-      type: 'MAPAI', 
-      tier: 'Premium', 
-      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR6CM6PMcwuSzQPkiR4raVHtKTJySnkKg_UZA&s',
+    },
+    {
+      name: 'Hotel LA CASA DE RANN', rate: 3700, type: 'CPAI', tier: 'Budget',
+      img: 'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2a/3f/b6/c8/la-casa-de-rann.jpg?w=900&h=500&s=1',
       roomTypes: [
-        { name: 'Executive', capacity: 2, rate: 5500 },
-        { name: 'Suite', capacity: 2, rate: 8500 }
+        { name: 'Deluxe Room', capacity: 2, rate: 3700 },
+        { name: 'Super Deluxe', capacity: 2, rate: 5100 }
       ]
-    }, 
-    { 
-      name: 'Times Square', 
-      rate: 7000, 
-      type: 'CPAI', 
-      tier: 'Premium', 
-      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQv7XPKS5IT3MJBt9hY8dBZZsgg-iFPcjGRg&s',
+    },
+    {
+      name: 'Hotel Ilark', rate: 3800, type: 'CPAI', tier: 'Budget',
+      img: 'https://gos3.ibcdn.com/c3b63f17-b07d-4b09-8997-918aa1d914ba.jpg',
       roomTypes: [
-        { name: 'Club Room', capacity: 2, rate: 7000 },
-        { name: 'Royal Suite', capacity: 2, rate: 12000 }
+        { name: 'Deluxe AC', capacity: 2, rate: 3800 }
       ]
-    }, 
-    { 
-      name: 'Ramee The Srinivas', 
-      rate: 5500, 
-      type: 'MAPAI', 
-      tier: 'Premium', 
+    },
+    {
+      name: 'Hill View Resort', rate: 4600, type: 'CPAI', tier: 'Budget',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIjuiSCHJVT3fqJc4eJtfGE6bEJ0tgDaM6A&s',
+      roomTypes: [
+        { name: 'Deluxe AC', capacity: 2, rate: 4600 },
+        { name: 'Super Deluxe AC', capacity: 2, rate: 5500 },
+        { name: 'Cabana AC', capacity: 2, rate: 6400 }
+      ]
+    },
+    // --- Premium ---
+    {
+      name: 'Seven Sky Clarks Exotica', rate: 5500, type: 'MAPAI', tier: 'Premium',
+      img: 'https://gos3.ibcdn.com/927addd5-f790-4fb3-9b01-4fa17f146221.jpeg',
+      roomTypes: [
+        { name: 'Grand Deluxe', capacity: 2, rate: 5500 }
+      ]
+    },
+    {
+      name: 'Ramee The Srinivas Palace', rate: 5500, type: 'MAPAI', tier: 'Premium',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQSF50jsas5lHpEw-wP-6tPWGqDLz_G5PW7lg&s',
       roomTypes: [
-        { name: 'Superior', capacity: 2, rate: 5500 },
-        { name: 'Family Suite', capacity: 4, rate: 9500 }
+        { name: 'Superior Twin Bed AC', capacity: 2, rate: 5500 },
+        { name: 'Executive King Bed AC', capacity: 2, rate: 5500 }
       ]
-    } 
-  ], 
-  Mandvi: [ 
-    { 
-      name: 'Vijay Vilas Heritage', 
-      rate: 6950, 
-      type: 'MAPAI', 
-      tier: 'Budget', 
-      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTTl1ekiTQ8z-NhBTQyQirJV4EpLckm6_hN5A&s',
+    },
+    {
+      name: 'Floating Deck Resort', rate: 5500, type: 'CPAI', tier: 'Premium',
+      img: 'https://r2imghtlak.mmtcdn.com/r2-mmt-htl-image/htl-imgs/202411011237480614-9a09f0a6-8b6b-4fa9-8e7b-d0a8e8e2a3f4.jpg',
       roomTypes: [
-        { name: 'Heritage Room', capacity: 2, rate: 6950 },
-        { name: 'Royal Tent', capacity: 2, rate: 8500 }
+        { name: 'Superior AC Room', capacity: 2, rate: 5500 },
+        { name: 'Lake View AC Room', capacity: 2, rate: 6300 }
       ]
-    }, 
-    { 
-      name: 'Serena Beach Resort', 
-      rate: 8800, 
-      type: 'CPAI', 
-      tier: 'Premium', 
-      img: 'https://r1imghtlak.mmtcdn.com/efacd50272cb11e7b2390a4cef95d023.jpg',
+    },
+    // --- Luxury ---
+    {
+      name: 'Times Square Spa and Resort', rate: 7000, type: 'CPAI', tier: 'Luxury',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQv7XPKS5IT3MJBt9hY8dBZZsgg-iFPcjGRg&s',
       roomTypes: [
-        { name: 'Garden Villa', capacity: 2, rate: 8800 },
-        { name: 'Pool Villa', capacity: 2, rate: 15000 }
+        { name: 'Deluxe AC King', capacity: 2, rate: 7000 }
       ]
-    } 
-  ], 
-  Dhordo: [ 
-    { 
-      name: 'Mahefeel-E-Rann', 
-      rate: 3400, 
-      type: 'MAPAI', 
-      tier: 'Budget', 
+    }
+  ],
+  Mandvi: [
+    {
+      name: 'Vijay Vilas Heritage Resort', rate: 6950, type: 'MAPAI', tier: 'Premium',
+      img: 'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/0a/fe/b2/8f/vijay-vilas-palace.jpg?w=900&h=500&s=1',
+      roomTypes: [
+        { name: 'Heritage Room', capacity: 2, rate: 6950 }
+      ]
+    },
+    {
+      name: 'Serena Beach Resort', rate: 8800, type: 'CPAI', tier: 'Luxury',
+      img: 'https://www.serenabeachresort.com/uploads/room-images/1529925302garden-villa-3.jpg',
+      roomTypes: [
+        { name: 'Deluxe AC Hut', capacity: 2, rate: 8800 },
+        { name: 'Garden Villa', capacity: 4, rate: 16000 }
+      ]
+    }
+  ],
+  Dhordo: [
+    // --- Budget ---
+    {
+      name: 'Mahefeel-E-Rann Resort', rate: 3400, type: 'MAPAI', tier: 'Budget',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSpnVGL19xSnKBEVyAETT0-iCK6GYrj17FOOg&s',
       roomTypes: [
-        { name: 'Non-AC Bhunga', capacity: 2, rate: 3400 },
-        { name: 'AC Bhunga', capacity: 2, rate: 4500 }
+        { name: 'Non AC Tent', capacity: 2, rate: 3400 },
+        { name: 'AC Bhunga', capacity: 2, rate: 4200 },
+        { name: 'AC Family Bhunga', capacity: 4, rate: 6300 }
       ]
-    }, 
-    { 
-      name: 'Rann Visamo', 
-      rate: 3400, 
-      type: 'MAPAI', 
-      tier: 'Budget', 
+    },
+    {
+      name: 'Rann Visamo Village Resort', rate: 3400, type: 'MAPAI', tier: 'Budget',
       img: 'https://www.abtours.co.in/thumb/media/0/0/LriJPpDIMrFkwRpxDgiYaGwX16fPo72W.jpg',
       roomTypes: [
-        { name: 'Standard Hut', capacity: 2, rate: 3400 },
-        { name: 'Family Hut', capacity: 4, rate: 6000 }
+        { name: 'Non AC Tent', capacity: 2, rate: 3400 },
+        { name: 'Traditional Non AC Cottage', capacity: 2, rate: 3800 },
+        { name: 'Non AC Bhunga', capacity: 2, rate: 4200 }
       ]
-    }, 
-    { 
-      name: 'Rann Heritage', 
-      rate: 5500, 
-      type: 'MAPAI', 
-      tier: 'Premium', 
-      img: 'https://media-cdn.tripadvisor.com/media/photo-s/2b/31/e1/5c/caption.jpg',
-      roomTypes: [
-        { name: 'Premium Bhunga', capacity: 2, rate: 5500 },
-        { name: 'Royal Bhunga', capacity: 2, rate: 7500 }
-      ]
-    }, 
-    { 
-      name: 'Shaam-E-Sarhad', 
-      rate: 4350, 
-      type: 'MAPAI', 
-      tier: 'Premium', 
+    },
+    {
+      name: 'Kutir Craft Village Resort', rate: 3400, type: 'MAPAI', tier: 'Budget',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ2t_URd8b0G459lj0G5zt-uxEi_aRcoJE2ow&s',
       roomTypes: [
-        { name: 'Mud Cottage', capacity: 2, rate: 4350 },
-        { name: 'Eco Tent', capacity: 2, rate: 5000 }
+        { name: 'Non AC Bhunga', capacity: 2, rate: 3400 },
+        { name: 'AC Bhunga', capacity: 2, rate: 3800 },
+        { name: 'Non AC Family Bhunga', capacity: 4, rate: 5900 },
+        { name: 'AC Family Bhunga', capacity: 4, rate: 6300 }
       ]
-    } 
-  ], 
-  Dholavira: [ 
-    { 
-      name: 'Rann Resort', 
-      rate: 5400, 
-      type: 'MAPAI', 
-      tier: 'Budget', 
+    },
+    {
+      name: 'Shaam-E-Sarhad Village Resort', rate: 3400, type: 'MAPAI', tier: 'Budget',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ2t_URd8b0G459lj0G5zt-uxEi_aRcoJE2ow&s',
+      roomTypes: [
+        { name: 'ECO Non Tent', capacity: 2, rate: 3400 },
+        { name: 'Standard NON AC Bhunga', capacity: 2, rate: 4350 },
+        { name: 'Family Non AC Cottages', capacity: 2, rate: 5050 }
+      ]
+    },
+    {
+      name: 'Desert King Resort', rate: 4400, type: 'MAPAI', tier: 'Budget',
+      img: 'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2b/d1/45/4a/desert-king-resort.jpg?w=900&h=500&s=1',
+      roomTypes: [
+        { name: 'Kutchi Non AC Bhunga', capacity: 2, rate: 4400 },
+        { name: 'Rajwadi AC Bhunga', capacity: 2, rate: 5400 }
+      ]
+    },
+    // --- Premium ---
+    {
+      name: 'Kutch Classic Resort Camp', rate: 4200, type: 'MAPAI', tier: 'Premium',
+      img: 'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2c/a2/f1/d3/kutch-classic-resort.jpg?w=900&h=500&s=1',
+      roomTypes: [
+        { name: 'Deluxe Non AC Tent', capacity: 2, rate: 4200 },
+        { name: 'Premium AC Tent', capacity: 2, rate: 5050 },
+        { name: 'Premium AC Mughal Tent', capacity: 2, rate: 5900 },
+        { name: 'King Family Tent', capacity: 4, rate: 10100 }
+      ]
+    },
+    {
+      name: 'Rann Heritage Resort', rate: 5500, type: 'MAPAI', tier: 'Premium',
+      img: 'https://media-cdn.tripadvisor.com/media/photo-s/2b/31/e1/5c/caption.jpg',
+      roomTypes: [
+        { name: 'Deluxe Non AC Tent', capacity: 2, rate: 5500 },
+        { name: 'Mughal AC Tent', capacity: 2, rate: 6300 }
+      ]
+    }
+  ],
+  Dholavira: [
+    {
+      name: 'Rann Resort Dholavira', rate: 5400, type: 'MAPAI', tier: 'Budget',
       img: 'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/16/ef/53/af/rann-resort-dholavira.jpg?w=900&h=500&s=1',
       roomTypes: [
-        { name: 'Standard AC', capacity: 2, rate: 5400 },
-        { name: 'Dormitory (6 Bed)', capacity: 6, rate: 9000 }
+        { name: 'AC Cottage', capacity: 2, rate: 5400 },
+        { name: 'Rajwadi AC Cottage', capacity: 2, rate: 6400 }
       ]
-    }, 
-    { 
-      name: 'Road To Heaven', 
-      rate: 6700, 
-      type: 'MAPAI', 
-      tier: 'Premium', 
+    },
+    {
+      name: 'Heritage Resort Dholavira', rate: 6000, type: 'MAPAI', tier: 'Premium',
+      img: 'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2c/7a/b1/e2/heritage-resort.jpg?w=900&h=500&s=1',
+      roomTypes: [
+        { name: 'Kutchi Bhunga', capacity: 2, rate: 6000 },
+        { name: 'Kutchi Bhunga with Garden', capacity: 2, rate: 6800 },
+        { name: 'Premium Bhunga with Private Pool', capacity: 2, rate: 10000 }
+      ]
+    },
+    {
+      name: 'Road To Heaven Resort', rate: 6700, type: 'MAPAI', tier: 'Premium',
       img: 'https://r2imghtlak.mmtcdn.com/r2-mmt-htl-image/htl-imgs/202510011050169708-6fb93127-39a6-457a-9a9c-81cf1ee85b47.jpg',
       roomTypes: [
-        { name: 'Luxury Tent', capacity: 2, rate: 6700 },
-        { name: 'Maharaja Suite', capacity: 2, rate: 9500 }
+        { name: 'Grand Deluxe Tent', capacity: 2, rate: 6700 },
+        { name: 'Executive Tent', capacity: 2, rate: 7600 },
+        { name: 'Premium Tent', capacity: 2, rate: 9500 }
       ]
-    } 
-  ] 
+    }
+  ]
 };
 
 export const SIGHTSEEING_DATA: Record<string, Sightseeing[]> = { 
@@ -447,12 +479,14 @@ export const SIGHTSEEING_DATA: Record<string, Sightseeing[]> = {
   ] 
 };
 
-export const VEHICLE_DATA: Vehicle[] = [ 
-  { name: 'Sedan (Dzire)', rate: 3600, capacity: 4, img: 'https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Dzire-Tour-S/12461/1762857975456/front-left-side-47.jpg' }, 
-  { name: 'Ertiga', rate: 4500, capacity: 6, img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRlig-LMR58hNvPs_XtO5rbsP81uiR9d-TvpQ&s' }, 
-  { name: 'Innova', rate: 5100, capacity: 7, img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTRj1HM8r-23OjwLoiga8ZWDxIasAfKxk8o4Q&s' }, 
-  { name: 'Innova Crysta', rate: 5700, capacity: 7, img: 'https://cdni.autocarindia.com/ExtraImages/20220105033033_innova_crysta.jpg' }, 
-  { name: 'Tempo Traveller', rate: 8700, capacity: 12, img: 'https://cdn.bluebirdtravels.in/wp-content/uploads/2017/01/Tempo_Traveller_PI.png' } 
+export const VEHICLE_DATA: Vehicle[] = [
+  { name: 'Sedan (Dzire/Aura)', rate: 3600, capacity: 4, img: 'https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Dzire-Tour-S/12461/1762857975456/front-left-side-47.jpg' },
+  { name: 'Ertiga AC', rate: 4500, capacity: 6, img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRlig-LMR58hNvPs_XtO5rbsP81uiR9d-TvpQ&s' },
+  { name: 'Innova / Kia Carens', rate: 5100, capacity: 6, img: 'https://stimg.cardekho.com/images/carexteriorimages/930x620/Toyota/Toyota-Innova/1174/1544523709266/front-left-side-47.jpg' },
+  { name: 'Innova Crysta', rate: 5700, capacity: 7, img: 'https://cdni.autocarindia.com/ExtraImages/20220105033033_innova_crysta.jpg' },
+  { name: 'Tempo Traveller (12 Seater)', rate: 8700, capacity: 12, img: 'https://cdn.bluebirdtravels.in/wp-content/uploads/2017/01/Tempo_Traveller_PI.png' },
+  { name: 'Tempo Traveller (17 Seater)', rate: 9300, capacity: 17, img: 'https://pawartravels.com/images/vehicle_images/20seater.jpg' },
+  { name: 'Urbania AC (17 Seater)', rate: 11400, capacity: 17, img: 'https://pawartravels.com/images/vehicle_images/20seater.jpg' }
 ];
 
 export const PACKAGES: ItineraryPackage[] = [ 

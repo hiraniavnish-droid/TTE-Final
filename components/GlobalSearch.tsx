@@ -63,6 +63,10 @@ export const GlobalSearch: React.FC = () => {
     const q = query.toLowerCase();
     return leads.filter(l =>
       l.name?.toLowerCase().includes(q) ||
+      // Matches "TTE-0042", "tte-0042" and a bare "0042"/"42" — the numeric
+      // tail is what people actually remember and type.
+      l.leadCode?.toLowerCase().includes(q) ||
+      l.leadCode?.replace(/^TTE-0*/i, '').includes(q.replace(/^tte-0*/i, '')) ||
       l.contact?.phone?.includes(q) ||
       l.contact?.email?.toLowerCase().includes(q) ||
       l.tripDetails?.destination?.toLowerCase().includes(q) ||
@@ -169,6 +173,9 @@ export const GlobalSearch: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={cn('text-sm font-semibold capitalize truncate', getTextColor())}>{lead.name}</span>
+                      {lead.leadCode && (
+                        <span className={cn('text-[9px] font-mono font-bold shrink-0', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>{lead.leadCode}</span>
+                      )}
                       <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0', statusColors[lead.status] || 'bg-slate-100 text-slate-500')}>{lead.status}</span>
                     </div>
                     {lead.tripDetails?.destination && (

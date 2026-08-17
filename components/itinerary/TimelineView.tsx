@@ -1,12 +1,16 @@
 
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { cn, useRoomCalculator } from '../../utils/helpers';
-import { Car, Settings, PlaneLanding, PlaneTakeoff, RefreshCw, Check, Utensils, Hotel as HotelIcon, ChevronDown } from 'lucide-react';
+import { cn } from '../../utils/helpers';
+import { Car, Settings, PlaneLanding, PlaneTakeoff, RefreshCw, Check, Utensils, Hotel as HotelIcon, ChevronDown, Flame } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Hotel, ItineraryPackage, RoomType, Sightseeing, Vehicle } from '../../types';
 import { FleetItem } from './types';
 import { FALLBACK_IMG, getMealPlanLabel, getSmartDate } from './utils';
+import { getDatePeakPeriod, getDayDateStr, getPeakSupplement } from './peakDates';
+
+// Plain function — NOT a hook. Replaces the misnamed useRoomCalculator inside loops.
+const calcRooms = (pax: number, capacity: number) => Math.ceil(pax / capacity);
 
 interface TimelineViewProps {
   activePackage: ItineraryPackage;
@@ -15,9 +19,9 @@ interface TimelineViewProps {
   fleet: FleetItem[];
   hotelOverrides: Record<number, { hotel: Hotel, roomType: RoomType }>;
   sightseeingOverrides: Record<number, string[]>;
-  baseTier: 'Budget' | 'Premium';
+  baseTier: 'Budget' | 'Premium' | 'Luxury';
   onSwapHotel: (dayIndex: number, city: string) => void;
-  onUpdateRoomType: (dayIndex: number, hotel: Hotel, roomType: RoomType) => void; 
+  onUpdateRoomType: (dayIndex: number, hotel: Hotel, roomType: RoomType) => void;
   onOpenFleetModal: () => void;
   hotelData: Record<string, Hotel[]>;
   sightseeingData: Record<string, Sightseeing[]>;
@@ -109,8 +113,13 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             }
 
             const mealPlanLabel = currentHotel ? getMealPlanLabel(currentHotel.type) : 'No Meals';
-            const roomCount = currentRoom ? useRoomCalculator(pax, currentRoom.capacity) : 0;
-            
+            const roomCount = currentRoom ? calcRooms(pax, currentRoom.capacity) : 0;
+
+            // Peak date detection
+            const dayDateStr = getDayDateStr(startDate, index);
+            const peakPeriod = getDatePeakPeriod(dayDateStr);
+            const peakSurchargePerRoom = currentHotel ? getPeakSupplement(currentHotel.name, dayDateStr) : 0;
+
             // Sightseeing
             const dayOverrides = sightseeingOverrides[index];
             const allSightseeing = sightseeingData[city] || [];
@@ -141,6 +150,11 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                 <span className={cn("text-base md:text-lg font-bold text-slate-700", getTextColor())}>{city}</span>
                                 {isFirstDay && <span className="text-[9px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200 uppercase tracking-wider">Arrival</span>}
                                 {isLastDay && <span className="text-[9px] font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded border border-orange-200 uppercase tracking-wider">Departure</span>}
+                                {peakPeriod && (
+                                    <span className="text-[9px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200 uppercase tracking-wider flex items-center gap-1">
+                                        <Flame size={9} /> Peak · {peakPeriod.name}
+                                    </span>
+                                )}
                             </div>
                             {isFirstDay && <p className="text-[10px] md:text-xs text-blue-600 flex items-center gap-1 mt-1 font-medium"><PlaneLanding size={12}/> Pickup from Bhuj</p>}
                             {isLastDay && <p className="text-[10px] md:text-xs text-orange-600 flex items-center gap-1 mt-1 font-medium"><PlaneTakeoff size={12}/> Drop at Bhuj</p>}
@@ -152,13 +166,14 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                 <div className="flex flex-col sm:flex-row">
                                     {/* Mobile: Image is a banner on top. Desktop: Side image. */}
                                     <div className="h-32 sm:h-auto sm:w-48 relative shrink-0 bg-slate-200">
-                                        <img 
-                                            src={currentHotel.img || FALLBACK_IMG} 
+                                        <img
+                                            src={currentHotel.img || FALLBACK_IMG}
                                             onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }}
-                                            alt={currentHotel.name || "Hotel Image"} 
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                            alt={currentHotel.name || "Hotel Image"}
+                                            loading="lazy"
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                         />
-                                        <div className="absolute inset-0 bg-black/10" />
+                                        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
                                         <div className="absolute bottom-2 left-2 sm:hidden">
                                             <span className={cn("text-[9px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider backdrop-blur-md border border-white/20 text-white bg-black/30")}>
                                                 {currentHotel.tier}
@@ -204,6 +219,11 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                                     </div>
 
                                                     <p className="text-xs font-medium text-emerald-600 flex items-center gap-1"><Utensils size={12}/> {mealPlanLabel}</p>
+                                                {peakSurchargePerRoom > 0 && (
+                                                    <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1">
+                                                        <Flame size={10} /> +₹{peakSurchargePerRoom.toLocaleString('en-IN')}/room peak supplement
+                                                    </p>
+                                                )}
                                                 </div>
                                             </div>
                                             <button 
@@ -235,7 +255,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                                     alt={spot.name || "Sightseeing Image"} 
                                                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
                                                 />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                             </div>
                                             <h5 className={cn("font-bold text-xs truncate leading-tight", getTextColor())}>{spot.name}</h5>
                                             <p className="text-[9px] opacity-60 line-clamp-1 mt-0.5">{spot.desc}</p>

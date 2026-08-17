@@ -57,7 +57,7 @@ const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, onCopy, onEdit })
     : (typeof supplier.destinations === 'string' ? (supplier.destinations as string).split(',') : []);
 
   return (
-    <Card className="flex flex-col h-full hover:scale-[1.01] transition-transform duration-200" noPadding>
+    <Card className="flex flex-col h-full transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_-8px_rgba(15,23,42,0.16)]" noPadding>
         {/* Header Section */}
         <div className="p-5 border-b border-gray-500/10 relative">
             <div className="flex justify-between items-start mb-2">
@@ -333,7 +333,7 @@ export const Suppliers = () => {
             };
             
             updateSupplier(updatedSupplier);
-            setToast({ show: true, msg: `✅ ${updatedSupplier.name} updated successfully!` });
+            setToast({ show: true, msg: `${updatedSupplier.name} updated successfully!` });
 
         } else {
             // Create New Logic
@@ -349,7 +349,7 @@ export const Suppliers = () => {
             };
             
             addSupplier(newSupplier);
-            setToast({ show: true, msg: `✅ ${newSupplier.name} added successfully!` });
+            setToast({ show: true, msg: `${newSupplier.name} added successfully!` });
         }
 
         // Common Cleanup
@@ -384,57 +384,75 @@ export const Suppliers = () => {
                 </div>
             )}
 
-            {/* Header & Search */}
-            <div className="flex flex-col items-center justify-center py-8 space-y-6 relative">
-                
-                {/* Floating Add Button (Desktop: Top Right, Mobile: Bottom Fixed) */}
-                <div className="absolute top-4 right-0 hidden md:block">
-                     <Button onClick={handleOpenAdd} className="shadow-lg shadow-blue-500/20">
-                         <Plus size={18} /> Add New Vendor
-                     </Button>
+            {/* Header & Search Toolbar */}
+            <div className="mb-6 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-baseline gap-2.5">
+                        <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Suppliers</h1>
+                        <span className={cn("text-sm font-medium", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+                            {suppliers.length} {suppliers.length === 1 ? 'partner' : 'partners'}
+                        </span>
+                    </div>
+
+                    <button
+                        onClick={handleOpenAdd}
+                        className={cn(
+                            "hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.97] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.12)]",
+                            theme === 'light' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-900 hover:bg-white/90'
+                        )}
+                    >
+                        <Plus size={16} strokeWidth={2.5} /> Add Vendor
+                    </button>
                 </div>
 
-                <h1 className={cn("text-4xl font-bold font-serif text-center", getTextColor())}>Suppliers & Partners</h1>
-                <p className={cn("opacity-60 max-w-md text-center", getTextColor())}>
-                    Connect with your network of DMCs, hoteliers, and service providers.
-                </p>
-                
-                <div className="relative w-full max-w-xl group">
-                    <div className={cn(
-                        "absolute inset-0 rounded-2xl blur-lg transition-opacity duration-300 opacity-20 group-hover:opacity-30",
-                        theme === 'light' ? 'bg-purple-300' : 'bg-purple-500'
-                    )}></div>
-                    <div className={cn(
-                        "relative flex items-center px-4 rounded-2xl transition-all border",
-                        theme === 'light' ? 'bg-white border-slate-200 shadow-xl' : 'bg-white/10 border-white/20 backdrop-blur-xl shadow-2xl'
-                    )}>
-                        <Search size={20} className="opacity-50 shrink-0 mr-3" />
-                        <input 
-                            type="text" 
-                            placeholder="Search by Destination (e.g., Dubai) or Name..." 
-                            className={cn("w-full py-4 bg-transparent outline-none text-lg", getInputClass(), "border-none focus:ring-0")}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            autoFocus
-                        />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-500/10 rounded-full">
-                                <X size={16} />
-                            </button>
-                        )}
-                    </div>
+                <div className={cn(
+                    "flex items-center px-4 rounded-xl transition-all border focus-within:ring-1",
+                    theme === 'light'
+                        ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] focus-within:ring-slate-300 focus-within:border-slate-300'
+                        : 'bg-white/5 border-white/10 focus-within:ring-white/20'
+                )}>
+                    <Search size={18} strokeWidth={2} className="opacity-40 shrink-0 mr-3" />
+                    <input
+                        type="text"
+                        placeholder="Search by destination or name..."
+                        className={cn("w-full py-3 bg-transparent outline-none text-sm", getInputClass(), "border-none focus:ring-0")}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        autoFocus
+                    />
+                    {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-500/10 rounded-full transition-colors">
+                            <X size={16} strokeWidth={2} />
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {filteredSuppliers.length === 0 ? (
-                    <div className="col-span-full py-20 text-center opacity-50">
-                        <Briefcase size={48} className="mx-auto mb-4 opacity-50" />
-                        <p className="text-lg">No partners found matching "{searchQuery}"</p>
-                        <Button variant="secondary" onClick={handleOpenAdd} className="mt-4">
-                            Add New Vendor
-                        </Button>
+                    <div className="col-span-full py-20 flex flex-col items-center text-center">
+                        <div className={cn(
+                            "w-14 h-14 rounded-2xl flex items-center justify-center mb-4",
+                            theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-white/5 text-white/40'
+                        )}>
+                            <Briefcase size={24} strokeWidth={2} />
+                        </div>
+                        <p className={cn("text-base font-semibold", getTextColor())}>
+                            {searchQuery ? `No partners match "${searchQuery}"` : 'No suppliers yet'}
+                        </p>
+                        <p className={cn("text-sm mt-1 mb-5", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+                            {searchQuery ? 'Try a different search term.' : 'Add your first DMC, hotelier, or service provider.'}
+                        </p>
+                        <button
+                            onClick={handleOpenAdd}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.97] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.12)]",
+                                theme === 'light' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-900 hover:bg-white/90'
+                            )}
+                        >
+                            <Plus size={16} strokeWidth={2.5} /> Add Vendor
+                        </button>
                     </div>
                 ) : (
                     filteredSuppliers.map(supplier => (
@@ -451,10 +469,13 @@ export const Suppliers = () => {
             {/* Mobile Floating Action Button */}
             <button
                 onClick={handleOpenAdd}
-                className="md:hidden fixed bottom-24 right-6 h-14 w-14 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center z-50 hover:scale-105 active:scale-95 transition-all"
+                className={cn(
+                    "md:hidden fixed bottom-24 right-6 h-14 w-14 rounded-full flex items-center justify-center z-50 transition-all active:scale-95 shadow-[0_8px_24px_-4px_rgba(15,23,42,0.28)]",
+                    theme === 'light' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-900 hover:bg-white/90'
+                )}
                 aria-label="Add Vendor"
             >
-                <Plus size={28} />
+                <Plus size={26} strokeWidth={2.5} />
             </button>
 
             {/* Add/Edit Supplier Modal */}
@@ -524,11 +545,11 @@ export const Suppliers = () => {
 
                     <div className="space-y-2">
                         <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Destinations Managed <span className="text-red-500">*</span></label>
-                        <div className={cn("w-full rounded-lg p-3 border focus-within:ring-1 focus-within:ring-blue-500 transition-all flex flex-wrap gap-2", getInputClass())}>
+                        <div className={cn("w-full rounded-lg p-3 border focus-within:ring-1 focus-within:ring-slate-400 transition-all flex flex-wrap gap-2", getInputClass())}>
                             {formData.destinations.map(dest => (
                                 <span key={dest} className={cn(
-                                    "text-xs px-2 py-1 rounded-md flex items-center gap-1", 
-                                    theme === 'light' ? 'bg-blue-100 text-blue-700' : 'bg-blue-500/30 text-white'
+                                    "text-xs px-2 py-1 rounded-md flex items-center gap-1",
+                                    theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white'
                                 )}>
                                     {dest}
                                     <button type="button" onClick={() => removeDestination(dest)} className="hover:bg-black/10 rounded-full p-0.5">

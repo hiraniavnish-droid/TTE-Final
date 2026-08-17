@@ -1,527 +1,603 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useLeads } from '../contexts/LeadContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { cn, formatDate, formatCompactCurrency } from '../utils/helpers';
-import { DialButton } from '../components/ui/DialButton';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  CheckCircle2, 
-  Circle, 
-  Clock,
-  Phone,
-  Mail,
-  AlertTriangle,
-  Sunrise,
-  Sun,
-  Moon,
-  Calendar,
-  MessageSquare,
-  FileText,
-  Wallet,
-  MapPin,
-  Check,
-  MoreHorizontal,
-  RotateCcw
+import { useAuth } from '../contexts/AuthContext';
+import { useTasks, TeamTask, TaskPriority, TaskStatus } from '../contexts/TaskContext';
+import { cn, formatDate, timeAgo, generateId } from '../utils/helpers';
+import {
+  Plus, Send, CheckCircle2, Clock, AlertTriangle, Flame,
+  ArrowRight, User, Calendar, Tag, Link, MessageSquare,
+  Trash2, X, ChevronRight, Check, ExternalLink
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
-// --- Types & Helpers ---
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type TimeBucket = 'overdue' | 'morning' | 'afternoon' | 'evening' | 'tomorrow' | 'upcoming';
-
-const isToday = (date: Date) => {
-  const today = new Date();
-  return date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear();
+const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; dot: string }> = {
+  low:    { label: 'Low',    color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-400' },
+  normal: { label: 'Normal', color: 'bg-blue-100 text-blue-600',  dot: 'bg-blue-400' },
+  high:   { label: 'High',   color: 'bg-amber-100 text-amber-700',dot: 'bg-amber-400' },
+  urgent: { label: 'Urgent', color: 'bg-red-100 text-red-600',    dot: 'bg-red-500' },
 };
 
-const isTomorrow = (date: Date) => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return date.getDate() === tomorrow.getDate() &&
-    date.getMonth() === tomorrow.getMonth() &&
-    date.getFullYear() === tomorrow.getFullYear();
+const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string }> = {
+  pending:     { label: 'Pending',     color: 'bg-slate-100 text-slate-600' },
+  in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-700' },
+  completed:   { label: 'Completed',   color: 'bg-emerald-100 text-emerald-700' },
 };
 
-// --- Task Type Logic ---
-const getTaskType = (task: string) => {
-    const t = task.toLowerCase();
-    if (t.includes('call') || t.includes('phone')) return { type: 'Call', icon: Phone, color: 'bg-green-100 text-green-600' };
-    if (t.includes('email') || t.includes('mail') || t.includes('send')) return { type: 'Email', icon: Mail, color: 'bg-blue-100 text-blue-600' };
-    if (t.includes('pay') || t.includes('invoice') || t.includes('budget') || t.includes('cost')) return { type: 'Payment', icon: Wallet, color: 'bg-purple-100 text-purple-600' };
-    if (t.includes('visa') || t.includes('doc') || t.includes('passport')) return { type: 'Docs', icon: FileText, color: 'bg-amber-100 text-amber-600' };
-    return { type: 'General', icon: CheckCircle2, color: 'bg-slate-100 text-slate-500' };
-};
+const isLink = (text: string) => /https?:\/\//.test(text);
 
-// --- Components ---
+// ─── Task Thread Panel ────────────────────────────────────────────────────────
 
-const SnoozeMenu = ({ onSelect, onClose }: { onSelect: (mins: number | string) => void, onClose: () => void }) => {
-    const { theme } = useTheme();
-    const menuRef = useRef<HTMLDivElement>(null);
+const TaskThread: React.FC<{
+  task: TeamTask;
+  onClose: () => void;
+  onComplete: () => void;
+}> = ({ task, onClose, onComplete }) => {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const { getTaskMessages, addMessage, updateTask } = useTasks();
+  const [input, setInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const msgs = getTaskMessages(task.id);
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [msgs.length]);
 
-    return (
-        <div ref={menuRef} className={cn(
-            "absolute right-0 top-8 z-50 w-32 rounded-xl shadow-xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100",
-            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/20'
-        )}>
-            {[
-                { label: '+1 Hour', val: 60 },
-                { label: '+3 Hours', val: 180 },
-                { label: 'Tomorrow', val: 'tomorrow' },
-                { label: 'Next Week', val: 'week' }
-            ].map((opt) => (
-                <button
-                    key={opt.label}
-                    onClick={(e) => { e.stopPropagation(); onSelect(opt.val); }}
-                    className={cn(
-                        "w-full text-left px-3 py-2 text-xs font-bold transition-colors hover:bg-blue-50 hover:text-blue-600",
-                        theme === 'light' ? 'text-slate-600' : 'text-slate-300'
-                    )}
-                >
-                    {opt.label}
-                </button>
-            ))}
-        </div>
-    );
-};
-
-const ActionableTaskRow = ({ reminder, lead, onToggle, onSnooze, isOverdue }: any) => {
-    const { theme, getTextColor } = useTheme();
-    const [showSnooze, setShowSnooze] = useState(false);
-    const [isCompleting, setIsCompleting] = useState(false);
-    
-    // Cast motion.div to any to avoid TypeScript errors
-    const MotionDiv = motion.div as any;
-
-    // 1. Context Extraction
-    const { icon: TaskIcon, color: iconColor } = getTaskType(reminder.task);
-    const waLink = lead ? `https://wa.me/${lead.contact.phone.replace(/[^0-9]/g, '')}` : '#';
-    const emailLink = lead ? `mailto:${lead.contact.email}` : '#';
-    
-    // 2. Data Formatting
-    const timeDisplay = new Date(reminder.dueDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const budgetDisplay = lead ? formatCompactCurrency(lead.tripDetails.budget) : '';
-    const destDisplay = lead?.tripDetails.destination || 'General';
-
-    const handleSnooze = (val: number | string) => {
-        onSnooze(reminder.id, val);
-        setShowSnooze(false);
-    };
-
-    const handleComplete = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (isCompleting) return;
-        
-        setIsCompleting(true);
-        // Confetti removed per request
-        
-        // Delay actual removal to allow animation to play
-        setTimeout(() => {
-            onToggle(reminder.id);
-        }, 600);
-    };
-
-    if (reminder.isCompleted && !isCompleting) return null; // Or render differently if showing history
-
-    return (
-        <MotionDiv 
-            layout
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, scale: 0.95 }}
-            transition={{ duration: 0.3 }}
-            className={cn(
-                "group relative flex items-center gap-4 py-3 px-4 transition-all duration-300 border-b min-h-[72px]",
-                theme === 'light' ? 'bg-white border-slate-100 hover:bg-slate-50' : theme === 'ocean' ? 'bg-blue-900/50 border-blue-700/30 hover:bg-blue-800/60' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700/80',
-                isOverdue && (theme === 'light' ? "bg-rose-50/50 border-l-4 border-l-rose-500" : "bg-rose-900/20 border-l-4 border-l-rose-500"), // Red Zone urgency
-                isCompleting && "opacity-50 grayscale"
-            )}
-        >
-            {/* LEFT: Task-Specific Iconography */}
-            <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
-                theme === 'light' ? iconColor : iconColor.replace('-100', '-900/40').replace('-600', '-400').replace('-500', '-400'),
-                isCompleting && "bg-emerald-100 text-emerald-600 scale-125 rotate-12"
-            )}>
-                {isCompleting ? <Check size={20} strokeWidth={3} /> : <TaskIcon size={18} />}
-            </div>
-
-            {/* CENTER: The Context Upgrade */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <div className={cn(
-                    "text-sm flex items-center gap-2 mb-0.5 transition-all", 
-                    getTextColor(),
-                    isCompleting && "line-through opacity-50"
-                )}>
-                    <span className="font-bold truncate">{reminder.task}</span>
-                    {lead && (
-                        <span className="text-slate-400 font-normal truncate hidden sm:inline">
-                            for <span className={cn("font-medium", theme === 'light' ? 'text-slate-600' : 'text-slate-300')}>{lead.name}</span>
-                        </span>
-                    )}
-                </div>
-                
-                <div className={cn("flex items-center gap-2 text-[11px] font-medium opacity-70", theme === 'light' ? 'text-slate-500' : 'text-slate-400')}>
-                    {lead && (
-                        <>
-                            <span className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded border", theme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-200' : theme === 'ocean' ? 'bg-blue-800/50 text-blue-200 border-blue-600/40' : 'bg-slate-700/60 text-slate-300 border-slate-600/50')}>
-                                <MapPin size={10} /> {destDisplay}
-                            </span>
-                            <span className="hidden sm:inline text-slate-300">•</span>
-                            {budgetDisplay && (
-                                <span className={cn("hidden sm:inline font-mono font-bold", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>{budgetDisplay}</span>
-                            )}
-                            <span className="text-slate-300">•</span>
-                        </>
-                    )}
-                    <span className={cn("flex items-center gap-1", isOverdue ? "text-rose-500 font-bold animate-pulse" : "")}>
-                        <Clock size={10} /> {isOverdue ? 'Overdue' : 'Due'}: {timeDisplay}
-                    </span>
-                </div>
-            </div>
-
-            {/* RIGHT: Hover-to-Act Interface */}
-            <div className="relative shrink-0 h-10 flex items-center justify-end min-w-[140px]">
-                
-                {/* Default State: Assigned User / Lead Context */}
-                <div className="absolute right-0 flex items-center gap-3 transition-all duration-300 group-hover:opacity-0 group-hover:translate-x-4 pointer-events-none group-hover:pointer-events-none">
-                    {lead && (
-                        <div className={cn("text-right hidden sm:block", theme === 'light' ? 'text-slate-400' : 'text-slate-500')}>
-                            <div className="text-[10px] uppercase font-bold tracking-wider">Client</div>
-                            <div className="text-xs font-medium truncate max-w-[100px]">{lead.name}</div>
-                        </div>
-                    )}
-                    <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border",
-                        theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-500" : "bg-white/10 border-white/10 text-white"
-                    )}>
-                        {lead ? lead.name.charAt(0) : <AlertTriangle size={14} />}
-                    </div>
-                </div>
-
-                {/* Hover State: Quick Action Buttons */}
-                <div className="absolute right-0 flex items-center gap-1.5 opacity-100 translate-x-0 md:opacity-0 md:translate-x-4 md:group-hover:opacity-100 md:group-hover:translate-x-0 transition-all duration-300">
-                    
-                    {/* Call Button */}
-                    {lead?.contact?.phone && (
-                        <DialButton phoneNumber={lead.contact.phone} className={cn("w-10 h-10 shadow-sm border", theme === 'light' ? 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100' : 'border-green-500/30 bg-green-500/20 text-green-400 hover:bg-green-500/30')} />
-                    )}
-
-                    {/* WhatsApp Button */}
-                    {lead?.contact?.phone && (
-                        <a 
-                            href={waLink} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className={cn("w-10 h-10 flex items-center justify-center rounded-full hover:scale-105 transition-all shadow-sm border", theme === 'light' ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30')}
-                            title="WhatsApp"
-                        >
-                            <MessageSquare size={16} />
-                        </a>
-                    )}
-
-                    {/* Snooze Button */}
-                    <div className="relative">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setShowSnooze(!showSnooze); }}
-                            className={cn("w-10 h-10 flex items-center justify-center rounded-full transition-all shadow-sm border", theme === 'light' ? 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-blue-600' : 'bg-slate-700/60 text-slate-400 border-slate-600/50 hover:bg-slate-600/60 hover:text-blue-400')}
-                            title="Snooze"
-                        >
-                            <Clock size={16} />
-                        </button>
-                        {showSnooze && <SnoozeMenu onSelect={handleSnooze} onClose={() => setShowSnooze(false)} />}
-                    </div>
-
-                    {/* Done Button (Gamified Checkbox) */}
-                    <button 
-                        onClick={handleComplete}
-                        className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-500 hover:scale-110 active:scale-95 transition-all shadow-lg shadow-blue-200"
-                        title="Complete"
-                    >
-                        <Check size={18} strokeWidth={3} />
-                    </button>
-                </div>
-            </div>
-        </MotionDiv>
-    );
-};
-
-const BucketSection = ({ title, icon: Icon, colorClass, tasks, leads, onToggle, onSnooze, isOverdueBucket }: any) => {
-    const { theme } = useTheme();
-    
-    if (tasks.length === 0) return null;
-
-    return (
-        <div className="mb-6">
-            {/* Sticky Header */}
-            <div className={cn(
-                "sticky top-0 z-20 flex items-center gap-2 py-3 px-4 text-xs font-extrabold uppercase tracking-widest backdrop-blur-md shadow-sm transition-colors border-b rounded-t-2xl",
-                theme === 'light' 
-                    ? 'bg-slate-50/95 text-slate-500 border-slate-200' 
-                    : 'bg-slate-900/95 text-slate-300 border-white/10',
-                isOverdueBucket && (theme === 'light' ? "bg-rose-50/95 text-rose-600 border-rose-200" : "bg-rose-900/40 text-rose-400 border-rose-800/50")
-            )}>
-                <Icon size={14} className={cn(colorClass, isOverdueBucket && "animate-pulse")} />
-                {isOverdueBucket && <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse shrink-0" />}
-                <span>{title}</span>
-                <span className={cn(
-                    "ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center",
-                    isOverdueBucket ? "bg-rose-500 text-white animate-pulse" : theme === 'light' ? "bg-slate-200 text-slate-600" : "bg-slate-700 text-slate-200"
-                )}>
-                    {tasks.length}
-                </span>
-            </div>
-
-            {/* List Body */}
-            <div className={cn(
-                "rounded-b-2xl border-x border-b overflow-hidden shadow-sm",
-                theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-950/30 border-blue-700/30' : 'bg-slate-900/40 border-slate-700/50'
-            )}>
-                <AnimatePresence>
-                    {tasks.map((task: any) => (
-                        <ActionableTaskRow 
-                            key={task.id} 
-                            reminder={task} 
-                            lead={leads.find((l: any) => l.id === task.leadId)}
-                            onToggle={onToggle}
-                            onSnooze={onSnooze}
-                            isOverdue={isOverdueBucket}
-                        />
-                    ))}
-                </AnimatePresence>
-            </div>
-        </div>
-    );
-};
-
-// --- Main Page ---
-
-export const Reminders = () => {
-  const { reminders, leads, toggleReminder, updateReminder } = useLeads();
-  const { theme, getTextColor } = useTheme();
-  
-  // Collapsible State
-  const [showCompleted, setShowCompleted] = useState(false);
-
-  // Bucket Logic
-  const categorizeTask = (dueDateStr: string): TimeBucket => {
-      const date = new Date(dueDateStr);
-      const now = new Date();
-
-      // Only mark overdue if it's strictly before today, or if it's today but hour is passed (simplified)
-      // Actually strict overdue: date < now
-      if (date < now && !isToday(date)) return 'overdue';
-      if (date < now && isToday(date)) return 'overdue'; // Intraday overdue
-      
-      if (isToday(date)) {
-          const hour = date.getHours();
-          if (hour < 12) return 'morning';
-          if (hour < 17) return 'afternoon';
-          return 'evening';
-      }
-
-      if (isTomorrow(date)) return 'tomorrow';
-      return 'upcoming';
+  const handleSend = () => {
+    const text = input.trim();
+    if (!text || !user) return;
+    const type = isLink(text) ? 'link' : 'text';
+    addMessage(task.id, user.name, text, type);
+    setInput('');
   };
 
-  // Process Tasks
-  const pendingTasks = reminders.filter(r => !r.isCompleted);
-  const completedTasks = reminders.filter(r => r.isCompleted).sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()); // Newest completed first
-
-  const buckets: Record<TimeBucket, any[]> = {
-      overdue: [],
-      morning: [],
-      afternoon: [],
-      evening: [],
-      tomorrow: [],
-      upcoming: []
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  pendingTasks.forEach(task => {
-      const bucket = categorizeTask(task.dueDate);
-      buckets[bucket].push(task);
-  });
-
-  // Sorting within buckets (Date Ascending)
-  Object.keys(buckets).forEach(key => {
-      buckets[key as TimeBucket].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  });
-
-  const handleSnooze = (id: string, option: number | string) => {
-      const task = reminders.find(r => r.id === id);
-      if (!task) return;
-
-      let newDate = new Date();
-      
-      if (typeof option === 'number') {
-          // Add minutes to current time (snooze from NOW)
-          newDate = new Date(Date.now() + option * 60000);
-      } else if (option === 'tomorrow') {
-          newDate.setDate(newDate.getDate() + 1);
-          newDate.setHours(9, 0, 0, 0);
-      } else if (option === 'week') {
-          newDate.setDate(newDate.getDate() + 7);
-          newDate.setHours(9, 0, 0, 0);
-      }
-
-      updateReminder(id, { dueDate: newDate.toISOString() });
-  };
+  const pc = PRIORITY_CONFIG[task.priority];
+  const sc = STATUS_CONFIG[task.status];
 
   return (
-    <div className="pb-20 max-w-4xl mx-auto px-4 md:px-0">
-      
+    <div className={cn(
+      'flex flex-col h-full border-l',
+      theme === 'light' ? 'bg-white border-slate-100' : 'bg-slate-900 border-white/10'
+    )}>
       {/* Header */}
-      <div className="mb-8 pt-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-            <h1 className={cn("text-3xl font-bold font-serif", getTextColor())}>Action Center</h1>
-            <p className={cn("text-sm mt-1 max-w-md", theme === 'light' ? 'opacity-60' : 'opacity-75', getTextColor())}>
-                Focus on high-priority actions. Clear the red zone first.
-            </p>
+      <div className={cn('p-4 border-b shrink-0 space-y-3', theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className={cn('font-bold text-base leading-tight flex-1', theme === 'light' ? 'text-slate-900' : 'text-white')}>
+            {task.title}
+          </h3>
+          <button onClick={onClose} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity">
+            <X size={16} />
+          </button>
         </div>
-        <div className={cn(
-            "flex items-center gap-3 px-4 py-2 rounded-xl border shadow-sm", 
-            theme === 'light' ? 'bg-white border-slate-200' : theme === 'ocean' ? 'bg-blue-900/40 border-blue-700/40' : 'bg-slate-800/80 border-slate-600/50'
-        )}>
-            <div className="text-right">
-                <p className={cn("text-[10px] font-bold uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75', getTextColor())}>Tasks Pending</p>
-                <p className={cn("text-xl font-bold leading-none text-blue-600")}>{pendingTasks.length}</p>
+        {task.description && (
+          <p className={cn('text-xs leading-relaxed', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>
+            {task.description}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', pc.color)}>{pc.label}</span>
+          <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', sc.color)}>{sc.label}</span>
+          <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1', theme === 'light' ? 'bg-slate-100 text-slate-600' : 'bg-white/10 text-white/60')}>
+            <ArrowRight size={9} strokeWidth={2.5} /> {task.assignedTo}
+          </span>
+          {task.dueDate && (
+            <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1', theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-white/50')}>
+              <Calendar size={9} /> {formatDate(task.dueDate)}
+            </span>
+          )}
+        </div>
+
+        {/* Status toggle (for assignee) + complete button */}
+        <div className="flex gap-2">
+          {user?.name === task.assignedTo && task.status !== 'completed' && (
+            <button
+              onClick={() => updateTask(task.id, { status: task.status === 'pending' ? 'in_progress' : 'pending' })}
+              className={cn('flex-1 text-[11px] font-bold py-1.5 rounded-lg border transition-all active:scale-[0.97] flex items-center justify-center gap-1.5',
+                task.status === 'in_progress'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : (theme === 'light' ? 'border-slate-200 text-slate-600 hover:bg-slate-50' : 'border-white/10 text-white/60 hover:bg-white/5')
+              )}
+            >
+              {task.status === 'in_progress'
+                ? <><span className="w-1.5 h-1.5 rounded-full bg-white" /> In Progress</>
+                : 'Mark In Progress'}
+            </button>
+          )}
+          {task.status !== 'completed' && (
+            <button
+              onClick={onComplete}
+              className="flex-1 text-[11px] font-bold py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1"
+            >
+              <Check size={12} /> Mark Complete
+            </button>
+          )}
+          {task.status === 'completed' && (
+            <div className="flex-1 text-[11px] font-bold py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1">
+              <CheckCircle2 size={12} /> Completed {task.completedAt ? timeAgo(task.completedAt) : ''}
             </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
-            <div className="text-right">
-                <p className={cn("text-[10px] font-bold uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75', getTextColor())}>Urgent</p>
-                <p className={cn("text-xl font-bold leading-none text-rose-500")}>{buckets.overdue.length}</p>
-            </div>
+          )}
         </div>
       </div>
 
-      {/* Task Buckets */}
-      <div className="space-y-2">
-          
-          <BucketSection 
-            title="Overdue & Urgent" 
-            icon={AlertTriangle} 
-            colorClass="text-rose-600" 
-            tasks={buckets.overdue} 
-            leads={leads}
-            onToggle={toggleReminder}
-            onSnooze={handleSnooze}
-            isOverdueBucket={true}
-          />
-
-          <BucketSection 
-            title="Morning Focus" 
-            icon={Sunrise} 
-            colorClass="text-blue-500" 
-            tasks={buckets.morning} 
-            leads={leads}
-            onToggle={toggleReminder}
-            onSnooze={handleSnooze}
-          />
-
-          <BucketSection 
-            title="Afternoon Tasks" 
-            icon={Sun} 
-            colorClass="text-amber-500" 
-            tasks={buckets.afternoon} 
-            leads={leads}
-            onToggle={toggleReminder}
-            onSnooze={handleSnooze}
-          />
-
-          <BucketSection 
-            title="Evening Wrap-up" 
-            icon={Moon} 
-            colorClass="text-indigo-500" 
-            tasks={buckets.evening} 
-            leads={leads}
-            onToggle={toggleReminder}
-            onSnooze={handleSnooze}
-          />
-
-          <BucketSection 
-            title="Tomorrow" 
-            icon={Calendar} 
-            colorClass={theme === 'light' ? 'text-slate-600' : 'text-slate-300'}
-            tasks={buckets.tomorrow} 
-            leads={leads}
-            onToggle={toggleReminder}
-            onSnooze={handleSnooze}
-        />
-
-        <BucketSection 
-            title="Upcoming" 
-            icon={Calendar} 
-            colorClass={theme === 'light' ? 'text-slate-400' : 'text-slate-500'}
-            tasks={buckets.upcoming} 
-            leads={leads}
-            onToggle={toggleReminder}
-            onSnooze={handleSnooze}
-        />
-
-         {/* Empty State */}
-        {pendingTasks.length === 0 && (
-            <div className="py-24 text-center animate-in zoom-in-95 duration-500">
-                <div className={cn("w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100", theme === 'light' ? 'bg-emerald-50 text-emerald-500' : 'bg-white/5 text-white/50')}>
-                    <CheckCircle2 size={40} />
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+        {msgs.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full opacity-40 text-center">
+            <MessageSquare size={28} className="mb-2" />
+            <p className="text-xs font-medium">No messages yet</p>
+            <p className="text-[10px] mt-1">Send a message, submit a link, or update on progress</p>
+          </div>
+        )}
+        {msgs.map((msg) => {
+          const isMe = msg.author === user?.name;
+          const isAdmin = msg.author === task.assignedBy;
+          return (
+            <div key={msg.id} className={cn('flex gap-2', isMe ? 'flex-row-reverse' : 'flex-row')}>
+              <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5', theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10 text-white border border-white/10')}>
+                {msg.author[0].toUpperCase()}
+              </div>
+              <div className={cn('max-w-[75%] space-y-0.5', isMe ? 'items-end' : 'items-start', 'flex flex-col')}>
+                <div className={cn('text-[9px] font-bold flex items-center gap-1', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+                  {msg.author} {isAdmin && !isMe && <span className={cn('px-1 py-0 rounded text-[8px]', theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-white/15 text-white/70')}>ADMIN</span>}
+                  · {timeAgo(msg.createdAt)}
                 </div>
-                <h2 className={cn("text-2xl font-bold font-serif", getTextColor())}>All Clear!</h2>
-                <p className={cn("text-sm opacity-60 mt-2", getTextColor())}>You've crushed your agenda for today.</p>
-                <div className="mt-8">
-                    <Link to="/leads" className="px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 transition-all">
-                        Find More Work
-                    </Link>
-                </div>
+                {msg.type === 'link' ? (
+                  <a
+                    href={msg.content}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-colors',
+                      isMe
+                        ? (theme === 'light' ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800' : 'bg-white text-slate-900 border-white hover:bg-white/90')
+                        : (theme === 'light' ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200' : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10')
+                    )}
+                  >
+                    <ExternalLink size={11} />
+                    <span className="truncate max-w-[180px]">{msg.content.replace(/^https?:\/\//, '')}</span>
+                  </a>
+                ) : (
+                  <div className={cn(
+                    'px-3 py-2 rounded-2xl text-xs leading-relaxed',
+                    isMe
+                      ? (theme === 'light' ? 'bg-slate-900 text-white rounded-tr-sm' : 'bg-white text-slate-900 rounded-tr-sm')
+                      : (theme === 'light' ? 'bg-slate-100 text-slate-800 rounded-tl-sm' : 'bg-white/10 text-white rounded-tl-sm')
+                  )}>
+                    {msg.content}
+                  </div>
+                )}
+              </div>
             </div>
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      {task.status !== 'completed' && (
+        <div className={cn('p-3 border-t shrink-0', theme === 'light' ? 'border-slate-100 bg-slate-50/50' : 'border-white/10')}>
+          <div className={cn('flex items-end gap-2 rounded-xl border p-2', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Message, or paste a link..."
+              rows={2}
+              className="flex-1 bg-transparent text-xs outline-none resize-none leading-relaxed"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className={cn(
+                'shrink-0 w-8 h-8 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all active:scale-95',
+                theme === 'light' ? 'bg-slate-900 hover:bg-slate-800 text-white' : 'bg-white hover:bg-white/90 text-slate-900'
+              )}
+            >
+              <Send size={13} />
+            </button>
+          </div>
+          <p className={cn('text-[9px] mt-1.5 text-center', theme === 'light' ? 'text-slate-400' : 'text-white/30')}>
+            Enter to send · Links auto-detected · Shift+Enter for newline
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Task Card ────────────────────────────────────────────────────────────────
+
+const TaskCard: React.FC<{
+  task: TeamTask;
+  msgCount: number;
+  isSelected: boolean;
+  onSelect: () => void;
+  onComplete: () => void;
+  onDelete?: () => void;
+  isAdmin: boolean;
+}> = ({ task, msgCount, isSelected, onSelect, onComplete, onDelete, isAdmin }) => {
+  const { theme } = useTheme();
+  const pc = PRIORITY_CONFIG[task.priority];
+  const sc = STATUS_CONFIG[task.status];
+  const isOverdue = task.dueDate && task.status !== 'completed' && new Date(task.dueDate) < new Date();
+
+  return (
+    <div
+      onClick={onSelect}
+      className={cn(
+        'group relative p-3.5 rounded-2xl border cursor-pointer transition-all',
+        isSelected
+          ? (theme === 'light' ? 'bg-slate-50 border-slate-300 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.1)]' : 'bg-white/10 border-white/25 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.3)]')
+          : (theme === 'light' ? 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)]' : 'bg-white/5 border-white/10 hover:border-white/20'),
+        task.priority === 'urgent' && task.status !== 'completed' && 'border-l-4 border-l-red-400',
+      )}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-start gap-2 min-w-0">
+          <div className="mt-0.5">
+            {task.status === 'completed'
+              ? <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+              : task.priority === 'urgent'
+                ? <Flame size={16} className="text-red-500 shrink-0" />
+                : <Clock size={16} className={cn('shrink-0', theme === 'light' ? 'text-slate-400' : 'text-white/30')} />
+            }
+          </div>
+          <div className="min-w-0">
+            <h4 className={cn('font-bold text-sm leading-tight truncate', task.status === 'completed' ? 'line-through opacity-50' : (theme === 'light' ? 'text-slate-900' : 'text-white'))}>
+              {task.title}
+            </h4>
+            {task.description && (
+              <p className={cn('text-[11px] mt-0.5 line-clamp-1', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+                {task.description}
+              </p>
+            )}
+          </div>
+        </div>
+        <ChevronRight size={14} className={cn('shrink-0 mt-0.5 transition-transform', isSelected ? cn('rotate-90', theme === 'light' ? 'text-slate-900' : 'text-white') : 'opacity-30')} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+        <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full', pc.color)}>{pc.label}</span>
+        <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full', sc.color)}>{sc.label}</span>
+        <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-semibold', theme === 'light' ? 'bg-slate-100 text-slate-600' : 'bg-white/10 text-white/60')}>
+          <User size={8} /> {task.assignedTo}
+        </span>
+        {task.dueDate && (
+          <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-semibold', isOverdue ? 'bg-red-100 text-red-600' : (theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-white/40'))}>
+            <Calendar size={8} /> {isOverdue ? 'Overdue · ' : ''}{formatDate(task.dueDate)}
+          </span>
+        )}
+        {msgCount > 0 && (
+          <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-semibold ml-auto', theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-white/10 text-white/30')}>
+            <MessageSquare size={8} /> {msgCount}
+          </span>
         )}
       </div>
 
-      {/* Completed Section (Bottom) */}
-      {completedTasks.length > 0 && (
-          <div className="mt-12 border-t border-dashed border-slate-200 pt-8">
-              <button 
-                  onClick={() => setShowCompleted(!showCompleted)}
-                  className={cn("text-xs font-bold uppercase tracking-wider mb-6 opacity-40 flex items-center justify-center gap-2 hover:opacity-100 transition-opacity w-full", getTextColor())}
-              >
-                  {showCompleted ? "Hide" : "Show"} Completed History ({completedTasks.length})
-              </button>
-              
-              {showCompleted && (
-                  <div className={cn(
-                      "rounded-2xl overflow-hidden animate-in slide-in-from-top-2 fade-in opacity-50 grayscale hover:grayscale-0 transition-all duration-500",
-                      theme === 'light' ? 'bg-slate-50 border border-slate-100' : 'bg-white/5 border border-white/5'
-                  )}>
-                      {completedTasks.map(task => (
-                           <div key={task.id} className="flex items-center justify-between p-4 border-b border-slate-200/50 last:border-0 hover:bg-slate-100/50 transition-colors group">
-                               <div className="flex items-center gap-3">
-                                   <button 
-                                      onClick={() => toggleReminder(task.id)}
-                                      className="text-emerald-500 hover:text-slate-400 p-1 rounded hover:bg-slate-200/50 transition-all"
-                                      title="Mark as incomplete (Undo)"
-                                   >
-                                       <CheckCircle2 size={18} className="fill-emerald-100" />
-                                   </button>
-                                   <span className="text-sm line-through decoration-slate-400 text-slate-500 font-medium">{task.task}</span>
-                               </div>
-                               <span className="text-xs font-mono text-slate-400">{new Date(task.dueDate).toLocaleDateString()}</span>
-                           </div>
-                      ))}
-                  </div>
-              )}
-          </div>
-      )}
+      {/* Hover actions */}
+      <div className={cn('overflow-hidden transition-all max-h-0 opacity-0 group-hover:max-h-10 group-hover:opacity-100 group-hover:mt-2.5 group-hover:pt-2.5 flex gap-1.5',
+        theme === 'light' ? 'group-hover:border-t group-hover:border-slate-100' : 'group-hover:border-t group-hover:border-white/10'
+      )}>
+        {task.status !== 'completed' && (
+          <button
+            onClick={e => { e.stopPropagation(); onComplete(); }}
+            className={cn('flex-1 text-[10px] font-bold py-1 rounded-lg flex items-center justify-center gap-1 border transition-colors', theme === 'light' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20')}
+          >
+            <Check size={10} /> Complete
+          </button>
+        )}
+        {isAdmin && onDelete && (
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+            className={cn('px-2.5 py-1 rounded-lg border transition-colors text-[10px] font-bold', theme === 'light' ? 'bg-red-50 text-red-500 border-red-200 hover:bg-red-100' : 'bg-red-500/10 text-red-400 border-red-500/20')}
+          >
+            <Trash2 size={10} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
+// ─── Create Task Modal ────────────────────────────────────────────────────────
+
+const CreateTaskModal: React.FC<{
+  onClose: () => void;
+  onSave: (task: Parameters<ReturnType<typeof useTasks>['createTask']>[0]) => void;
+  teamMembers: string[];
+  createdBy: string;
+}> = ({ onClose, onSave, teamMembers, createdBy }) => {
+  const { theme, getInputClass } = useTheme();
+  const [form, setForm] = useState({
+    title: '', description: '', assignedTo: teamMembers[0] || '',
+    dueDate: '', priority: 'normal' as TaskPriority,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    onSave({ ...form, assignedBy: createdBy });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className={cn('w-full max-w-md rounded-3xl shadow-2xl border overflow-hidden', theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/10')}>
+        <div className={cn('px-6 py-4 border-b flex items-center justify-between', theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
+          <h2 className="font-bold text-base">Assign New Task</h2>
+          <button onClick={onClose} className="opacity-40 hover:opacity-70 transition-opacity"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-1.5">Task Title *</label>
+            <input
+              value={form.title}
+              onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+              placeholder="What needs to be done?"
+              required
+              className={cn('w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none', getInputClass())}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-1.5">Description</label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              placeholder="Optional details, context, or instructions..."
+              rows={3}
+              className={cn('w-full rounded-xl border px-4 py-2.5 text-sm outline-none resize-none leading-relaxed', getInputClass())}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-1.5">Assign To *</label>
+              <select
+                value={form.assignedTo}
+                onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))}
+                required
+                className={cn('w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none', getInputClass(), '[&>option]:text-black')}
+              >
+                {teamMembers.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-1.5">Priority</label>
+              <select
+                value={form.priority}
+                onChange={e => setForm(p => ({ ...p, priority: e.target.value as TaskPriority }))}
+                className={cn('w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none', getInputClass(), '[&>option]:text-black')}
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-1.5">Due Date</label>
+            <input
+              type="date"
+              value={form.dueDate}
+              onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}
+              className={cn('w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none', getInputClass())}
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className={cn('flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors', theme === 'light' ? 'border-slate-200 text-slate-600 hover:bg-slate-50' : 'border-white/10 text-white/60 hover:bg-white/5')}>
+              Cancel
+            </button>
+            <button type="submit" className={cn(
+              'flex-1 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.97]',
+              theme === 'light' ? 'bg-slate-900 hover:bg-slate-800 text-white' : 'bg-white hover:bg-white/90 text-slate-900'
+            )}>
+              Assign Task
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export const Reminders = () => {
+  const { theme, getTextColor } = useTheme();
+  const { user, users } = useAuth();
+  const { tasks, messages, createTask, completeTask, deleteTask, getTaskMessages } = useTasks();
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | TaskStatus>('all');
+  const [filterAssignee, setFilterAssignee] = useState('all');
+
+  const isAdmin = user?.role === 'admin';
+  const teamMembers = users.filter(u => u.name !== user?.name).map(u => u.name);
+  const allAssignees = ['all', ...users.map(u => u.name)];
+
+  const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null;
+
+  const filteredTasks = tasks.filter(t => {
+    if (!isAdmin && t.assignedTo !== user?.name && t.assignedBy !== user?.name) return false;
+    if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+    if (filterAssignee !== 'all' && t.assignedTo !== filterAssignee) return false;
+    return true;
+  });
+
+  const grouped = {
+    urgent: filteredTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed'),
+    pending: filteredTasks.filter(t => t.status === 'pending' && t.priority !== 'urgent'),
+    in_progress: filteredTasks.filter(t => t.status === 'in_progress' && t.priority !== 'urgent'),
+    completed: filteredTasks.filter(t => t.status === 'completed'),
+  };
+
+  const pendingCount = tasks.filter(t => t.assignedTo === user?.name && t.status !== 'completed').length;
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="shrink-0 mb-4 flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-baseline gap-2.5 mb-1">
+            <h1 className={cn('text-2xl font-bold tracking-tight', getTextColor())}>Action Center</h1>
+            {pendingCount > 0 && !isAdmin && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-600">
+                {pendingCount} pending
+              </span>
+            )}
+          </div>
+          <p className={cn('text-sm', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+            {isAdmin ? 'Assign and track tasks across your team' : 'Your assigned tasks and conversations'}
+          </p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.97] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.12)]',
+              theme === 'light' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-900 hover:bg-white/90'
+            )}
+          >
+            <Plus size={16} strokeWidth={2.5} /> Assign Task
+          </button>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="shrink-0 flex items-center gap-2 mb-4 flex-wrap">
+        {(['all', 'pending', 'in_progress', 'completed'] as const).map(s => (
+          <button
+            key={s}
+            onClick={() => setFilterStatus(s)}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all',
+              filterStatus === s
+                ? (theme === 'light' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-white')
+                : (theme === 'light' ? 'bg-white border-slate-200 text-slate-500 hover:border-slate-300' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10')
+            )}
+          >
+            {s === 'all' ? 'All' : s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
+            <span className="ml-1.5 opacity-60">
+              {s === 'all' ? filteredTasks.length : filteredTasks.filter(t => t.status === s).length}
+            </span>
+          </button>
+        ))}
+        {isAdmin && (
+          <select
+            value={filterAssignee}
+            onChange={e => setFilterAssignee(e.target.value)}
+            className={cn('ml-auto text-[11px] font-bold px-3 py-1.5 rounded-full border outline-none cursor-pointer', theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/70', '[&>option]:text-black')}
+          >
+            {allAssignees.map(a => <option key={a} value={a}>{a === 'all' ? 'All Members' : a}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden flex gap-4 min-h-0">
+
+        {/* Task List */}
+        <div className={cn('flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-2', selectedTask && 'max-w-[520px]')}>
+          {filteredTasks.length === 0 && (
+            <div className={cn('flex flex-col items-center justify-center h-40 opacity-40')}>
+              <CheckCircle2 size={32} className="mb-2" />
+              <p className="text-sm font-medium">No tasks here</p>
+            </div>
+          )}
+
+          {grouped.urgent.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2.5">
+                <Flame size={13} className="text-red-500" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-500">Urgent</span>
+              </div>
+              <div className="space-y-2">
+                {grouped.urgent.map(t => (
+                  <TaskCard key={t.id} task={t} msgCount={getTaskMessages(t.id).length}
+                    isSelected={selectedTaskId === t.id} onSelect={() => setSelectedTaskId(t.id === selectedTaskId ? null : t.id)}
+                    onComplete={() => completeTask(t.id)} onDelete={() => deleteTask(t.id)} isAdmin={isAdmin} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {grouped.in_progress.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-2 h-2 rounded-full bg-blue-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-50">In Progress</span>
+              </div>
+              <div className="space-y-2">
+                {grouped.in_progress.map(t => (
+                  <TaskCard key={t.id} task={t} msgCount={getTaskMessages(t.id).length}
+                    isSelected={selectedTaskId === t.id} onSelect={() => setSelectedTaskId(t.id === selectedTaskId ? null : t.id)}
+                    onComplete={() => completeTask(t.id)} onDelete={() => deleteTask(t.id)} isAdmin={isAdmin} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {grouped.pending.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-2 h-2 rounded-full bg-slate-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-50">Pending</span>
+              </div>
+              <div className="space-y-2">
+                {grouped.pending.map(t => (
+                  <TaskCard key={t.id} task={t} msgCount={getTaskMessages(t.id).length}
+                    isSelected={selectedTaskId === t.id} onSelect={() => setSelectedTaskId(t.id === selectedTaskId ? null : t.id)}
+                    onComplete={() => completeTask(t.id)} onDelete={() => deleteTask(t.id)} isAdmin={isAdmin} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {grouped.completed.length > 0 && filterStatus !== 'pending' && filterStatus !== 'in_progress' && (
+            <div>
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-50">Completed</span>
+              </div>
+              <div className="space-y-2">
+                {grouped.completed.map(t => (
+                  <TaskCard key={t.id} task={t} msgCount={getTaskMessages(t.id).length}
+                    isSelected={selectedTaskId === t.id} onSelect={() => setSelectedTaskId(t.id === selectedTaskId ? null : t.id)}
+                    onComplete={() => {}} onDelete={() => deleteTask(t.id)} isAdmin={isAdmin} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Thread Panel */}
+        {selectedTask && (
+          <div className={cn('w-[380px] shrink-0 rounded-2xl border overflow-hidden animate-in slide-in-from-right-4 duration-300', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+            <TaskThread
+              task={selectedTask}
+              onClose={() => setSelectedTaskId(null)}
+              onComplete={() => { completeTask(selectedTask.id); }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Create Modal */}
+      {showCreate && (
+        <CreateTaskModal
+          onClose={() => setShowCreate(false)}
+          onSave={createTask}
+          teamMembers={users.map(u => u.name)}
+          createdBy={user?.name || 'Admin'}
+        />
+      )}
     </div>
   );
 };

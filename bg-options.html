@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTE CRM — Background Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: #0f0f1a;
+  padding: 40px 32px;
+  min-height: 100vh;
+}
+.page-title {
+  text-align: center;
+  color: white;
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+.page-sub {
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+  margin-bottom: 40px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 28px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.option-wrap {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+.option-wrap:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+}
+.option-label {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  letter-spacing: 0.02em;
+}
+.option-label .tag {
+  font-size: 10px;
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+.mockup {
+  height: 280px;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+/* Sidebar */
+.sidebar {
+  width: 130px;
+  flex-shrink: 0;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 2;
+}
+.s-logo { font-size: 11px; font-weight: 800; color: #6366f1; margin-bottom: 10px; }
+.s-item { font-size: 10px; padding: 5px 8px; border-radius: 6px; font-weight: 500; }
+.s-item.active { background: rgba(99,102,241,0.12); color: #6366f1; font-weight: 700; }
+.s-avatar { margin-top: auto; display: flex; align-items: center; gap: 6px; padding: 6px 0; }
+.s-av-dot { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+.s-av-text .name { font-size: 10px; font-weight: 700; }
+.s-av-text .role { font-size: 9px; opacity: 0.5; }
+/* Main area */
+.main {
+  flex: 1;
+  padding: 14px;
+  overflow: hidden;
+  z-index: 2;
+}
+.main-header { margin-bottom: 10px; }
+.main-title { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 2px; }
+.main-sub { font-size: 10px; opacity: 0.5; }
+.board { display: flex; gap: 8px; }
+.col {
+  flex: 1;
+  border-radius: 8px;
+  padding: 8px;
+}
+.col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+.col-title { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; opacity: 0.6; }
+.col-count {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-weight: 600;
+}
+.lead-card {
+  border-radius: 6px;
+  padding: 7px;
+  margin-bottom: 5px;
+}
+.lead-name { font-size: 10px; font-weight: 700; margin-bottom: 2px; }
+.lead-dest { font-size: 9px; opacity: 0.5; margin-bottom: 4px; }
+.lead-meta { display: flex; align-items: center; gap: 4px; }
+.badge {
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.badge-warm { background: #fef3c7; color: #92400e; }
+.badge-hot { background: #fee2e2; color: #991b1b; }
+.badge-cold { background: #dbeafe; color: #1e40af; }
+.assignee { font-size: 8px; padding: 1px 5px; border-radius: 3px; background: rgba(99,102,241,0.1); color: #6366f1; font-weight: 600; }
+.empty-col {
+  border: 1.5px dashed;
+  border-radius: 6px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  opacity: 0.4;
+}
+
+/* ── CANVAS BACKGROUNDS ── */
+canvas.bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* ── STATIC / CSS BACKGROUNDS ── */
+.bg-pure-white { background: #ffffff; }
+.bg-warm-cream { background: #fdf8f3; }
+.bg-cool-sky { background: #f0f7ff; }
+.bg-soft-linen { background: #f9f7f4; }
+.bg-rose-blush { background: #fff5f5; }
+.bg-mint-fresh { background: #f0fdf9; }
+.bg-lavender { background: #f5f3ff; }
+.bg-peach { background: #fff7ed; }
+.bg-sand { background: #fefce8; }
+.bg-arctic { background: #f0f9ff; }
+.bg-forest { background: #f0fdf4; }
+
+/* Sidebar colors per theme */
+.sb-white { background: rgba(255,255,255,0.95); border-right: 1px solid #e2e8f0; }
+.sb-cream { background: rgba(255,252,248,0.97); border-right: 1px solid #ecdfd3; }
+.sb-sky { background: rgba(255,255,255,0.92); border-right: 1px solid #bfdbfe; }
+.sb-linen { background: rgba(255,254,252,0.97); border-right: 1px solid #e7e2db; }
+.sb-rose { background: rgba(255,255,255,0.93); border-right: 1px solid #fecdd3; }
+.sb-mint { background: rgba(255,255,255,0.93); border-right: 1px solid #a7f3d0; }
+.sb-lav { background: rgba(255,255,255,0.93); border-right: 1px solid #ddd6fe; }
+.sb-peach { background: rgba(255,255,255,0.93); border-right: 1px solid #fed7aa; }
+.sb-sand { background: rgba(255,255,255,0.93); border-right: 1px solid #fde68a; }
+.sb-dark { background: rgba(15,23,42,0.9); border-right: 1px solid rgba(255,255,255,0.08); }
+
+.col-white { background: #ffffff; border: 1px solid #e2e8f0; }
+.col-cream { background: rgba(255,255,255,0.8); border: 1px solid #ecdfd3; }
+.col-sky { background: rgba(255,255,255,0.8); border: 1px solid #bfdbfe; }
+.col-linen { background: rgba(255,255,255,0.8); border: 1px solid #e7e2db; }
+.col-rose { background: rgba(255,255,255,0.8); border: 1px solid #fecdd3; }
+.col-mint { background: rgba(255,255,255,0.8); border: 1px solid #a7f3d0; }
+.col-lav { background: rgba(255,255,255,0.8); border: 1px solid #ddd6fe; }
+.col-dark { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+
+.lc-white { background: #f8fafc; border: 1px solid #e2e8f0; }
+.lc-cream { background: #fffaf6; border: 1px solid #ecdfd3; }
+.lc-sky { background: #eff6ff; border: 1px solid #bfdbfe; }
+.lc-linen { background: #f9f7f4; border: 1px solid #e7e2db; }
+.lc-rose { background: #fff1f2; border: 1px solid #fecdd3; }
+.lc-mint { background: #f0fdf4; border: 1px solid #a7f3d0; }
+.lc-lav { background: #faf5ff; border: 1px solid #ddd6fe; }
+.lc-dark { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); }
+
+.tc-light { color: #0f172a; }
+.tc-dark { color: #f1f5f9; }
+.ec-light { border-color: #e2e8f0; color: #94a3b8; }
+.ec-cream { border-color: #ecdfd3; color: #b8957a; }
+.ec-sky { border-color: #bfdbfe; color: #93c5fd; }
+.ec-linen { border-color: #e7e2db; color: #a8a29e; }
+.ec-dark { border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.3); }
+
+/* gradient animated backgrounds */
+@keyframes gradShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes blobFloat {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33%       { transform: translate(30px,-20px) scale(1.05); }
+  66%       { transform: translate(-20px,15px) scale(0.95); }
+}
+@keyframes blobFloat2 {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33%       { transform: translate(-25px,20px) scale(1.08); }
+  66%       { transform: translate(15px,-10px) scale(0.92); }
+}
+@keyframes shimmer {
+  0%   { opacity: 0.4; }
+  50%  { opacity: 0.8; }
+  100% { opacity: 0.4; }
+}
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes drift {
+  0%,100% { transform: translateY(0) translateX(0); }
+  25%      { transform: translateY(-15px) translateX(10px); }
+  75%      { transform: translateY(10px) translateX(-8px); }
+}
+
+.blob-container {
+  position: absolute; inset: 0; overflow: hidden; z-index: 0;
+}
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.55;
+}
+</style>
+</head>
+<body>
+<div class="page-title">TTE CRM — Background Themes</div>
+<div class="page-sub">15 options with live animations · hover to lift · pick a number</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const themes = [
+  {
+    id: 1, name: "Pure White", hex: "#ffffff", tag: "Clean & Sharp",
+    labelBg: "#6366f1",
+    mockupBg: "bg-pure-white", sidebar: "sb-white", col: "col-white", lc: "lc-white", tc: "tc-light", ec: "ec-light",
+    animated: false,
+    blobs: []
+  },
+  {
+    id: 2, name: "Warm Cream", hex: "#fdf8f3", tag: "Premium Warmth",
+    labelBg: "#d97706",
+    mockupBg: "bg-warm-cream", sidebar: "sb-cream", col: "col-cream", lc: "lc-cream", tc: "tc-light", ec: "ec-cream",
+    animated: false,
+    blobs: [
+      { color:"#fde68a", size:200, top:-40, left:-30, dur:9 },
+      { color:"#fca5a5", size:160, top:120, left:220, dur:12 }
+    ]
+  },
+  {
+    id: 3, name: "Cool Sky", hex: "#f0f7ff", tag: "Airy & Fresh",
+    labelBg: "#0ea5e9",
+    mockupBg: "bg-cool-sky", sidebar: "sb-sky", col: "col-sky", lc: "lc-sky", tc: "tc-light", ec: "ec-sky",
+    animated: false,
+    blobs: [
+      { color:"#bae6fd", size:220, top:-60, left:-40, dur:10 },
+      { color:"#a5b4fc", size:150, top:150, left:200, dur:14 }
+    ]
+  },
+  {
+    id: 4, name: "Soft Linen", hex: "#f9f7f4", tag: "Elegant Neutral",
+    labelBg: "#64748b",
+    mockupBg: "bg-soft-linen", sidebar: "sb-linen", col: "col-linen", lc: "lc-linen", tc: "tc-light", ec: "ec-linen",
+    animated: false,
+    blobs: [
+      { color:"#e7e5e4", size:200, top:-50, left:150, dur:11 }
+    ]
+  },
+  {
+    id: 5, name: "Aurora Bloom", hex: "animated", tag: "Living Gradient",
+    labelBg: "#059669",
+    animated: true,
+    type: "aurora",
+    blobColors: ["#6ee7b7","#a7f3d0","#67e8f9","#c7d2fe"],
+    sidebar: "sb-dark", col: "col-dark", lc: "lc-dark", tc: "tc-dark", ec: "ec-dark",
+    bgStart: "#0d1f1a"
+  },
+  {
+    id: 6, name: "Sunset Mesh", hex: "animated", tag: "Vibrant Energy",
+    labelBg: "#dc2626",
+    animated: true,
+    type: "sunset",
+    blobColors: ["#fca5a5","#fdba74","#f9a8d4","#c4b5fd"],
+    sidebar: "sb-dark", col: "col-dark", lc: "lc-dark", tc: "tc-dark", ec: "ec-dark",
+    bgStart: "#1a0d0d"
+  },
+  {
+    id: 7, name: "Ocean Depth", hex: "animated", tag: "Deep & Focused",
+    labelBg: "#1d4ed8",
+    animated: true,
+    type: "ocean",
+    blobColors: ["#60a5fa","#34d399","#818cf8","#38bdf8"],
+    sidebar: "sb-dark", col: "col-dark", lc: "lc-dark", tc: "tc-dark", ec: "ec-dark",
+    bgStart: "#030b1a"
+  },
+  {
+    id: 8, name: "Purple Haze", hex: "animated", tag: "Dreamy & Bold",
+    labelBg: "#7c3aed",
+    animated: true,
+    type: "purple",
+    blobColors: ["#c4b5fd","#a78bfa","#f9a8d4","#818cf8"],
+    sidebar: "sb-dark", col: "col-dark", lc: "lc-dark", tc: "tc-dark", ec: "ec-dark",
+    bgStart: "#0d0a1f"
+  },
+  {
+    id: 9, name: "Rose Blush", hex: "#fff5f5", tag: "Soft & Inviting",
+    labelBg: "#e11d48",
+    mockupBg: "bg-rose-blush", sidebar: "sb-rose", col: "col-rose", lc: "lc-rose", tc: "tc-light", ec: "ec-light",
+    animated: false,
+    blobs: [
+      { color:"#fecdd3", size:200, top:-30, left:-20, dur:10 },
+      { color:"#fde68a", size:130, top:180, left:250, dur:8 }
+    ]
+  },
+  {
+    id: 10, name: "Mint Fresh", hex: "#f0fdf9", tag: "Clean & Natural",
+    labelBg: "#059669",
+    mockupBg: "bg-mint-fresh", sidebar: "sb-mint", col: "col-mint", lc: "lc-mint", tc: "tc-light", ec: "ec-light",
+    animated: false,
+    blobs: [
+      { color:"#a7f3d0", size:220, top:-50, left:-30, dur:12 },
+      { color:"#67e8f9", size:150, top:160, left:200, dur:9 }
+    ]
+  },
+  {
+    id: 11, name: "Lavender Dream", hex: "#f5f3ff", tag: "Calm & Creative",
+    labelBg: "#7c3aed",
+    mockupBg: "bg-lavender", sidebar: "sb-lav", col: "col-lav", lc: "lc-lav", tc: "tc-light", ec: "ec-light",
+    animated: false,
+    blobs: [
+      { color:"#ddd6fe", size:200, top:-40, left:180, dur:11 },
+      { color:"#c4b5fd", size:140, top:150, left:-20, dur:14 }
+    ]
+  },
+  {
+    id: 12, name: "Golden Hour", hex: "animated", tag: "Warm Luxury",
+    labelBg: "#b45309",
+    animated: true,
+    type: "golden",
+    blobColors: ["#fde68a","#fca5a5","#fdba74","#fef08a"],
+    sidebar: "sb-dark", col: "col-dark", lc: "lc-dark", tc: "tc-dark", ec: "ec-dark",
+    bgStart: "#1a1200"
+  },
+  {
+    id: 13, name: "Arctic Frost", hex: "#f0f9ff", tag: "Ultra Clean",
+    labelBg: "#0284c7",
+    mockupBg: "bg-arctic", sidebar: "sb-sky", col: "col-sky", lc: "lc-sky", tc: "tc-light", ec: "ec-sky",
+    animated: false,
+    blobs: [
+      { color:"#e0f2fe", size:250, top:-60, left:-40, dur:13 },
+      { color:"#bae6fd", size:130, top:180, left:230, dur:10 }
+    ]
+  },
+  {
+    id: 14, name: "Cosmic Night", hex: "animated", tag: "Dark & Premium",
+    labelBg: "#312e81",
+    animated: true,
+    type: "cosmic",
+    blobColors: ["#4f46e5","#7c3aed","#2563eb","#6d28d9"],
+    sidebar: "sb-dark", col: "col-dark", lc: "lc-dark", tc: "tc-dark", ec: "ec-dark",
+    bgStart: "#060612"
+  },
+  {
+    id: 15, name: "Peach Fizz", hex: "#fff7ed", tag: "Bright & Playful",
+    labelBg: "#ea580c",
+    mockupBg: "bg-peach", sidebar: "sb-peach", col: "col-peach", lc: "lc-peach", tc: "tc-light", ec: "ec-light",
+    animated: false,
+    blobs: [
+      { color:"#fed7aa", size:200, top:-30, left:-20, dur:9 },
+      { color:"#fde68a", size:160, top:170, left:210, dur:11 },
+      { color:"#fca5a5", size:110, top:60, left:250, dur:7 }
+    ]
+  }
+];
+
+// Extra col/lc classes for peach/sand
+const extraStyles = document.createElement('style');
+extraStyles.textContent = `
+.col-peach { background: rgba(255,255,255,0.8); border: 1px solid #fed7aa; }
+.lc-peach  { background: #fff7ed; border: 1px solid #fed7aa; }
+`;
+document.head.appendChild(extraStyles);
+
+function buildMockup(t) {
+  const isAnimated = t.animated;
+  const tc = t.tc === 'tc-dark' ? 'color:#f1f5f9' : 'color:#0f172a';
+  const tc2 = t.tc === 'tc-dark' ? 'color:#94a3b8' : 'color:#64748b';
+  const textDark = t.tc === 'tc-dark';
+
+  return `
+    <div class="sidebar ${t.sidebar}">
+      <div class="s-logo">TTE CRM</div>
+      <div class="s-item" style="${tc2}">Dashboard</div>
+      <div class="s-item active">Leads</div>
+      <div class="s-item" style="${tc2}">Tasks</div>
+      <div class="s-item" style="${tc2}">Customers</div>
+      <div class="s-item" style="${tc2}">Suppliers</div>
+      <div class="s-avatar">
+        <div class="s-av-dot"></div>
+        <div class="s-av-text">
+          <div class="name" style="${tc}">Admin</div>
+          <div class="role" style="${tc2}">ADMIN</div>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="main-header">
+        <div class="main-title" style="${tc}">Leads</div>
+        <div class="main-sub" style="${tc2}">Manage your opportunities</div>
+      </div>
+      <div class="board">
+        <div class="col ${t.col}">
+          <div class="col-header">
+            <span class="col-title" style="${tc2}">NEW</span>
+            <span class="col-count" style="background:rgba(99,102,241,0.1);color:#6366f1">0</span>
+          </div>
+          <div class="empty-col ${t.ec === 'ec-dark' ? '' : ''}" style="border-color:${textDark?'rgba(255,255,255,0.15)':'#e2e8f0'};color:${textDark?'rgba(255,255,255,0.2)':'#94a3b8'}">Drop here</div>
+        </div>
+        <div class="col ${t.col}">
+          <div class="col-header">
+            <span class="col-title" style="${tc2}">CONTACTED</span>
+            <span class="col-count" style="background:rgba(99,102,241,0.1);color:#6366f1">20</span>
+          </div>
+          <div class="lead-card ${t.lc}">
+            <div class="lead-name" style="${tc}">Khushbu Bhav...</div>
+            <div class="lead-dest" style="${tc2}">Rann Utsav</div>
+            <div class="lead-meta"><span class="badge badge-warm">WARM</span><span class="assignee">Sonali</span></div>
+          </div>
+          <div class="lead-card ${t.lc}">
+            <div class="lead-name" style="${tc}">SUNIL HALAI</div>
+            <div class="lead-dest" style="${tc2}">BALI · 4A</div>
+            <div class="lead-meta"><span class="badge badge-hot">HOT</span><span class="assignee">Prakash</span></div>
+          </div>
+          <div class="lead-card ${t.lc}">
+            <div class="lead-name" style="${tc}">Krunal Parmar</div>
+            <div class="lead-dest" style="${tc2}">Rann Utsav</div>
+            <div class="lead-meta"><span class="badge badge-warm">WARM</span><span class="assignee">Sonali</span></div>
+          </div>
+        </div>
+        <div class="col ${t.col}">
+          <div class="col-header">
+            <span class="col-title" style="${tc2}">PROPOSAL</span>
+            <span class="col-count" style="background:rgba(99,102,241,0.1);color:#6366f1">0</span>
+          </div>
+          <div class="empty-col" style="border-color:${textDark?'rgba(255,255,255,0.15)':'#e2e8f0'};color:${textDark?'rgba(255,255,255,0.2)':'#94a3b8'}">Drop here</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildBlobsHTML(blobs) {
+  return blobs.map((b, i) => {
+    const anim = i % 2 === 0 ? 'blobFloat' : 'blobFloat2';
+    return `<div class="blob" style="width:${b.size}px;height:${b.size}px;top:${b.top}px;left:${b.left}px;background:${b.color};animation:${anim} ${b.dur}s ease-in-out infinite;"></div>`;
+  }).join('');
+}
+
+function buildAnimBlobsHTML(colors, bgStart) {
+  const positions = [
+    { top: -60, left: -40, size: 200, dur: 10, anim: 'blobFloat' },
+    { top: 80,  left: 220, size: 160, dur: 13, anim: 'blobFloat2' },
+    { top: 170, left: 50,  size: 140, dur: 8,  anim: 'drift' },
+    { top: -20, left: 130, size: 120, dur: 11, anim: 'blobFloat' }
+  ];
+  return colors.map((c, i) => {
+    const p = positions[i % positions.length];
+    return `<div class="blob" style="width:${p.size}px;height:${p.size}px;top:${p.top}px;left:${p.left}px;background:${c};animation:${p.anim} ${p.dur}s ease-in-out infinite;opacity:0.6;"></div>`;
+  }).join('');
+}
+
+const grid = document.getElementById('grid');
+
+themes.forEach(t => {
+  const wrap = document.createElement('div');
+  wrap.className = 'option-wrap';
+  wrap.title = `Option ${t.id} — ${t.name}`;
+
+  let mockupStyle = '';
+  let blobsHTML = '';
+
+  if (t.animated) {
+    mockupStyle = `background:${t.bgStart};`;
+    blobsHTML = `<div class="blob-container">${buildAnimBlobsHTML(t.blobColors, t.bgStart)}</div>`;
+  } else {
+    const cls = t.mockupBg || '';
+    blobsHTML = t.blobs && t.blobs.length ? `<div class="blob-container">${buildBlobsHTML(t.blobs)}</div>` : '';
+    mockupStyle = cls ? '' : '';
+    wrap.dataset.bgClass = cls;
+  }
+
+  const hexDisplay = t.hex === 'animated' ? 'animated' : t.hex;
+
+  wrap.innerHTML = `
+    <div class="option-label" style="background:${t.labelBg}">
+      <span>Option ${t.id} — ${t.name} <span style="opacity:0.6;font-size:10px;font-weight:400">${hexDisplay}</span></span>
+      <span class="tag">${t.tag}</span>
+    </div>
+    <div class="mockup ${t.mockupBg || ''}" style="${mockupStyle}">
+      ${blobsHTML}
+      ${buildMockup(t)}
+    </div>`;
+
+  grid.appendChild(wrap);
+});
+</script>
+</body>
+</html>

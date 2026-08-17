@@ -19,4 +19,7 @@ export interface ItineraryPricing {
     netTotal: number;
     finalTotal: number;
     perPerson: number;
+    transportCost: number;
+    hotelCost: number;
+    peakSurcharge: number;
 }

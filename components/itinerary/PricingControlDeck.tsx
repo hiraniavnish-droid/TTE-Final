@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn, formatCurrency } from '../../utils/helpers';
-import { ChevronLeft, Settings, Info, Car, Download, Loader2, Copy, Check } from 'lucide-react';
+import { ChevronLeft, Settings, Info, Car, Download, Loader2, Copy, Check, Flame, AlertTriangle, MessageCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ItineraryPricing } from './types';
 
@@ -16,22 +16,24 @@ interface PricingControlDeckProps {
   onOpenFleetModal: () => void;
   onGeneratePDF: () => void;
   onCopyQuote: () => void;
+  onWhatsAppShare: () => void;
   isPdfLoading: boolean;
   copyFeedback: boolean;
+  whatsappFeedback?: boolean;
 }
 
-export const PricingControlDeck: React.FC<PricingControlDeckProps> = ({ 
-  pricing, markupType, setMarkupType, markupValue, setMarkupValue, 
-  onBack, onOpenFleetModal, onGeneratePDF, onCopyQuote, 
-  isPdfLoading, copyFeedback 
+export const PricingControlDeck: React.FC<PricingControlDeckProps> = ({
+  pricing, markupType, setMarkupType, markupValue, setMarkupValue,
+  onBack, onOpenFleetModal, onGeneratePDF, onCopyQuote, onWhatsAppShare,
+  isPdfLoading, copyFeedback, whatsappFeedback
 }) => {
   const { theme } = useTheme();
   const [showMarkup, setShowMarkup] = useState(false);
 
   return (
     <div className={cn(
-        "border-b backdrop-blur-xl transition-colors flex flex-col p-3 md:p-4 gap-3 md:gap-4",
-        theme === 'light' ? "bg-white/95 border-slate-200" : "bg-slate-900/95 border-white/10"
+        "border-b transition-colors flex flex-col p-3 md:p-4 gap-3 md:gap-4",
+        theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-white/10"
     )}>
         <div className="flex items-center justify-between">
             <button 
@@ -52,11 +54,16 @@ export const PricingControlDeck: React.FC<PricingControlDeckProps> = ({
                 
                 <div className={cn("flex flex-col px-2", showMarkup ? "flex" : "hidden md:flex")}>
                     <span className="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1">
-                        <Info size={10} /> Net
+                        <Info size={10} /> Net Cost
                     </span>
                     <span className="text-xs md:text-sm font-mono font-bold text-gray-500">
                         {formatCurrency(pricing?.netTotal || 0)}
                     </span>
+                    {(pricing?.peakSurcharge ?? 0) > 0 && (
+                        <span className="text-[9px] font-bold text-red-500 flex items-center gap-0.5 mt-0.5">
+                            <Flame size={8} /> incl. {formatCurrency(pricing!.peakSurcharge)} peak
+                        </span>
+                    )}
                 </div>
                 
                 <div className={cn("h-8 w-px bg-gray-300", showMarkup ? "block" : "hidden md:block")}></div>
@@ -78,6 +85,13 @@ export const PricingControlDeck: React.FC<PricingControlDeckProps> = ({
                 </div>
             </div>
         </div>
+
+        {(pricing?.peakSurcharge ?? 0) > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold">
+                <AlertTriangle size={12} className="shrink-0" />
+                <span>Peak season dates detected — rates include blackout surcharge of {formatCurrency(pricing!.peakSurcharge)}</span>
+            </div>
+        )}
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-2 border-t border-gray-500/10">
             <div className="flex items-baseline gap-2 w-full md:w-auto justify-between md:justify-start">
@@ -109,6 +123,10 @@ export const PricingControlDeck: React.FC<PricingControlDeckProps> = ({
                 <Button onClick={onCopyQuote} className={cn("flex-1 md:flex-none h-9 md:h-10 px-3 md:px-4 gap-1 md:gap-2 transition-all min-w-0", copyFeedback ? "bg-emerald-600" : "bg-blue-600")}>
                     {copyFeedback ? <Check size={16} /> : <Copy size={16} />}
                     <span className="text-xs md:text-sm truncate">{copyFeedback ? "Copied" : "Copy"}</span>
+                </Button>
+                <Button onClick={onWhatsAppShare} className={cn("flex-1 md:flex-none h-9 md:h-10 px-3 md:px-4 gap-1 md:gap-2 transition-all min-w-0", whatsappFeedback ? "bg-emerald-600" : "bg-green-600 hover:bg-green-700")}>
+                    {whatsappFeedback ? <Check size={16} /> : <MessageCircle size={16} />}
+                    <span className="text-xs md:text-sm truncate hidden sm:inline">{whatsappFeedback ? "Sent!" : "WhatsApp"}</span>
                 </Button>
             </div>
         </div>

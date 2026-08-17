@@ -3,7 +3,7 @@ export type ThemeMode = 'light' | 'dark' | 'ocean';
 
 export type LeadStatus = 'New' | 'Contacted' | 'Proposal Sent' | 'Discussion' | 'Won' | 'Lost';
 export type LeadTemperature = 'Hot' | 'Warm' | 'Cold';
-export type LeadSource = 'Instagram' | 'Walk-in' | 'Referral' | 'Website' | 'Other';
+export type LeadSource = 'Instagram' | 'Walk-in' | 'Referral' | 'Website' | 'WhatsApp' | 'Other';
 
 export type UserRole = 'admin' | 'agent';
 
@@ -12,6 +12,7 @@ export interface User {
   role: UserRole;
   id: string;
   passcode: string;
+  phone?: string; // WhatsApp number for team lead-update notifications (empty = doesn't receive them)
 }
 
 export interface LeadContact {
@@ -30,6 +31,7 @@ export interface TripDetails {
   paxConfig: PaxConfig;
   budget: number;
   startDate: string;
+  nights?: number;
 }
 
 export interface TravelPreferences {
@@ -38,12 +40,24 @@ export interface TravelPreferences {
 }
 
 // Updated Data Structure for Multiple Vendors
+export interface VendorPayment {
+  id: string;
+  amount: number;
+  method: 'Cash' | 'Cheque' | 'Bank Transfer' | 'UPI' | 'Other';
+  date: string; // yyyy-mm-dd
+  reference?: string; // cheque no. / UTR / UPI txn ID / any entry ref
+  notes?: string;
+  recordedBy: string;
+  recordedAt: string; // ISO timestamp
+}
+
 export interface VendorDetail {
   id: string;
   name: string; // Mandatory
   cost: number; // Buying Price
   price: number; // Selling Price
   category?: string; // e.g., Hotel, Transport
+  payments?: VendorPayment[]; // Payments made to this vendor (partial or full)
 }
 
 export interface Commercials {
@@ -56,6 +70,7 @@ export interface Commercials {
 
 export interface Lead {
   id: string;
+  leadCode?: string; // Human-readable display code (TTE-0001). Assigned by a DB trigger on insert — never set or edited by the app. Optional so the UI degrades gracefully before migration 006 runs. The uuid `id` remains the real key everywhere.
   name: string;
   contact: LeadContact;
   tripDetails: TripDetails;
@@ -67,13 +82,15 @@ export interface Lead {
   source: LeadSource;
   interestedServices: string[];
   referenceName?: string;
-  assignedTo?: string; // New: Agent Name
+  assignedTo?: string | null; // New: Agent Name — null explicitly means "Unassigned" (must be null, not undefined, so it's still sent on update)
   tags: string[];
   createdAt: string; // ISO Timestamp
   lastStatusUpdate?: string; // ISO Timestamp
+  wonAt?: string; // ISO Timestamp — stamped once, the first time this lead becomes Won; never overwritten afterwards. The canonical "which month is this sale attributed to" date.
+  legacy?: boolean; // Old-company / handled-differently deal: stays fully visible but excluded from ALL financial aggregates (pending, outstanding, vendor owed, revenue/profit). Admin-toggleable.
 }
 
-export type InteractionType = 'Call' | 'Note' | 'Email' | 'StatusChange' | 'TaskLog';
+export type InteractionType = 'Call' | 'Note' | 'Email' | 'StatusChange' | 'TaskLog' | 'WhatsApp';
 export type Sentiment = 'Positive' | 'Neutral' | 'Negative';
 
 export interface Interaction {
@@ -137,7 +154,7 @@ export interface Hotel {
   name: string;
   rate: number; // Base rate (backward compatibility)
   type: string; // e.g. 'CPAI', 'MAPAI'
-  tier: 'Budget' | 'Premium';
+  tier: 'Budget' | 'Premium' | 'Luxury';
   img: string;
   roomTypes: RoomType[]; // New Advanced Structure
 }

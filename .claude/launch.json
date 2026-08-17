@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview"],
       "port": 4173
+    },
+    {
+      "name": "Redesign Demos",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", ".superpowers/brainstorm/redesign-v2", "-p", "5273", "-c-1", "--silent"],
+      "port": 5273
     }
   ]
 }

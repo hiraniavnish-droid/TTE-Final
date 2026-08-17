@@ -78,7 +78,7 @@ export const DirectPackages = () => {
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       
       {/* Back to Hub Nav */}
-      <button 
+      <button
         onClick={() => navigate('/builder')}
         className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors font-bold text-sm"
       >
@@ -86,30 +86,31 @@ export const DirectPackages = () => {
       </button>
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-            <div className="flex items-center gap-2 mb-1">
-                <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
-                    <CalendarCheck size={20} />
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 text-slate-700 rounded-xl ring-1 ring-slate-200/70">
+                    <CalendarCheck size={18} strokeWidth={2.5} />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Daily Departures</span>
+                <div>
+                    <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Direct Packages (FIT)</h1>
+                    <p className={cn("text-sm opacity-60 max-w-xl", getTextColor())}>
+                        Flexible Independent Travel — choose your own dates and pace across curated daily itineraries.
+                    </p>
+                </div>
             </div>
-            <h1 className={cn("text-4xl font-bold font-serif", getTextColor())}>Direct Packages (FIT)</h1>
-            <p className={cn("text-sm opacity-60 mt-1 max-w-xl", getTextColor())}>
-                Flexible Independent Travel. Choose your own dates and travel at your own pace with our curated daily itineraries.
-            </p>
         </div>
-        
+
         <div className="relative w-full md:w-80 group">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-700 transition-colors">
                 <Search size={18} />
             </div>
-            <input 
-                type="text" 
-                placeholder="Search city or package..." 
+            <input
+                type="text"
+                placeholder="Search city or package..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className={cn("w-full pl-12 pr-4 py-3 rounded-2xl border outline-none shadow-sm transition-all focus:ring-4 focus:ring-blue-500/10", getInputClass())}
+                className={cn("w-full pl-12 pr-4 py-3 rounded-2xl border outline-none shadow-sm transition-all focus:ring-4 focus:ring-slate-900/10", getInputClass())}
             />
         </div>
       </div>
@@ -135,17 +136,17 @@ export const DirectPackages = () => {
       {/* Grid - Updated with Text-Only Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredPackages.map(pkg => (
-          <Card 
-            key={pkg.id} 
-            noPadding 
-            className="group flex flex-col hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border border-slate-200 hover:border-blue-300 h-full hover:-translate-y-1"
+          <Card
+            key={pkg.id}
+            noPadding
+            className="group flex flex-col shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)] hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.2)] transition-all duration-300 cursor-pointer overflow-hidden border border-slate-200 hover:border-slate-300 h-full hover:-translate-y-1"
             onClick={() => navigate(`/direct-packages/${pkg.id}`)}
           >
             <div className="p-6 flex flex-col h-full">
                 {/* Header: Icon & Duration */}
                 <div className="flex justify-between items-start mb-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                        <Plane size={20} />
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 ring-1 ring-slate-200/70 group-hover:scale-105 transition-transform">
+                        <Plane size={20} strokeWidth={2.5} />
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
                         {pkg.duration || 'Flexible'}
@@ -153,10 +154,10 @@ export const DirectPackages = () => {
                 </div>
 
                 {/* Content: Title & Region */}
-                <h3 className={cn("text-lg font-bold font-serif leading-tight mb-2 group-hover:text-blue-600 transition-colors line-clamp-2", getTextColor())}>
+                <h3 className={cn("text-lg font-bold tracking-tight leading-tight mb-2 group-hover:text-slate-900 transition-colors line-clamp-2", getTextColor())}>
                     {pkg.name}
                 </h3>
-                
+
                 <div className="flex items-center gap-2 text-xs font-medium opacity-60 mb-6">
                     <Globe size={14} />
                     {pkg.region || 'International'}
@@ -165,7 +166,7 @@ export const DirectPackages = () => {
                 {/* Footer: Action */}
                 <div className="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center">
                     <span className={cn("text-xs font-bold text-slate-400", getSecondaryTextColor())}>View Details</span>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-500 group-hover:bg-slate-900 group-hover:text-white transition-all">
                         <ArrowRight size={16} />
                     </div>
                 </div>
@@ -184,7 +185,7 @@ export const DirectPackages = () => {
               <p className="text-sm mt-2 max-w-md">
                   We couldn't find any packages matching your filters.
               </p>
-              <Button variant="ghost" onClick={() => {setSearch(''); setActiveTab('All');}} className="mt-4 text-blue-500">
+              <Button variant="ghost" onClick={() => {setSearch(''); setActiveTab('All');}} className="mt-4 text-slate-700">
                   Clear Filters
               </Button>
           </div>

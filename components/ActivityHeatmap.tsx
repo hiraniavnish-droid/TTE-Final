@@ -39,11 +39,11 @@ export const ActivityHeatmap: React.FC<Props> = ({ logs }) => {
         }, Date.now())
       : null;
 
-    let weeksShown = 4; // minimum when no data
+    let weeksShown = 8; // minimum — keeps the grid from looking sparse when there's little data yet
     if (earliest) {
       const daysBack = Math.ceil((today.getTime() - earliest) / (1000 * 60 * 60 * 24));
       const weeksBack = Math.ceil(daysBack / 7) + 2; // +2 buffer weeks
-      weeksShown = Math.min(Math.max(weeksBack, 4), WEEKS);
+      weeksShown = Math.min(Math.max(weeksBack, 8), WEEKS);
     }
 
     const totalCells = weeksShown * 7;
@@ -141,7 +141,7 @@ export const ActivityHeatmap: React.FC<Props> = ({ logs }) => {
       : 'bg-slate-700/50 border-slate-600/40';
 
   return (
-    <div className={cn('rounded-2xl border p-5 md:p-6', cardBg)}>
+    <div className={cn('rounded-2xl border p-5 md:p-6 max-w-3xl', cardBg)}>
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>

@@ -1,10 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { cn, formatCurrency, generateId, useRoomCalculator } from '../../utils/helpers';
-import { 
+import { cn, formatCurrency, generateId } from '../../utils/helpers';
+import {
   Calendar, Users, Car, User, ArrowRight, ChevronLeft, LayoutGrid, List, MapPin, BedDouble, Check, Camera, Copy, Trash2
 } from 'lucide-react';
+
+const calcRooms = (pax: number, capacity: number) => Math.ceil(pax / capacity);
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Hotel, RoomType, Sightseeing, Vehicle } from '../../types';
@@ -90,7 +92,7 @@ export const CustomBuilder: React.FC<CustomBuilderProps> = ({
         // Hotels
         days.forEach(d => {
             if (d.hotel && d.selectedRoomType) {
-                const roomCount = useRoomCalculator(pax, d.selectedRoomType.capacity);
+                const roomCount = calcRooms(pax, d.selectedRoomType.capacity);
                 cost += d.selectedRoomType.rate * roomCount;
             }
         });
@@ -244,7 +246,7 @@ export const CustomBuilder: React.FC<CustomBuilderProps> = ({
                                                     onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }}
                                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
                                                 />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                                                 {isSelected && (
                                                     <div className="absolute top-2 right-2 bg-blue-500 text-white p-1 rounded-full shadow-lg">
                                                         <Check size={14} strokeWidth={3} />
@@ -273,7 +275,7 @@ export const CustomBuilder: React.FC<CustomBuilderProps> = ({
                                                         </select>
                                                         <div className="flex justify-between items-end mt-2">
                                                             <div className="text-[10px] font-bold text-slate-500">
-                                                                {useRoomCalculator(pax, selectedRoomType.capacity)} Room(s)
+                                                                {Math.ceil(pax / selectedRoomType.capacity)} Room(s)
                                                             </div>
                                                             <span className="font-mono font-bold text-emerald-600">{formatCurrency(selectedRoomType.rate)}</span>
                                                         </div>
@@ -332,7 +334,7 @@ export const CustomBuilder: React.FC<CustomBuilderProps> = ({
                     </div>
 
                     {/* Footer Action */}
-                    <div className="p-4 md:p-6 border-t border-slate-200 bg-white/95 backdrop-blur shrink-0 flex justify-center absolute bottom-0 md:relative w-full z-20 md:z-0">
+                    <div className="p-4 md:p-6 border-t border-slate-200 bg-white shrink-0 flex justify-center absolute bottom-0 md:relative w-full z-20 md:z-0">
                         <Button onClick={handleAddDay} className="w-full max-w-2xl py-4 h-auto text-lg shadow-xl shadow-blue-500/20">
                             Add Day to Itinerary <ArrowRight size={20} />
                         </Button>
@@ -389,7 +391,7 @@ export const CustomBuilder: React.FC<CustomBuilderProps> = ({
                                         <div className="text-sm">
                                             <div className="font-bold text-slate-700">{day.hotel.name}</div>
                                             <div className="text-[10px] text-slate-500 uppercase tracking-wider flex flex-col">
-                                                <span>{day.selectedRoomType.name} ({useRoomCalculator(pax, day.selectedRoomType.capacity)} Rooms)</span>
+                                                <span>{day.selectedRoomType.name} ({Math.ceil(pax / day.selectedRoomType.capacity)} Rooms)</span>
                                                 <span className="text-emerald-600 font-bold">{(day.hotel.type)}</span>
                                             </div>
                                         </div>
@@ -465,7 +467,7 @@ export const CustomBuilder: React.FC<CustomBuilderProps> = ({
                                         onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }}
                                         className="w-full h-full object-cover" 
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                                     {isSelected && (
                                         <div className="absolute top-2 right-2 bg-blue-500 text-white p-1 rounded-full shadow-lg">
                                             <Check size={14} strokeWidth={3} />

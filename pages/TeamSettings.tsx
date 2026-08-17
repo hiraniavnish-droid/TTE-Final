@@ -5,13 +5,13 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
-import { User, Shield, Key, Trash2, Plus, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { User, Shield, Key, Trash2, Plus, Eye, EyeOff, UserPlus, LogOut } from 'lucide-react';
 import { cn } from '../utils/helpers';
 import { User as UserType } from '../types';
 import { UserAvatar } from '../components/ui/UserAvatar';
 
 export const TeamSettings = () => {
-  const { user, users, addUser, removeUser, updateUserPasscode } = useAuth();
+  const { user, users, addUser, removeUser, updateUserPasscode, updateUserPhone, logoutAllDevices } = useAuth();
   const { theme, getTextColor, getInputClass } = useTheme();
 
   // Modals
@@ -26,6 +26,7 @@ export const TeamSettings = () => {
   const [newName, setNewName] = useState('');
   const [newPasscode, setNewPasscode] = useState('');
   const [editPasscode, setEditPasscode] = useState('');
+  const [editPhone, setEditPhone] = useState('');
 
   // Protect the route logic (Optional strictly here since Layout handles it, but good practice)
   if (user?.role !== 'admin') {
@@ -52,6 +53,7 @@ export const TeamSettings = () => {
   const openEditModal = (u: UserType) => {
       setSelectedUser(u);
       setEditPasscode(u.passcode);
+      setEditPhone(u.phone || '');
       setIsEditModalOpen(true);
   };
 
@@ -59,6 +61,9 @@ export const TeamSettings = () => {
       e.preventDefault();
       if (selectedUser && editPasscode) {
           updateUserPasscode(selectedUser.id, editPasscode);
+          if ((selectedUser.phone || '') !== editPhone.trim()) {
+              updateUserPhone(selectedUser.id, editPhone.trim());
+          }
           setIsEditModalOpen(false);
           setSelectedUser(null);
       }
@@ -70,20 +75,29 @@ export const TeamSettings = () => {
       }
   };
 
+  const handleLogoutEverywhere = (u: UserType) => {
+      const msg = u.id === user.id
+          ? 'Log yourself out of every browser/device where you\'re currently signed in? This will also log you out here.'
+          : `Log ${u.name} out of every browser/device they're currently signed in on?`;
+      if (window.confirm(msg)) {
+          logoutAllDevices(u.id);
+      }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-                <h1 className={cn("text-3xl font-bold font-serif", getTextColor())}>Team Management</h1>
-                <p className={cn("text-sm opacity-60 mt-1", getTextColor())}>Manage access and permissions for your agency.</p>
+                <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Team Management</h1>
+                <p className={cn("text-sm opacity-60 mt-0.5", getTextColor())}>Manage access and permissions for your agency.</p>
             </div>
-            <Button onClick={() => setIsAddModalOpen(true)} className="shadow-lg shadow-blue-500/20">
-                <Plus size={18} /> Add New Agent
+            <Button onClick={() => setIsAddModalOpen(true)} className="shadow-sm">
+                <Plus size={18} strokeWidth={2.5} /> Add New Agent
             </Button>
         </div>
 
-        <Card noPadding className="overflow-hidden shadow-xl">
+        <Card noPadding className="overflow-hidden shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]">
             <div className="overflow-x-auto">
                 <table className={cn("w-full text-left", getTextColor())}>
                     <thead>
@@ -91,6 +105,7 @@ export const TeamSettings = () => {
                             <th className="p-5">Name</th>
                             <th className="p-5">Role</th>
                             <th className="p-5">Passcode</th>
+                            <th className="p-5">WhatsApp Alerts</th>
                             <th className="p-5 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -105,11 +120,11 @@ export const TeamSettings = () => {
                                 <td className="p-5">
                                     <span className={cn(
                                         "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider border flex w-fit items-center gap-1.5",
-                                        u.role === 'admin' 
-                                            ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' 
-                                            : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                        u.role === 'admin'
+                                            ? (theme === 'light' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white/90 text-slate-900 border-white/90')
+                                            : (theme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-white/5 text-white/60 border-white/10')
                                     )}>
-                                        {u.role === 'admin' ? <Shield size={12} /> : <User size={12} />}
+                                        {u.role === 'admin' ? <Shield size={12} strokeWidth={2.5} /> : <User size={12} strokeWidth={2.5} />}
                                         {u.role}
                                     </span>
                                 </td>
@@ -126,14 +141,26 @@ export const TeamSettings = () => {
                                         </button>
                                     </div>
                                 </td>
+                                <td className="p-5 text-sm">
+                                    {u.phone
+                                        ? <span className="font-mono">{u.phone}</span>
+                                        : <span className="opacity-40 italic text-xs">not set — no alerts</span>}
+                                </td>
                                 <td className="p-5 text-right">
                                     <div className="flex justify-end gap-2">
-                                        <button 
+                                        <button
                                             onClick={() => openEditModal(u)}
-                                            className={cn("p-2 rounded-lg transition-colors", theme === 'light' ? 'hover:bg-blue-50 text-blue-600' : 'hover:bg-white/10 text-blue-400')}
+                                            className={cn("p-2 rounded-lg transition-colors", theme === 'light' ? 'hover:bg-slate-100 text-slate-600' : 'hover:bg-white/10 text-white/70')}
                                             title="Change Passcode"
                                         >
-                                            <Key size={16} />
+                                            <Key size={16} strokeWidth={2.5} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleLogoutEverywhere(u)}
+                                            className={cn("p-2 rounded-lg transition-colors", theme === 'light' ? 'hover:bg-amber-50 text-amber-600' : 'hover:bg-amber-500/15 text-amber-400')}
+                                            title="Log out of all devices"
+                                        >
+                                            <LogOut size={16} strokeWidth={2.5} />
                                         </button>
                                         {u.role !== 'admin' && (
                                             <button 
@@ -157,8 +184,8 @@ export const TeamSettings = () => {
         <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Agent">
             <form onSubmit={handleAddUser} className="space-y-5">
                 <div className="flex flex-col items-center justify-center py-4 text-center">
-                    <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-3", theme === 'light' ? 'bg-blue-50 text-blue-600' : 'bg-white/10 text-white')}>
-                        <UserPlus size={32} />
+                    <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-3", theme === 'light' ? 'bg-slate-100 text-slate-700 ring-1 ring-slate-200/70' : 'bg-white/10 text-white')}>
+                        <UserPlus size={32} strokeWidth={2} />
                     </div>
                     <p className={cn("text-sm opacity-60", getTextColor())}>Create a new profile for a team member.</p>
                 </div>
@@ -200,10 +227,20 @@ export const TeamSettings = () => {
 
                 <div className="space-y-1.5">
                     <label className={cn("text-xs font-bold uppercase opacity-60", getTextColor())}>New Passcode</label>
-                    <input 
+                    <input
                         value={editPasscode}
                         onChange={(e) => setEditPasscode(e.target.value)}
                         required
+                        className={cn("w-full rounded-lg p-3 outline-none border transition-all font-mono", getInputClass())}
+                    />
+                </div>
+
+                <div className="space-y-1.5">
+                    <label className={cn("text-xs font-bold uppercase opacity-60", getTextColor())}>WhatsApp Number <span className="opacity-50 font-normal normal-case">(for team lead-update alerts — leave blank to opt out)</span></label>
+                    <input
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        placeholder="10-digit mobile number"
                         className={cn("w-full rounded-lg p-3 outline-none border transition-all font-mono", getInputClass())}
                     />
                 </div>

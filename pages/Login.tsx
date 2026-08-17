@@ -10,16 +10,18 @@ export const Login = () => {
   const navigate = useNavigate();
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(passcode);
-    if (success) {
-      navigate('/');
-    } else {
+    if (loading) return;
+    setLoading(true);
+    const success = await login(passcode);
+    // On success the app reloads (login() triggers it); nothing more to do here.
+    if (!success) {
+      setLoading(false);
       setError(true);
       setPasscode('');
-      // Reset shake animation class after it plays
       setTimeout(() => setError(false), 500);
     }
   };
@@ -68,11 +70,12 @@ export const Login = () => {
                     </p>
                 )}
 
-                <button 
-                    type="submit" 
-                    className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-800 active:scale-95 transition-all duration-200"
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-800 active:scale-95 transition-all duration-200 disabled:opacity-70"
                 >
-                    Unlock Access
+                    {loading ? 'Unlocking…' : 'Unlock Access'}
                 </button>
             </form>
             

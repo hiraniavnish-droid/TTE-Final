@@ -1,7 +1,7 @@
 
 import { Hotel, ItineraryPackage, RoomType, Vehicle } from '../../types';
 import { FleetItem } from './types';
-import { useRoomCalculator } from '../../utils/helpers';
+
 
 export const FALLBACK_IMG = "https://images.unsplash.com/photo-1590523277543-a94d2e4eb00b?q=80&w=1932&auto=format&fit=crop";
 
@@ -75,7 +75,7 @@ export const calculateGalleryPrice = (
         if (hotel) {
             let selectedRoom = hotel.roomTypes.find(r => r.capacity === targetCapacity);
             if (!selectedRoom) selectedRoom = hotel.roomTypes[0]; 
-            const roomsNeeded = useRoomCalculator(activePax, selectedRoom?.capacity || 2);
+            const roomsNeeded = Math.ceil(activePax / (selectedRoom?.capacity || 2));
             totalHotelCost += ((selectedRoom?.rate || 0) * roomsNeeded);
         }
     });

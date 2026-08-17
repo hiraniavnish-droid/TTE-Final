@@ -11,6 +11,7 @@ import {
   Droplets,
   BookUser,
   Handshake,
+  CreditCard,
   LogOut,
   ShieldCheck,
   Compass,
@@ -27,20 +28,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../utils/helpers';
 import { AddLeadModal } from './AddLeadModal';
 import { DraggableFab } from './DraggableFab';
-import { SmartNudge } from './SmartNudge';
 import { GridBackground } from './ui/GridBackground';
 import { UserAvatar } from './ui/UserAvatar';
 import { GlobalSearch } from './GlobalSearch';
 import { useReminderNotifications } from '../hooks/useReminderNotifications';
+import { TaskFloatingButton } from './TaskFloatingButton';
 import { NavigationBar } from './ui/PageLoader';
 
 export const Layout = () => {
   const { theme, setTheme, getTextColor } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, logout, logoutAllDevices } = useAuth();
   const { reminders } = useLeads();
   const navigate = useNavigate();
   useReminderNotifications();
   const location = useLocation();
+  const isBoard = location.pathname === '/leads'; // full-bleed Kanban board
   const mainRef = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -68,6 +70,13 @@ export const Layout = () => {
     navigate('/login');
   };
 
+  const handleLogoutEverywhere = () => {
+    if (!user) return;
+    if (window.confirm('Log out of every browser/device you\'re currently signed in on? This will also log you out here.')) {
+      logoutAllDevices(user.id);
+    }
+  };
+
   const background = useMemo(() => {
     switch (theme) {
       case 'ocean': return 'bg-gradient-to-br from-blue-950 via-slate-900 to-indigo-950';
@@ -83,6 +92,7 @@ export const Layout = () => {
       { path: '/builder',       label: 'Itinerary Hub',icon: Map },
       { path: '/blocked-rates', label: 'Blocked Rates',icon: Building2 },
       { path: '/reminders',     label: 'Tasks',        icon: CalendarCheck },
+      { path: '/payments',      label: 'Payments',     icon: CreditCard },
       { path: '/suppliers',     label: 'Suppliers',    icon: Handshake },
       { path: '/customers',     label: 'Customers',    icon: BookUser },
     ];
@@ -102,8 +112,8 @@ export const Layout = () => {
       {/* Top navigation progress bar — shows on every page transition */}
       {isNavigating && <NavigationBar />}
       <AddLeadModal />
-      <SmartNudge />
       <DraggableFab />
+      <TaskFloatingButton />
       <GlobalSearch />
 
       {/* Mobile header */}
@@ -348,14 +358,29 @@ export const Layout = () => {
               )}>
                 <LogOut size={16} /> Logout
               </button>
+              <button onClick={handleLogoutEverywhere} className={cn(
+                "w-full text-center px-4 text-[11px] font-medium transition-colors",
+                theme === 'light' ? 'text-slate-400 hover:text-amber-600' : 'text-slate-500 hover:text-amber-400'
+              )}>
+                Log out everywhere
+              </button>
             </>
           )}
         </div>
       </MotionAside>
 
-      {/* Main content with route transitions */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden h-[calc(100vh-64px)] md:h-screen relative z-10 pb-24 md:pb-12 scroll-smooth">
-        <div className="p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 text-sm md:text-base">
+      {/* Main content with route transitions.
+          The Leads Kanban board is rendered full-bleed + full-height (no max-width
+          cap, no page scroll) so all pipeline columns are visible and each column
+          scrolls internally. Every other route keeps the centered, scrollable layout. */}
+      <main ref={mainRef} className={cn(
+        'flex-1 overflow-x-hidden h-[calc(100vh-64px)] md:h-screen relative z-10 scroll-smooth',
+        isBoard ? 'overflow-y-auto md:overflow-hidden pb-24 md:pb-0' : 'overflow-y-auto pb-24 md:pb-12'
+      )}>
+        <div className={cn(
+          'text-sm md:text-base',
+          isBoard ? 'p-3 md:px-6 md:py-5 md:h-full' : 'p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8'
+        )}>
           <AnimatePresence mode="wait">
             <MotionDiv
               key={location.pathname}
@@ -363,6 +388,7 @@ export const Layout = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
+              className={isBoard ? 'md:h-full' : ''}
             >
               <Outlet />
             </MotionDiv>

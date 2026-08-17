@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { generateId, useRoomCalculator, formatDate, formatCurrency } from '../../utils/helpers';
+import { generateId, formatDate, formatCurrency } from '../../utils/helpers';
 import { Hotel, ItineraryPackage, RoomType, Vehicle, Sightseeing } from '../../types';
 import { ItineraryHeader } from '../itinerary/ItineraryHeader';
 import { GalleryView } from '../itinerary/GalleryView';
@@ -90,7 +90,7 @@ export const GujaratPackageFlow: React.FC<GujaratPackageFlowProps> = ({
           capacity = rt?.capacity || 2;
         }
       }
-      const roomsNeeded = useRoomCalculator(pax, capacity);
+      const roomsNeeded = Math.ceil(pax / capacity);
       hotelCost += (rate * roomsNeeded);
     });
     const netTotal = transportCost + hotelCost;

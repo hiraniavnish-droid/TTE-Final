@@ -6,14 +6,6 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRealtime } from '../hooks/useRealtime';
 
-// Nudge Type Definition
-export interface NudgeData {
-  isOpen: boolean;
-  leadId: string | null;
-  leadName: string;
-  status: LeadStatus | null;
-}
-
 interface LeadContextType {
   leads: Lead[];
   allLeads: Lead[];
@@ -39,8 +31,6 @@ interface LeadContextType {
   updateSupplier: (supplier: Supplier) => void;
   isAddLeadModalOpen: boolean;
   setAddLeadModalOpen: (isOpen: boolean) => void;
-  nudge: NudgeData;
-  closeNudge: () => void;
 }
 
 const LeadContext = createContext<LeadContextType | undefined>(undefined);
@@ -58,7 +48,6 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // -- UI States --
   const [isAddLeadModalOpen, setAddLeadModalOpen] = useState(false);
-  const [nudge, setNudge] = useState<NudgeData>({ isOpen: false, leadId: null, leadName: '', status: null });
 
   // --- Helpers: Data Mapping (App <-> DB) ---
   const mapLeadFromDB = (data: any): Lead => ({
@@ -82,7 +71,10 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     assignedTo: data.assigned_to,
     tags: data.tags || [],
     createdAt: data.created_at,
-    lastStatusUpdate: data.last_status_update
+    lastStatusUpdate: data.last_status_update,
+    wonAt: data.won_at || undefined,
+    legacy: !!data.legacy,
+    leadCode: data.lead_code || undefined
   });
 
   const mapLeadToDB = (lead: Partial<Lead>) => {
@@ -93,6 +85,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (lead.assignedTo !== undefined) dbObj.assigned_to = lead.assignedTo;
     if (lead.lastStatusUpdate !== undefined) dbObj.last_status_update = lead.lastStatusUpdate;
     if (lead.createdAt !== undefined) dbObj.created_at = lead.createdAt;
+    if (lead.wonAt !== undefined) dbObj.won_at = lead.wonAt;
 
     delete dbObj.tripDetails;
     delete dbObj.interestedServices;
@@ -100,6 +93,11 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     delete dbObj.assignedTo;
     delete dbObj.lastStatusUpdate;
     delete dbObj.createdAt;
+    delete dbObj.wonAt;
+    // lead_code is owned entirely by the DB trigger (migration 006). Never write
+    // it back — and the camelCase key isn't a real column, so leaving it on the
+    // payload would make every update fail with "column leads.leadCode does not exist".
+    delete dbObj.leadCode;
 
     return dbObj;
   };
@@ -180,6 +178,20 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     fetchAll();
   }, []);
 
+  // --- REALTIME SUBSCRIPTION (interactions) — powers live WhatsApp chat updates ---
+  useRealtime('interactions', (payload) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    if (eventType === 'INSERT') {
+      const newInteraction = mapInteractionFromDB(newRecord);
+      setInteractions(prev => {
+        if (prev.some(i => i.id === newInteraction.id)) return prev;
+        return [newInteraction, ...prev];
+      });
+    } else if (eventType === 'DELETE') {
+      setInteractions(prev => prev.filter(i => i.id !== oldRecord.id));
+    }
+  });
+
   // --- REALTIME SUBSCRIPTION (leads) ---
   useRealtime('leads', (payload) => {
     const { eventType, new: newRecord, old: oldRecord } = payload;
@@ -249,6 +261,16 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
   };
 
+  // --- Team WhatsApp notification (fire-and-forget — must never block the CRM action) ---
+  const API_BASE = (import.meta as any).env?.DEV ? 'https://ttecrm.vercel.app' : '';
+  const notifyTeam = (text: string) => {
+    fetch(`${API_BASE}/api/notify-team`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    }).catch(() => { /* notifications are best-effort */ });
+  };
+
   // --- Lead Actions ---
 
   const addLead = async (lead: Lead) => {
@@ -294,6 +316,13 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 return [newLead, ...prev];
             });
             logActivity('NEW_LEAD', newLead, `Created lead: ${newLead.name}`);
+            notifyTeam(
+                `🆕 *New Lead*\n${newLead.name}` +
+                (newLead.tripDetails?.destination ? `\n📍 ${newLead.tripDetails.destination}` : '') +
+                `\n📞 ${newLead.contact?.phone || '—'}` +
+                `\n👤 ${newLead.assignedTo || 'Unassigned'} · via ${newLead.source}` +
+                `\n— by ${user?.name || 'CRM'}`
+            );
         }
     } catch (err) {
         console.error('Supabase Add Error:', err);
@@ -353,6 +382,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {
     try {
+        const before = internalLeads.find(l => l.id === id);
         const dbUpdates = mapLeadToDB(updates);
 
         const { data, error } = await supabase
@@ -367,6 +397,16 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (data) {
             const updatedLead = mapLeadFromDB(data);
             setInternalLeads(prev => prev.map(l => l.id === id ? updatedLead : l));
+
+            const assignmentChanged = updates.assignedTo !== undefined && (before?.assignedTo || null) !== (updatedLead.assignedTo || null);
+            if (assignmentChanged) {
+                notifyTeam(
+                    `👤 *Lead Assigned*\n${updatedLead.name}` +
+                    (updatedLead.tripDetails?.destination ? `\n📍 ${updatedLead.tripDetails.destination}` : '') +
+                    `\n${before?.assignedTo || 'Unassigned'} → *${updatedLead.assignedTo || 'Unassigned'}*` +
+                    `\n— by ${user?.name || 'CRM'}`
+                );
+            }
         }
     } catch (err) {
         console.error('Supabase Update Error:', err);
@@ -377,6 +417,18 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const currentLead = internalLeads.find(l => l.id === id);
     const oldStatus = currentLead?.status;
     const newTimestamp = new Date().toISOString();
+
+    // Moving a deal to Won is a sales-attribution event — confirm which month it'll be
+    // credited to before committing. wonAt is stamped once (first time ever Won) and never
+    // overwritten, so cycling a deal out of Won and back in can't shift its attributed month —
+    // make that explicit here rather than silently re-crediting it.
+    if (status === 'Won' && oldStatus !== 'Won') {
+        const monthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+        const msg = currentLead?.wonAt
+            ? `This deal was already recorded as a ${new Date(currentLead.wonAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} sale (on ${new Date(currentLead.wonAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}) and will keep that attribution — moving it to Won again won't shift it to ${monthLabel}. Continue?`
+            : `This will count as a ${monthLabel} sale. Confirm?`;
+        if (!window.confirm(msg)) return;
+    }
 
     const interaction: Interaction = {
       id: generateId(),
@@ -389,10 +441,15 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addInteraction(interaction);
 
     try {
-        const { data, error } = await supabase.from('leads').update({
+        const updatePayload: any = {
             status: status,
-            last_status_update: newTimestamp
-        })
+            last_status_update: newTimestamp,
+        };
+        // Stamp wonAt only the first time this lead ever becomes Won — never overwritten afterwards.
+        if (status === 'Won' && !currentLead?.wonAt) {
+            updatePayload.won_at = newTimestamp;
+        }
+        const { data, error } = await supabase.from('leads').update(updatePayload)
         .eq('id', id)
         .select()
         .single();
@@ -410,15 +467,6 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     `Moved ${updatedLead.name} from ${oldStatus} -> ${status}`,
                     { oldStatus, newStatus: status }
                 );
-
-                if (status !== 'Lost' && status !== 'New') {
-                    setNudge({
-                        isOpen: true,
-                        leadId: updatedLead.id,
-                        leadName: updatedLead.name,
-                        status: status
-                    });
-                }
             }
         }
     } catch (err) {
@@ -429,9 +477,12 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteLead = async (id: string) => {
     try {
-        // Delete child records first (no FK cascade since we removed FK constraints)
+        // Delete child records first (no FK cascade since we removed FK constraints).
+        // WhatsApp interactions are kept (not deleted) — they're the durable record of a
+        // real conversation on that phone number, and should still surface if the same
+        // number becomes a lead again later (matched by phone, not by this lead_id).
         await Promise.all([
-            supabase.from('interactions').delete().eq('lead_id', id),
+            supabase.from('interactions').delete().eq('lead_id', id).neq('type', 'WhatsApp'),
             supabase.from('reminders').delete().eq('lead_id', id),
         ]);
 
@@ -439,10 +490,22 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error) throw error;
 
         setInternalLeads(prev => prev.filter(l => l.id !== id));
-        setInteractions(prev => prev.filter(i => i.leadId !== id));
+        setInteractions(prev => prev.filter(i => i.leadId !== id || i.type === 'WhatsApp'));
         setReminders(prev => prev.filter(r => r.leadId !== id));
-    } catch (err) {
+    } catch (err: any) {
         console.error('Supabase Delete Error:', err);
+        // Migration 007 puts ON DELETE RESTRICT on payments.lead_id and
+        // documents.lead_id, so Postgres now refuses to delete a lead that has
+        // money or a GST document attached (code 23503). That's intentional —
+        // but it must be surfaced, not swallowed, or the user clicks Delete and
+        // simply nothing happens.
+        if (err?.code === '23503') {
+            const what = String(err?.details || err?.message || '').includes('documents')
+                ? 'an issued invoice/receipt'
+                : 'recorded payments';
+            throw new Error(`This lead can't be deleted because it has ${what} attached. Remove or reassign those first — deleting it would break your financial audit trail.`);
+        }
+        throw err;
     }
   };
 
@@ -554,7 +617,6 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Derived Helpers ---
 
-  const closeNudge = () => setNudge(prev => ({ ...prev, isOpen: false }));
   const getLeadsByStatus = (status: LeadStatus) => visibleLeads.filter(l => l.status === status);
   const getLeadInteractions = (leadId: string) => interactions.filter(i => i.leadId === leadId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   const getLeadReminders = (leadId: string) => reminders.filter(r => r.leadId === leadId);
@@ -585,8 +647,6 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateSupplier,
       isAddLeadModalOpen,
       setAddLeadModalOpen,
-      nudge,
-      closeNudge
     }}>
       {children}
     </LeadContext.Provider>

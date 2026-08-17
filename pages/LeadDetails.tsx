@@ -13,7 +13,12 @@ import { PaxSelector } from '../components/PaxSelector';
 import { TravelPreferences } from '../components/TravelPreferences';
 import { WorkflowStepper } from '../components/WorkflowStepper'; 
 import { VendorManagementModal } from '../components/VendorManagementModal'; // NEW
-import { InteractionType, Interaction, Reminder, LeadStatus, Supplier, Commercials, Lead, VendorDetail, Sentiment } from '../types';
+import { VendorPaymentModal } from '../components/VendorPaymentModal';
+import { QuoteEngineCostingPanel } from '../components/leads/QuoteEngineCostingPanel';
+import { LeadCodeChip } from '../components/ui/LeadCodeChip';
+import { PaymentLinkWidget } from '../components/PaymentLinkWidget';
+import { WhatsAppChatWidget } from '../components/WhatsAppChatWidget';
+import { InteractionType, Interaction, Reminder, LeadStatus, Supplier, Commercials, Lead, VendorDetail, VendorPayment, Sentiment } from '../types';
 import { formatCurrency, formatCompactCurrency, formatDate, generateId, cn } from '../utils/helpers';
 import { triggerConfetti } from '../utils/celebration';
 import toast from 'react-hot-toast';
@@ -53,16 +58,19 @@ import {
   ExternalLink,
   Send,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  Minus
 } from 'lucide-react';
 
 const WORKFLOW_ORDER: LeadStatus[] = ['New', 'Contacted', 'Proposal Sent', 'Discussion', 'Won'];
 
 const generateVendorBrief = (lead: Lead): string => {
+    const nights = lead.tripDetails.nights || 5;
     const startDate = new Date(lead.tripDetails.startDate);
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 5);
-    const nights = 5;
+    endDate.setDate(endDate.getDate() + nights);
 
     const services = lead.interestedServices && lead.interestedServices.length > 0 
       ? lead.interestedServices.join(', ') 
@@ -93,10 +101,28 @@ interface CommercialsViewProps {
     lead: Lead;
     commercials: Commercials;
     onEdit: () => void;
+    onSaveVendor: (vendor: VendorDetail) => void;
+    onLogNote: (content: string) => void;
 }
 
-const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, onEdit }) => {
-    const { theme, getTextColor } = useTheme();
+const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, onEdit, onSaveVendor, onLogNote }) => {
+    const { theme, getTextColor, getSecondaryTextColor } = useTheme();
+    const { updateLead } = useLeads();
+    const [payingVendor, setPayingVendor] = useState<VendorDetail | null>(null);
+
+    const handleSaveVendorPayment = (vendorId: string, payments: VendorPayment[]) => {
+        const updatedVendors = (lead.vendors || []).map(v =>
+            v.id === vendorId ? { ...v, payments } : v
+        );
+        updateLead(lead.id, { vendors: updatedVendors });
+        // Keep the open modal's snapshot in sync so edits/deletes reflect immediately.
+        setPayingVendor(prev => prev && prev.id === vendorId ? { ...prev, payments } : prev);
+    };
+
+    const totalVendorPaid = (lead.vendors || []).reduce(
+        (sum, v) => sum + (v.payments || []).reduce((s, p) => s + p.amount, 0), 0
+    );
+    const totalVendorOwed = (lead.vendors || []).reduce((sum, v) => sum + (v.cost || 0), 0);
 
     const sellingPrice = commercials.sellingPrice || 0;
     const netCost = commercials.netCost || 0;
@@ -125,33 +151,69 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <Card>
                 <div className="flex items-center justify-between mb-6 border-b border-gray-500/10 pb-4">
-                    <div className="flex items-center gap-2">
-                        <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-blue-50 text-blue-600' : 'bg-blue-500/20 text-blue-300')}>
-                            <Calculator size={20} />
+                    <div className="flex items-center gap-2.5">
+                        <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
+                            <Calculator size={18} strokeWidth={2.5} />
                         </div>
-                        <h3 className={cn("text-lg font-bold font-serif", getTextColor())}>Costing Sheet</h3>
+                        <h3 className={cn("text-base font-bold font-serif", getTextColor())}>Costing Sheet</h3>
                     </div>
                     <Button size="sm" variant="secondary" onClick={onEdit}>
-                        <Pencil size={14} /> Edit Vendors
+                        <Pencil size={14} strokeWidth={2.5} /> Edit Vendors
                     </Button>
                 </div>
 
                 <div className="space-y-6">
+                    <QuoteEngineCostingPanel lead={lead} onSaveVendor={onSaveVendor} onLogNote={onLogNote} />
+
                     {/* Vendors List Summary */}
                     {lead.vendors && lead.vendors.length > 0 ? (
                         <div className="space-y-2">
-                            {lead.vendors.map((v) => (
-                                <div key={v.id} className="flex justify-between items-center text-sm p-2 rounded bg-slate-50 border border-slate-100">
-                                    <span className="font-bold text-slate-700">{v.name}</span>
-                                    <div className="flex gap-4 font-mono text-xs">
-                                        <span className="text-slate-500">Buy: {formatCompactCurrency(v.cost)}</span>
-                                        <span className="font-bold text-slate-900">Sell: {formatCompactCurrency(v.price)}</span>
+                            {lead.vendors.map((v) => {
+                                const paid = (v.payments || []).reduce((s, p) => s + p.amount, 0);
+                                const owed = Math.max((v.cost || 0) - paid, 0);
+                                const payStatus = !v.cost || v.cost <= 0 ? null : paid <= 0 ? 'unpaid' : owed > 0 ? 'partial' : 'paid';
+                                const payChip = payStatus === 'paid'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : payStatus === 'partial'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200';
+                                return (
+                                <div key={v.id} className={cn(
+                                    "px-3 py-2.5 rounded-lg border",
+                                    theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-white/5 border-white/10'
+                                )}>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className={cn("font-semibold", getTextColor())}>{v.name}</span>
+                                        <div className="flex gap-4 font-mono text-xs">
+                                            <span className={cn(getSecondaryTextColor())}>Buy: {formatCompactCurrency(v.cost)}</span>
+                                            <span className={cn("font-bold", getTextColor())}>Sell: {formatCompactCurrency(v.price)}</span>
+                                        </div>
                                     </div>
+                                    {payStatus && (
+                                        <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-gray-500/10">
+                                            <span className={cn('inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border', payChip)}>
+                                                {payStatus === 'paid' ? 'Vendor Paid' : payStatus === 'partial' ? `Partial · ${formatCompactCurrency(paid)} of ${formatCompactCurrency(v.cost)}` : 'Vendor Unpaid'}
+                                            </span>
+                                            <button
+                                                onClick={() => setPayingVendor(v)}
+                                                className="text-[10px] font-bold underline opacity-70 hover:opacity-100"
+                                            >
+                                                Record Payment
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
+                                );
+                            })}
+                            {totalVendorOwed > 0 && (
+                                <div className={cn("flex justify-between items-center text-xs font-semibold px-1 pt-1", getSecondaryTextColor())}>
+                                    <span>Vendor Payments</span>
+                                    <span className="font-mono">₹{totalVendorPaid.toLocaleString('en-IN')} paid of {formatCurrency(totalVendorOwed)} owed</span>
+                                </div>
+                            )}
                         </div>
                     ) : (
-                        <div className="text-center py-4 text-sm opacity-50 italic border-dashed border-2 rounded-lg">
+                        <div className={cn("text-center py-6 text-sm opacity-50 italic border-dashed border-2 rounded-lg border-gray-500/20", getSecondaryTextColor())}>
                             No vendors added yet.
                         </div>
                     )}
@@ -179,11 +241,11 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
             </Card>
 
             <Card className={cn("transition-all duration-500 border", marginBg || "border-transparent")}>
-                <div className="flex items-center gap-2 mb-6 border-b border-gray-500/10 pb-4">
+                <div className="flex items-center gap-2.5 mb-6 border-b border-gray-500/10 pb-4">
                     <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-emerald-50 text-emerald-600' : 'bg-emerald-500/20 text-emerald-300')}>
-                        <TrendingUp size={20} />
+                        <TrendingUp size={18} strokeWidth={2.5} />
                     </div>
-                    <h3 className={cn("text-lg font-bold font-serif", getTextColor())}>Profit Analysis</h3>
+                    <h3 className={cn("text-base font-bold font-serif", getTextColor())}>Profit Analysis</h3>
                 </div>
 
                 <div className="grid grid-cols-2 gap-8 items-center">
@@ -208,6 +270,13 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
                     </div>
                 </div>
             </Card>
+
+            <VendorPaymentModal
+                isOpen={!!payingVendor}
+                onClose={() => setPayingVendor(null)}
+                vendor={payingVendor}
+                onSave={handleSaveVendorPayment}
+            />
         </div>
     );
 };
@@ -276,17 +345,17 @@ const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads,
 
     return (
         <>
-            <Card noPadding className="mb-6 overflow-hidden border-l-4 border-l-purple-500">
-                <button 
+            <Card noPadding className="mb-6 overflow-hidden">
+                <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className={cn(
-                        "w-full flex items-center justify-between p-4 transition-colors", 
+                        "w-full flex items-center justify-between p-4 transition-colors",
                         theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5'
                     )}
                 >
                     <div className="flex items-center gap-2">
-                        <div className={cn("p-1.5 rounded-md", theme === 'light' ? 'bg-purple-50 text-purple-600' : 'bg-purple-500/20 text-purple-300')}>
-                            <Handshake size={16} />
+                        <div className={cn("p-1.5 rounded-md", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
+                            <Handshake size={16} strokeWidth={2.5} />
                         </div>
                         <span className={cn("font-bold text-sm", getTextColor())}>
                             Suggested Partners
@@ -318,7 +387,7 @@ const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads,
                                     >
                                         <div className="min-w-0 flex-1 mr-3">
                                             <div className="flex items-center gap-2">
-                                                <h4 className={cn("font-bold text-xs truncate group-hover:text-blue-500 transition-colors", getTextColor())}>{supplier.name}</h4>
+                                                <h4 className={cn("font-bold text-xs truncate transition-colors", getTextColor())}>{supplier.name}</h4>
                                                 <span className="text-[9px] px-1 rounded border opacity-70 uppercase">{supplier.category}</span>
                                             </div>
                                             <div className="flex items-center gap-1 mt-0.5">
@@ -331,14 +400,14 @@ const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads,
                                             <button 
                                                 onClick={(e) => handleWhatsApp(e, supplier)}
                                                 className={cn(
-                                                    "p-2 rounded-lg transition-colors border shadow-sm",
-                                                    theme === 'light' 
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' 
+                                                    "p-2 rounded-lg transition-all border shadow-sm active:scale-90",
+                                                    theme === 'light'
+                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
                                                         : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
                                                 )}
                                                 title="WhatsApp Rate Request"
                                             >
-                                                <MessageCircle size={14} />
+                                                <MessageCircle size={14} strokeWidth={2.5} />
                                             </button>
                                         </div>
                                     </div>
@@ -352,7 +421,7 @@ const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads,
                 {selectedVendor && vendorStats && (
                     <div className="space-y-6">
                         <div className={cn("p-4 rounded-xl flex items-start gap-4 border", theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-white/5 border-white/10')}>
-                            <div className={cn("w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0", theme === 'light' ? 'bg-white shadow text-purple-600' : 'bg-white/10 text-white')}>
+                            <div className={cn("w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0", theme === 'light' ? 'bg-white shadow text-slate-700' : 'bg-white/10 text-white')}>
                                 {selectedVendor.name.charAt(0)}
                             </div>
                             <div className="flex-1">
@@ -448,11 +517,13 @@ export const LeadDetails = () => {
       }
   };
 
-  const handleVendorSave = (leadId: string, vendors: VendorDetail[]) => {
+  const handleVendorSave = (leadId: string, vendors: VendorDetail[], overrideTotalPrice?: number) => {
       // 1. Update vendors & commercials
       const totalCost = vendors.reduce((acc, v) => acc + (v.cost || 0), 0);
-      const totalPrice = vendors.reduce((acc, v) => acc + (v.price || 0), 0);
-      
+      // overrideTotalPrice lets you buy from several vendors but quote the
+      // guest one combined lump sum instead of the sum of per-vendor prices.
+      const totalPrice = overrideTotalPrice !== undefined ? overrideTotalPrice : vendors.reduce((acc, v) => acc + (v.price || 0), 0);
+
       const newCommercials = {
           sellingPrice: totalPrice,
           netCost: totalCost,
@@ -476,6 +547,19 @@ export const LeadDetails = () => {
       }
 
       setPendingStatus(null);
+  };
+
+  // Appends one auto-generated vendor row (from the rate-engine costing panel)
+  // to the existing vendor list, reusing handleVendorSave's total recompute.
+  const handleSaveGeneratedVendor = (vendor: VendorDetail) => {
+      handleVendorSave(lead.id, [...(lead.vendors || []), vendor]);
+  };
+
+  // Timestamped, permanent record of exactly what was quoted (room/category, plan, dates,
+  // pricing) — logged to Interaction History so it's referenceable later, independent of
+  // whatever the vendor row's cost/price fields get edited to afterwards.
+  const handleLogQuoteNote = (content: string) => {
+      addInteraction({ id: generateId(), leadId: lead.id, type: 'Note', content, timestamp: new Date().toISOString() });
   };
 
   const handleLogInteraction = (e: React.FormEvent) => {
@@ -514,10 +598,16 @@ export const LeadDetails = () => {
       setIsEditing(false);
   };
 
-  const handleDeleteLead = () => {
-      if (window.confirm("Are you sure? This cannot be undone.")) {
-          deleteLead(lead.id);
+  const handleDeleteLead = async () => {
+      if (!window.confirm("Are you sure? This cannot be undone.")) return;
+      try {
+          // Must await: migration 007's ON DELETE RESTRICT can legitimately refuse
+          // this (lead has payments or an issued invoice). Navigating away first
+          // would show the user a success-looking redirect on a failed delete.
+          await deleteLead(lead.id);
           navigate('/leads');
+      } catch (err: any) {
+          toast.error(err?.message || 'Could not delete this lead.', { duration: 6000 });
       }
   };
 
@@ -549,13 +639,14 @@ export const LeadDetails = () => {
       />
 
       {/* Header Section */}
-      <div className="flex flex-col lg:flex-row justify-between items-start gap-6 mb-8">
+      <div className="flex flex-col lg:flex-row justify-between items-start gap-4 mb-6">
           <div>
-              <div className="flex items-center gap-3 mb-2">
-                  <Button variant="ghost" onClick={() => navigate('/leads')} className="p-0 h-auto hover:bg-transparent opacity-50 hover:opacity-100">
-                      <ArrowLeft size={20} />
+              <div className="flex items-center gap-2.5 mb-2">
+                  <Button variant="ghost" onClick={() => navigate('/leads')} className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
+                      <ArrowLeft size={20} strokeWidth={2.5} />
                   </Button>
-                  <h1 className={cn("text-xl md:text-3xl font-bold font-serif tracking-tight", getTextColor())}>{lead.name}</h1>
+                  <h1 className={cn("text-xl md:text-2xl font-bold font-serif tracking-tight", getTextColor())}>{lead.name}</h1>
+                  <LeadCodeChip code={lead.leadCode} size="md" />
                   <span className={cn(
                       "text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded border",
                       lead.temperature === 'Hot' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-600 border-slate-200'
@@ -564,24 +655,24 @@ export const LeadDetails = () => {
                   </span>
               </div>
               
-              <div className={cn("flex flex-wrap items-center gap-4 text-sm opacity-80", getSecondaryTextColor())}>
+              <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-sm", getSecondaryTextColor())}>
                   <div className="flex items-center gap-1.5">
-                      <MapPin size={16} className="text-blue-500" />
+                      <MapPin size={15} strokeWidth={2} className="opacity-50" />
                       <span className="font-medium">{lead.tripDetails.destination}</span>
                   </div>
-                  <div className="h-4 w-px bg-current opacity-20"></div>
+                  <div className="h-3.5 w-px bg-current opacity-20"></div>
                   <div className="flex items-center gap-1.5">
-                      <Calendar size={16} className="text-purple-500" />
+                      <Calendar size={15} strokeWidth={2} className="opacity-50" />
                       <span className="font-mono">{formatDate(lead.tripDetails.startDate)}</span>
                   </div>
-                  <div className="h-4 w-px bg-current opacity-20"></div>
+                  <div className="h-3.5 w-px bg-current opacity-20"></div>
                   <div className="flex items-center gap-1.5">
-                      <DollarSign size={16} className="text-emerald-500" />
-                      <span className="font-mono font-bold tracking-tight">{formatCurrency(lead.tripDetails.budget)}</span>
+                      <DollarSign size={15} strokeWidth={2.5} className="text-emerald-500" />
+                      <span className="font-mono font-bold tracking-tight text-emerald-600">{formatCurrency(lead.tripDetails.budget)}</span>
                   </div>
-                  <div className="h-4 w-px bg-current opacity-20"></div>
+                  <div className="h-3.5 w-px bg-current opacity-20"></div>
                   <div className="flex items-center gap-1.5">
-                      <Users size={16} className="text-amber-500" />
+                      <Users size={15} strokeWidth={2} className="opacity-50" />
                       <span>{lead.tripDetails.paxConfig.adults}A {lead.tripDetails.paxConfig.children > 0 && `${lead.tripDetails.paxConfig.children}C`}</span>
                   </div>
               </div>
@@ -629,11 +720,11 @@ export const LeadDetails = () => {
 
               {/* Editable Profile */}
               <Card>
-                  <div className="flex items-center gap-2 mb-6 border-b border-gray-500/10 pb-4">
-                      <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-600' : 'bg-white/10 text-white')}>
-                          <User size={20} />
+                  <div className="flex items-center gap-2.5 mb-6 border-b border-gray-500/10 pb-4">
+                      <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
+                          <User size={18} strokeWidth={2.5} />
                       </div>
-                      <h3 className={cn("text-lg font-bold font-serif", getTextColor())}>Trip Profile</h3>
+                      <h3 className={cn("text-base font-bold font-serif", getTextColor())}>Trip Profile</h3>
                       {isEditing && (
                           <Button size="sm" onClick={handleSaveProfile} className="ml-auto bg-green-600 hover:bg-green-700 text-white border-none">
                               <Save size={16} /> Save Changes
@@ -672,8 +763,8 @@ export const LeadDetails = () => {
                                           <span className="font-mono text-sm">{lead.contact.phone}</span>
                                           <div className="flex gap-2">
                                               <DialButton phoneNumber={lead.contact.phone} className="w-8 h-8" />
-                                              <a href={`https://wa.me/${lead.contact.phone.replace(/[^0-9]/g, '')}`} target="_blank" className={cn("w-8 h-8 flex items-center justify-center rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors")}>
-                                                  <MessageCircle size={14} />
+                                              <a href={`https://wa.me/${lead.contact.phone.replace(/[^0-9]/g, '')}`} target="_blank" className={cn("w-8 h-8 flex items-center justify-center rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-all active:scale-90")}>
+                                                  <MessageCircle size={14} strokeWidth={2.5} />
                                               </a>
                                           </div>
                                       </div>
@@ -696,7 +787,7 @@ export const LeadDetails = () => {
                                   {isEditing && user?.role === 'admin' ? (
                                       <select
                                           value={formData.assignedTo || 'Unassigned'}
-                                          onChange={e => setFormData({...formData, assignedTo: e.target.value === 'Unassigned' ? undefined : e.target.value})}
+                                          onChange={e => setFormData({...formData, assignedTo: e.target.value === 'Unassigned' ? null : e.target.value})}
                                           className={cn(editInputClass, "[&>option]:text-black")}
                                       >
                                           <option value="Unassigned">Unassigned</option>
@@ -742,18 +833,34 @@ export const LeadDetails = () => {
                                       )}
                                   </div>
                               </div>
-                              <div>
-                                  <label className="text-[10px] opacity-50 block mb-1">Budget</label>
-                                  {isEditing ? (
-                                      <input 
-                                          type="number"
-                                          value={formData.tripDetails.budget} 
-                                          onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, budget: Number(e.target.value)}})}
-                                          className={editInputClass}
-                                      />
-                                  ) : (
-                                      <span className="text-sm font-mono font-bold text-emerald-600">{formatCurrency(lead.tripDetails.budget)}</span>
-                                  )}
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="text-[10px] opacity-50 block mb-1">Nights</label>
+                                      {isEditing ? (
+                                          <input
+                                              type="number"
+                                              min={1}
+                                              value={formData.tripDetails.nights ?? ''}
+                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, nights: e.target.value ? Number(e.target.value) : undefined}})}
+                                              className={editInputClass}
+                                          />
+                                      ) : (
+                                          <span className="text-sm font-mono">{lead.tripDetails.nights ? `${lead.tripDetails.nights} Nights` : '—'}</span>
+                                      )}
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] opacity-50 block mb-1">Budget</label>
+                                      {isEditing ? (
+                                          <input
+                                              type="number"
+                                              value={formData.tripDetails.budget}
+                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, budget: Number(e.target.value)}})}
+                                              className={editInputClass}
+                                          />
+                                      ) : (
+                                          <span className="text-sm font-mono font-bold text-emerald-600">{formatCurrency(lead.tripDetails.budget)}</span>
+                                      )}
+                                  </div>
                               </div>
                           </div>
                       </div>
@@ -780,16 +887,24 @@ export const LeadDetails = () => {
               </Card>
 
               {/* Commercials Section (Modified to open Vendor Modal) */}
-              <CommercialsView 
-                  lead={lead} 
-                  commercials={formData.commercials || { sellingPrice: 0, netCost: 0, vendorId: '' }} 
+              <CommercialsView
+                  lead={lead}
+                  commercials={formData.commercials || { sellingPrice: 0, netCost: 0, vendorId: '' }}
                   onEdit={() => setIsVendorModalOpen(true)}
+                  onSaveVendor={handleSaveGeneratedVendor}
+                  onLogNote={handleLogQuoteNote}
               />
           </div>
 
           {/* RIGHT COLUMN (1/3): Timeline & Tasks */}
           <div className="space-y-6">
-              
+
+              {/* WhatsApp Two-Way Chat */}
+              <WhatsAppChatWidget lead={lead} />
+
+              {/* Razorpay Payment Collection */}
+              <PaymentLinkWidget lead={lead} />
+
               {/* Quick Actions */}
               <div className="grid grid-cols-2 gap-3">
                   <Button className="w-full justify-center" onClick={() => setReminderModalOpen(true)}>
@@ -809,9 +924,9 @@ export const LeadDetails = () => {
 
               {/* Tasks List */}
               <Card noPadding className="max-h-[300px] flex flex-col">
-                  <div className="p-4 border-b border-gray-500/10 flex justify-between items-center bg-gray-50/50">
-                      <span className={cn("text-xs font-bold uppercase tracking-wider opacity-60 text-slate-900")}>Pending Tasks</span>
-                      <span className="text-xs bg-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-600">{reminders.filter(r => !r.isCompleted).length}</span>
+                  <div className={cn("p-4 border-b border-gray-500/10 flex justify-between items-center", theme === 'light' ? 'bg-slate-50/50' : 'bg-white/5')}>
+                      <span className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Pending Tasks</span>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-bold", theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-white/10 text-white')}>{reminders.filter(r => !r.isCompleted).length}</span>
                   </div>
                   <div className="overflow-y-auto p-2 space-y-1">
                       {reminders.filter(r => !r.isCompleted).length === 0 && (
@@ -851,9 +966,12 @@ export const LeadDetails = () => {
                               <button
                                   type="submit"
                                   disabled={!interactionText.trim()}
-                                  className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 text-blue-500 hover:bg-blue-50 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                  className={cn(
+                                      "absolute right-0 top-1/2 -translate-y-1/2 p-1.5 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90",
+                                      theme === 'light' ? 'text-slate-900 hover:bg-slate-100' : 'text-white hover:bg-white/10'
+                                  )}
                               >
-                                  <Send size={14} />
+                                  <Send size={14} strokeWidth={2.5} />
                               </button>
                           </div>
                           {interactionText.trim() && (
@@ -865,7 +983,7 @@ export const LeadDetails = () => {
                                           type="button"
                                           onClick={() => setInteractionSentiment(s)}
                                           className={cn(
-                                              "text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all",
+                                              "text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all inline-flex items-center gap-1 active:scale-95",
                                               interactionSentiment === s
                                                   ? s === 'Positive' ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
                                                   : s === 'Negative' ? 'bg-rose-100 text-rose-700 border-rose-300'
@@ -873,7 +991,8 @@ export const LeadDetails = () => {
                                                   : 'border-transparent text-gray-400 hover:border-gray-200'
                                           )}
                                       >
-                                          {s === 'Positive' ? '👍' : s === 'Negative' ? '👎' : '—'} {s}
+                                          {s === 'Positive' ? <ThumbsUp size={11} strokeWidth={2.5} /> : s === 'Negative' ? <ThumbsDown size={11} strokeWidth={2.5} /> : <Minus size={11} strokeWidth={2.5} />}
+                                          {s}
                                       </button>
                                   ))}
                               </div>
@@ -887,7 +1006,7 @@ export const LeadDetails = () => {
                           <div key={interaction.id} className="relative group">
                               <div className={cn(
                                   "absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm transition-colors",
-                                  interaction.type === 'StatusChange' ? 'bg-purple-400' : 
+                                  interaction.type === 'StatusChange' ? 'bg-slate-800' :
                                   interaction.type === 'Call' ? 'bg-blue-400' : 'bg-gray-400'
                               )} />
                               
@@ -899,12 +1018,13 @@ export const LeadDetails = () => {
                                           </span>
                                           {interaction.sentiment && interaction.sentiment !== 'Neutral' && (
                                               <span className={cn(
-                                                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none",
+                                                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none inline-flex items-center gap-1",
                                                   interaction.sentiment === 'Positive'
                                                       ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                                       : 'bg-rose-100 text-rose-700 border-rose-200'
                                               )}>
-                                                  {interaction.sentiment === 'Positive' ? '👍' : '👎'} {interaction.sentiment}
+                                                  {interaction.sentiment === 'Positive' ? <ThumbsUp size={9} strokeWidth={2.5} /> : <ThumbsDown size={9} strokeWidth={2.5} />}
+                                                  {interaction.sentiment}
                                               </span>
                                           )}
                                       </div>
