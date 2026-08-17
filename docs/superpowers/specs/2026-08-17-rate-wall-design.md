@@ -216,6 +216,34 @@ content:
 There is deliberately no internal-detail export. The full breakdown exists only
 on screen, which the client never sees.
 
+Every value interpolated into an export is sanitised first, because the text is
+transcribed from supplier PDFs and spreadsheets and is not trusted:
+
+- **Newlines and control characters are collapsed to spaces.** Supplier meal and
+  supplement fields genuinely contain embedded newlines carrying rupee figures,
+  and an unsanitised one would inject its own line into the message.
+- **WhatsApp markup characters (`*`, `_`) are stripped**, so an unbalanced one in
+  a name cannot break the formatting of everything after it. Real data contains
+  `RE:GEN:TA INN -3*`.
+- **A festive note carrying a currency figure is replaced** with the neutral
+  phrase `Peak / festive dates`. Two Rajarshi tiers are printed as
+  `Black-Out Date Rate (Additional Rs 1,000 on room rate)` — that ₹1,000 is the
+  supplier's *net* surcharge, already inside the quoted total. Passing it
+  through would disclose a cost component, let the customer back out the
+  pre-surcharge rate, and imply a charge on top of a total that already includes
+  it. The note is not surgically edited; supplier prose is replaced wholesale,
+  because editing it risks producing a sentence that reads as a different offer.
+- **Rows without a finite, positive selling total are dropped** before sorting.
+  A `NaN` total otherwise makes the comparator return `NaN`, which leaves the
+  order untouched — putting the dearest hotel first in a quote that claims to be
+  cheapest-first — and prints `₹NaN` to the customer.
+
+The per-night figure is labelled **`avg/night`** on multi-night stays and
+omitted entirely on single-night stays, where it merely repeats the total. A
+stay spanning one base night and one Diwali night has two different nightly
+rates, and no night costs the average: presenting it as "per night" is a rate
+claim the customer will reasonably rely on when asking to add or drop a night.
+
 ## Failure and edge handling
 
 - Zero hotels for a city → empty state naming the city, not a blank page.
