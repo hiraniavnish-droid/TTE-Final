@@ -175,6 +175,15 @@ rate and one good ₹4,000 room still quotes ₹4,000.
 Star rating is displayed on every card but never affects banding. A 5-star
 hotel can and will appear under `Mid` when its rate says so.
 
+A band ranks hotels by their **cheapest bookable rate, whatever meal plan that
+is** — not by a like-for-like plan. Suppliers publish different plans per
+hotel: in Mandvi, Vijay Vilas prints only MAPAI (₹7,000, full board) and bands
+below Serena's CPAI (₹8,500, breakfast only). Normalising them would mean
+inventing a value for two meals that the sheet never prints, so the plan label
+is shown against every price instead and the basis is never hidden. Where a
+city's hotels all publish the same plan — Dholavira and Hodka are MAPAI
+throughout — the question does not arise.
+
 ## Card contents
 
 Per hotel: name, star rating, resolution chip, and an inclusions line
