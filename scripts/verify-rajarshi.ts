@@ -41,7 +41,11 @@ for (const hotel of RAJARSHI_HOTELS) {
           const base = room.rates.base?.[plan as any];
           expected = base != null ? base + (tier.surcharge || 0) : undefined;
         } else {
-          expected = room.rates[tier.id]?.[plan as any] ?? room.rates.base?.[plan as any];
+          // A 'replace' tier must print its OWN rate for this room+plan. There is
+          // deliberately no fallback to base: an unprinted blackout rate is an
+          // unknown, not an ordinary-night price. Falling back understates the
+          // highest-demand dates of the year.
+          expected = room.rates[tier.id]?.[plan as any];
         }
         if (expected == null) expectedOnRequest = true;
 

@@ -84,13 +84,18 @@ export function resolveNightRate(hotel: RajHotel, room: RajRoom, plan: RajPlan, 
     return { date, tierId: tier.id, tierLabel: tier.label, rate: base + (tier.surcharge || 0), isOnRequest: false };
   }
 
-  // mode 'replace' — the tier prints its own full rate table per room; fall back to base if this
-  // specific tier+plan combination wasn't printed for this room (some hotels only list peak rates
-  // for select room types).
+  // mode 'replace' — the tier prints its own full rate table per room.
   const tierRate = room.rates[tier.id]?.[plan];
   if (tierRate != null) return { date, tierId: tier.id, tierLabel: tier.label, rate: tierRate, isOnRequest: false };
-  const base = room.rates.base?.[plan];
-  return { date, tierId: 'base', rate: base ?? 0, isOnRequest: base == null };
+
+  // The sheet prints NO rate for this room+plan on this tier's dates. This used
+  // to fall back to the base rate, which quotes an ordinary-night price on a
+  // blackout night — Time Square (the only 5-star in Kutch) would quote its
+  // ₹7,350 base for Diwali and Christmas on CPAI, and White Desert its base
+  // EPAI across every blackout window. 7 of 63 replace-tier combinations did
+  // this. We do not know what the supplier charges, so we say so rather than
+  // guess low on the highest-demand nights of the year.
+  return { date, tierId: tier.id, tierLabel: tier.label, rate: 0, isOnRequest: true };
 }
 
 export function quoteStay(i: StayQuoteInput): StayQuoteResult {
