@@ -11,6 +11,13 @@ export interface RateWallControlValues {
   nights: number;
   rooms: number;
   pax: number;
+  // Extra mattresses REQUESTED on top of whatever a room already fits —
+  // separate from the automatic extra-bed charge that kicks in when Guests
+  // exceeds a room's base occupancy. This is for a bed nobody's headcount
+  // implied: a child's cot in a room that already fits the stated guests,
+  // for instance. Total across the booking, spread across Rooms the same
+  // way Guests already is.
+  extraMattress?: number;
   // Per person, for the WHOLE stay — not per night, confirmed with the user
   // rather than assumed. undefined/0 means the feature is off: no field
   // filled in, no badges anywhere, wall behaves exactly as before.
@@ -114,8 +121,12 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
           <Stepper value={values.pax} set={n => onChange({ pax: n })} min={1} max={40} />
         </div>
         <div>
+          <label className={labelCls}>Extra mattress</label>
+          <Stepper value={values.extraMattress ?? 0} set={n => onChange({ extraMattress: n })} min={0} max={10} />
+        </div>
+        <div>
           <label className={labelCls}>Budget / person</label>
-          <input type="number" inputMode="decimal" min={0} placeholder="e.g. 5000"
+          <input type="number" inputMode="decimal" min={0} step={100} placeholder="e.g. 5000"
             value={values.budgetPerPerson ?? ''}
             onChange={e => onChange({ budgetPerPerson: e.target.value ? Math.max(0, Number(e.target.value)) : undefined })}
             className={cn(fieldCls, 'font-mono w-[110px]')} />

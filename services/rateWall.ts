@@ -397,9 +397,18 @@ export function flattenBandedWall(banded: BandedWall): FlatWallEntry[] {
   return out;
 }
 
+export type BudgetBucket = 'best-fit' | 'under' | 'over';
+
 export interface BudgetStatus {
   fits: boolean;
   delta: number;   // always positive — how far under (fits) or over (!fits)
+  // 'best-fit'  — under budget AND using at least 85% of it. The hotel that
+  //               makes efficient use of what was quoted, not one that leaves
+  //               a large unexplained margin on the table.
+  // 'under'     — comfortably under budget (more than 15% of it unspent).
+  //               Room to upsell, but not the tightest match to the figure.
+  // 'over'      — cheapest option still exceeds the stated budget.
+  bucket: BudgetBucket;
 }
 
 // Total budget = per-person figure x guests, NOT x nights — confirmed with
@@ -412,9 +421,31 @@ export interface BudgetStatus {
 // not whichever room/plan happens to be showing in a card's dropdown. "Does
 // this hotel fit the budget" is a property of the hotel, not of whatever the
 // collapsed view defaults to.
+const BEST_FIT_WITHIN_PCT = 0.15;   // "best fit" = within 15% of the stated budget
+
 export function budgetStatus(cheapestSelling: number | null, totalBudget: number | undefined): BudgetStatus | null {
   if (totalBudget == null || !Number.isFinite(totalBudget) || totalBudget <= 0) return null;
   if (cheapestSelling == null || !Number.isFinite(cheapestSelling)) return null;
   const delta = cheapestSelling - totalBudget;
-  return { fits: delta <= 0, delta: Math.abs(delta) };
+  const fits = delta <= 0;
+  const bucket: BudgetBucket = !fits ? 'over' : (Math.abs(delta) <= totalBudget * BEST_FIT_WITHIN_PCT ? 'best-fit' : 'under');
+  return { fits, delta: Math.abs(delta), bucket };
+}
+
+const BUDGET_BUCKET_RANK: Record<BudgetBucket, number> = { 'best-fit': 0, under: 1, over: 2 };
+
+// One comparator, used by every page that sorts by budget, so the ordering
+// an agent sees on screen cannot drift from the bucket a card's own badge
+// says it's in. Hotels with nothing quotable (no BudgetStatus at all) sort
+// after every priced hotel, ahead of nothing — there is no reason to hide
+// them, but there is also no basis to rank them against a priced option.
+export function compareByBudgetFit(a: WallEntry, b: WallEntry, totalBudget: number | undefined): number {
+  const sa = budgetStatus(a.cheapestSelling, totalBudget);
+  const sb = budgetStatus(b.cheapestSelling, totalBudget);
+  const ra = sa ? BUDGET_BUCKET_RANK[sa.bucket] : 3;
+  const rb = sb ? BUDGET_BUCKET_RANK[sb.bucket] : 3;
+  if (ra !== rb) return ra - rb;
+  const pa = a.cheapestSelling ?? Infinity;
+  const pb = b.cheapestSelling ?? Infinity;
+  return pa - pb;
 }

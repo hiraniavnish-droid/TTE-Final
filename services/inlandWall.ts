@@ -33,6 +33,12 @@ export interface InlandWallInput {
   nights: number;
   rooms: number;
   pax: number;                 // total guests across all rooms
+  // Extra mattresses REQUESTED on top of whatever a room already fits, total
+  // across the booking — separate from the automatic extra-bed charge that
+  // kicks in when pax exceeds a room's base occupancy. A child's cot in a
+  // room that already fits the stated guests, for instance. Spread across
+  // rooms the same way pax already is.
+  extraMattress?: number;
   markupMode: MarkupMode;
   markupValue: number;
 }
@@ -156,13 +162,22 @@ function extraPersonTotal(
   explicitSupplement: number | null,
   i: InlandWallInput,
 ): ExtraPlan | ExtraBlocked {
-  const perRoom = Math.max(0, paxPerRoom - baseOccupancy);
+  // Auto shortfall (pax exceeding the room's base occupancy) plus whatever
+  // extra mattresses were manually requested on top of that — both are the
+  // same physical bed and share the same per-room cap and supplier rate.
+  const manualPerRoom = Math.ceil(Math.max(0, i.extraMattress || 0) / Math.max(1, i.rooms));
+  const autoShortfall = Math.max(0, paxPerRoom - baseOccupancy);
+  const perRoom = autoShortfall + manualPerRoom;
   if (perRoom === 0) return { total: 0, uncovered: 0 };
   // Beyond two extra beds the party needs another room whatever the sheet
-  // says. Pricing a double rate for six guests is not a caveat, it is a
-  // number no hotel would honour, so this stays a hard block.
-  if (paxPerRoom - BASE_OCCUPANCY > MAX_EXTRA_PER_ROOM) {
-    return { reason: `Too small for ${paxPerRoom} pax` };
+  // says or however many of those beds were manually requested. Pricing a
+  // double rate for six guests — or four mattresses in one room — is not a
+  // caveat, it is a number no hotel would honour, so this stays a hard block.
+  const paxOverflow = paxPerRoom - BASE_OCCUPANCY > MAX_EXTRA_PER_ROOM;
+  if (paxOverflow || perRoom > MAX_EXTRA_PER_ROOM) {
+    return { reason: paxOverflow
+      ? `Too small for ${paxPerRoom} pax`
+      : `Too many extra mattresses requested (max ${MAX_EXTRA_PER_ROOM} extra beds per room)` };
   }
 
   const raw = explicitSupplement != null

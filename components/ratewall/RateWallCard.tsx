@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils/helpers';
-import { AlertTriangle, Wand2, ChevronDown, Rows3 } from 'lucide-react';
+import { AlertTriangle, Wand2, ChevronDown, Rows3, Star } from 'lucide-react';
 import { fmtINR, isQuotable, type WallEntry, type WallRoomRow, type BudgetStatus } from '../../services/rateWall';
 
 interface Props {
@@ -206,12 +206,28 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
   // whichever comes later — passing bandTone before the theme classes silently
   // strips it, and the band's colour rule renders as plain grey. Caught in live
   // testing, where the class was simply absent from the rendered element.
+  // Budget gets its own visual channel, layered on top of (not instead of)
+  // the tier's left-border colour — an agent scanning the wall should be able
+  // to tell "best fit for the stated budget" apart from "cheapest overall"
+  // without the two signals fighting for the same pixel. Only 'best-fit' gets
+  // the strong pop (a glowing ring is a scarce visual, using it for every
+  // under-budget card would just make it the new normal and stop meaning
+  // anything); 'over' gets a quieter red wash so it still reads at a glance
+  // without looking disabled — an agent may well still want to mention it.
+  const budgetTreatment = !budget ? '' : budget.bucket === 'best-fit'
+    ? (theme === 'light'
+        ? 'ring-2 ring-emerald-400 shadow-[0_6px_26px_-6px_rgba(16,185,129,0.45)]'
+        : 'ring-2 ring-emerald-400/60 shadow-[0_6px_26px_-6px_rgba(16,185,129,0.3)]')
+    : budget.bucket === 'over'
+      ? (theme === 'light' ? 'bg-rose-50/70' : 'bg-rose-500/[0.05]')
+      : '';
+
   return (
     <div className={cn('group border border-l-[3px] rounded-xl px-3 py-2.5 transition-all duration-150',
       theme === 'light'
         ? 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-[0_4px_18px_-6px_rgba(15,23,42,0.14)]'
         : 'bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.06]',
-      bandTone)}>
+      bandTone, budgetTreatment)}>
 
       {/* Name on its own line, provenance beneath. At grid width the old
           right-pushed chip wrapped into the hotel name and read as one string. */}
@@ -234,10 +250,15 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
           at all rather than a guessed one, since there is nothing to compare. */}
       {budget && (
         <div className={cn('inline-flex items-center gap-1 text-[9.5px] font-bold mt-0.5 px-1.5 py-0.5 rounded-full w-fit',
-          budget.fits
-            ? (theme === 'light' ? 'bg-emerald-50 text-emerald-700' : 'bg-emerald-500/10 text-emerald-300')
-            : (theme === 'light' ? 'bg-rose-50 text-rose-700' : 'bg-rose-500/10 text-rose-300'))}>
-          {budget.delta === 0 ? 'Exactly on budget' : budget.fits ? `${fmtINR(budget.delta)} under budget` : `${fmtINR(budget.delta)} over budget`}
+          budget.bucket === 'best-fit'
+            ? (theme === 'light' ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-400/20 text-emerald-200')
+            : budget.bucket === 'under'
+              ? (theme === 'light' ? 'bg-emerald-50 text-emerald-700' : 'bg-emerald-500/10 text-emerald-300')
+              : (theme === 'light' ? 'bg-rose-50 text-rose-700' : 'bg-rose-500/10 text-rose-300'))}>
+          {budget.bucket === 'best-fit' && <Star size={9} className="shrink-0 fill-current" />}
+          {budget.bucket === 'best-fit'
+            ? (budget.delta === 0 ? 'Best fit — exactly on budget' : `Best fit — ${fmtINR(budget.delta)} to spare`)
+            : budget.fits ? `${fmtINR(budget.delta)} under budget` : `${fmtINR(budget.delta)} over budget`}
         </div>
       )}
 

@@ -5,11 +5,11 @@ import { cn, generateId } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import {
   Building2, ArrowLeft, Download, Copy, Loader2, Minus, Plus, Trash2,
-  AlertTriangle, LayoutGrid, Zap, MapPin,
+  AlertTriangle, LayoutGrid, Zap, MapPin, Star,
 } from 'lucide-react';
 import { RAJARSHI_HOTELS, RAJARSHI_SUPPLIER, type RajCity, type RajPlan } from '../services/rajarshiData';
 import { quoteStay, hotelsByCity, fmtINR, type MarkupMode } from '../services/rajarshiRates';
-import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, flattenBandedWall, budgetStatus, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, flattenBandedWall, budgetStatus, compareByBudgetFit, type WallEntry, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, rajarshiJumpChips } from '../services/rajarshiWall';
 import { RateWallControls } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
@@ -85,7 +85,7 @@ export const RajarshiBuilder: React.FC = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
-  const [wall, setWall] = useState({ city: CITIES[0] as string, checkIn: todayISO, nights: 1, rooms: 1, pax: 2, budgetPerPerson: undefined as number | undefined, hideOverBudget: false });
+  const [wall, setWall] = useState({ city: CITIES[0] as string, checkIn: todayISO, nights: 1, rooms: 1, pax: 2, extraMattress: 0, budgetPerPerson: undefined as number | undefined, hideOverBudget: false });
   // Rooms auto-suggests ceil(guests/2) as guests changes, but only while
   // the agent hasn't diverged from the last suggestion — once they set
   // rooms manually, this stops touching it. Saves the 'divide by two'
@@ -104,7 +104,7 @@ export const RajarshiBuilder: React.FC = () => {
 
   const wallEntries = useMemo(() => buildRajarshiWall({
     city: wall.city as RajCity | 'ALL', checkIn: wall.checkIn, nights: wall.nights,
-    rooms: wall.rooms, pax: wall.pax,
+    rooms: wall.rooms, pax: wall.pax, extraMattress: wall.extraMattress,
     markupMode, markupValue,
   }), [wall, markupMode, markupValue]);
 
@@ -114,15 +114,39 @@ export const RajarshiBuilder: React.FC = () => {
   // Total, not per-night — a stated "₹5,000 per person" is read as a figure
   // for the whole stay, confirmed with the user rather than assumed.
   const totalBudget = wall.budgetPerPerson ? wall.budgetPerPerson * wall.pax : undefined;
-  const visibleEntries = useMemo(() => {
-    if (!wall.hideOverBudget || !totalBudget) return flatEntries;
-    // A hotel with nothing quotable (budgetStatus returns null) stays visible
-    // — there is no information to say it doesn't fit, so hiding it would be
-    // presuming an answer the data doesn't have.
-    return flatEntries.filter(({ entry }) => {
+
+  // With a budget entered, the question stops being "what's cheap relative
+  // to the rest of this city" (the tier order) and becomes "what fits what
+  // THIS customer told me" — so the whole wall re-sorts by budget fit while
+  // a budget is set, and reverts to tier order the moment it's cleared.
+  const budgetCounts = useMemo(() => {
+    if (!totalBudget) return null;
+    const counts = { bestFit: 0, under: 0, over: 0 };
+    for (const { entry } of flatEntries) {
       const b = budgetStatus(entry.cheapestSelling, totalBudget);
-      return !b || b.fits;
-    });
+      if (!b) continue;
+      if (b.bucket === 'best-fit') counts.bestFit++;
+      else if (b.bucket === 'under') counts.under++;
+      else counts.over++;
+    }
+    return counts;
+  }, [flatEntries, totalBudget]);
+
+  const visibleEntries = useMemo(() => {
+    let list = flatEntries;
+    if (wall.hideOverBudget && totalBudget) {
+      // A hotel with nothing quotable (budgetStatus returns null) stays
+      // visible — there is no information to say it doesn't fit, so hiding
+      // it would be presuming an answer the data doesn't have.
+      list = list.filter(({ entry }) => {
+        const b = budgetStatus(entry.cheapestSelling, totalBudget);
+        return !b || b.fits;
+      });
+    }
+    if (totalBudget) {
+      list = [...list].sort((a, b) => compareByBudgetFit(a.entry, b.entry, totalBudget));
+    }
+    return list;
   }, [flatEntries, wall.hideOverBudget, totalBudget]);
 
   // Quick-pick default so a card never opens on an arbitrary plan — but this
@@ -500,6 +524,23 @@ export const RajarshiBuilder: React.FC = () => {
             <p className={cn('text-[12px] text-center py-8', getSecondaryTextColor())}>
               Nothing fits that budget for {cityLabel} on these dates. Turn off "Hide over budget" to see everything.
             </p>
+          )}
+
+          {/* Answers "which five are under, which are the best fit, which are
+              over, and by how much" without the agent having to scan and
+              count every badge by eye — the wall is already sorted this way,
+              this just states the totals up front. */}
+          {budgetCounts && (budgetCounts.bestFit + budgetCounts.under + budgetCounts.over > 0) && (
+            <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold px-0.5 -mt-1',
+              getSecondaryTextColor())}>
+              {budgetCounts.bestFit > 0 && (
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <Star size={11} className="fill-current shrink-0" /> {budgetCounts.bestFit} best fit
+                </span>
+              )}
+              {budgetCounts.under > 0 && <span>{budgetCounts.under} under budget</span>}
+              {budgetCounts.over > 0 && <span className="text-rose-500">{budgetCounts.over} over budget</span>}
+            </div>
           )}
 
           {/* One flowing grid across every tier — a band with only 1-2 hotels

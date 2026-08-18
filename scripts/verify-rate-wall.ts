@@ -1,7 +1,7 @@
 // Verification for the Rate Wall. Run: npx tsx scripts/verify-rate-wall.ts
 // Covers price banding: strict partition, tie handling, spread collapse, and
 // exclusion of anything that cannot be priced. Later tasks extend this file.
-import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, isQuotable, budgetStatus, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
+import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, isQuotable, budgetStatus, compareByBudgetFit, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, RAJARSHI_PLANS } from '../services/rajarshiWall';
 import { RAJARSHI_HOTELS, type RajPlan, type RajRoom } from '../services/rajarshiData';
 import { quoteStay } from '../services/rajarshiRates';
@@ -1561,6 +1561,33 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
   ok(budgetStatus(30000, NaN) === null, 'a non-finite budget must return null');
 }
 
+// ── bucket classification — 'best-fit' is within 15% of budget, exactly ───
+{
+  ok(budgetStatus(35000, 35000)?.bucket === 'best-fit', 'exactly on budget must be best-fit');
+  ok(budgetStatus(29750, 35000)?.bucket === 'best-fit', '15% under budget must be best-fit (boundary, inclusive)');
+  ok(budgetStatus(29749, 35000)?.bucket === 'under', 'just past 15% under budget must be plain "under", not best-fit');
+  ok(budgetStatus(1000, 35000)?.bucket === 'under', 'far under budget must be "under", not best-fit — a huge unspent margin is not a tight match');
+  ok(budgetStatus(35001, 35000)?.bucket === 'over', 'one rupee over must be "over", never best-fit');
+  ok(budgetStatus(50000, 35000)?.bucket === 'over', 'well over budget must be "over"');
+}
+
+// ── compareByBudgetFit() — the ranking every page's sort must use ─────────
+{
+  const mk = (id: string, price: number | null): WallEntry => ({
+    hotelId: id, hotelName: id, resolutionChip: '', resolutionOk: true, inclusions: '', rows: [], cheapestSelling: price,
+  });
+  const budget = 35000;
+  const entries = [mk('over-cheap', 36000), mk('best-fit', 34000), mk('under-far', 10000), mk('no-price', null), mk('over-dear', 60000)];
+  const sorted = [...entries].sort((a, b) => compareByBudgetFit(a, b, budget));
+  ok(sorted[0].hotelId === 'best-fit', `best-fit must sort first, got order: ${sorted.map(e => e.hotelId).join(',')}`);
+  ok(sorted[1].hotelId === 'under-far', 'a comfortably-under hotel must sort after best-fit');
+  ok(sorted[2].hotelId === 'over-cheap' && sorted[3].hotelId === 'over-dear',
+    'over-budget hotels must sort by price ascending within the over-budget group');
+  ok(sorted[4].hotelId === 'no-price', 'a hotel with nothing quotable must sort last, never ahead of a priced hotel');
+  ok(compareByBudgetFit(mk('a', 1000), mk('b', 1000), undefined) === 0,
+    'with no budget set the comparator must be a no-op (both entries rank equal)');
+}
+
 // ── the budget comparison never reaches the client export ─────────────────
 {
   const rows: QuotableRow[] = [{ key: 'k', roomName: 'Deluxe', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 1000 }];
@@ -1569,6 +1596,96 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
     { supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05', checkOut: '2026-11-06', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI' }
   );
   ok(!/budget/i.test(text), 'export must never mention budget — internal decision support, same class as net cost and margin');
+}
+
+// ── manual "extra mattress" — must be economically IDENTICAL to the same
+// number of beds arriving via pax overflow, since it is the same physical bed
+// and the same supplier rate. The already-verified auto-shortfall path is
+// used as the oracle, rather than hand-deriving an expected rupee figure. ──
+{
+  // Rajarshi: Time Square Deluxe Room (King Bed), CPAI, extraPerson.base
+  // is not printed for CPAI (only MAPAI/diwali/xmas), so use MAPAI instead
+  // where hotel.extraPerson.base.MAPAI is undefined too — check EPAI/CPAI/MAPAI
+  // to find one this hotel actually prices, rather than assuming CPAI.
+  const rjPlan = 'MAPAI' as const; // Deluxe Room (King Bed) prices MAPAI at base
+  const viaManual = buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 1, markupMode: 'percent', markupValue: 0 });
+  const viaAutoShortfall = buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 3, extraMattress: 0, markupMode: 'percent', markupValue: 0 });
+  const rowManual = viaManual.find(e => e.hotelId === 'time-square-club-resort-spa')?.rows.find(r => r.key.endsWith(`::${rjPlan}`) && r.roomName === 'Deluxe Room (King Bed)');
+  const rowAuto = viaAutoShortfall.find(e => e.hotelId === 'time-square-club-resort-spa')?.rows.find(r => r.key.endsWith(`::${rjPlan}`) && r.roomName === 'Deluxe Room (King Bed)');
+  if (rowManual && rowAuto && isQuotable(rowManual) && isQuotable(rowAuto)) {
+    ok(rowManual.sellingTotal === rowAuto.sellingTotal,
+      `Rajarshi: 1 manual mattress at pax=2 (₹${rowManual.sellingTotal}) must cost exactly the same as pax=3 with 0 manual (₹${rowAuto.sellingTotal})`);
+    ok(rowManual.netTotal === rowAuto.netTotal, 'Rajarshi: manual-mattress net total must match the auto-shortfall net total');
+  } else {
+    ok(false, `Rajarshi manual-mattress equivalence fixture did not resolve to a quotable row (manual=${!!rowManual && isQuotable(rowManual!)}, auto=${!!rowAuto && isQuotable(rowAuto!)})`);
+  }
+
+  // Rajarshi: requesting more mattresses than the 2-bed cap allows must block,
+  // with a message that blames the mattresses, not the pax, since pax alone
+  // (2) fits the room fine.
+  const rjOverflow = buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 3, markupMode: 'percent', markupValue: 0 });
+  const overflowRow = rjOverflow.find(e => e.hotelId === 'time-square-club-resort-spa')?.rows.find(r => r.roomName === 'Deluxe Room (King Bed)' && r.key.endsWith(`::${rjPlan}`));
+  ok(!!overflowRow && isBlocked(overflowRow), 'Rajarshi: 3 manual mattresses in one room must block, not silently cap at 2');
+  if (overflowRow && isBlocked(overflowRow)) {
+    ok(/too many extra mattresses/i.test(overflowRow.blockedReason), `Rajarshi: overflow reason should name the mattresses, got "${overflowRow.blockedReason}"`);
+  }
+}
+
+{
+  // Inland "normal" path (occupancy axis) — Fortune Landmark Ahmedabad,
+  // Deluxe Room, SINGLE/DOUBLE, childAdult 1000 on a 5200 base.
+  const viaManual = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 1, markupMode: 'percent', markupValue: 0 });
+  const viaAutoShortfall = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 3, extraMattress: 0, markupMode: 'percent', markupValue: 0 });
+  const findRow = (w: WallEntry[]) => w.find(e => e.hotelId === 'ahmedabad-fortune-landmark-ahmedabad')?.rows.find(r => r.roomName === 'Deluxe Room' && r.key.endsWith('::C2'));
+  const rowManual = findRow(viaManual);
+  const rowAuto = findRow(viaAutoShortfall);
+  if (rowManual && rowAuto && isQuotable(rowManual) && isQuotable(rowAuto)) {
+    ok(rowManual.sellingTotal === rowAuto.sellingTotal,
+      `Inland occupancy path: 1 manual mattress at pax=2 (₹${rowManual.sellingTotal}) must equal pax=3 auto (₹${rowAuto.sellingTotal})`);
+  } else {
+    ok(false, `Inland occupancy-path manual-mattress fixture did not resolve (manual=${!!rowManual}, auto=${!!rowAuto})`);
+  }
+
+  // Inland weekday/weekend "Your dates" path — THE FERN SATTVA RESORT, WGC,
+  // childAdult 1500. A Tuesday check-in keeps this a pure-weekday stay so the
+  // expected figure is simple: rate1 x nights, plus the extra-bed supplement.
+  const viaManualWk = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-08-18', nights: 1, rooms: 1, pax: 2, extraMattress: 1, markupMode: 'percent', markupValue: 0 });
+  const viaAutoWk = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-08-18', nights: 1, rooms: 1, pax: 3, extraMattress: 0, markupMode: 'percent', markupValue: 0 });
+  const findDates = (w: WallEntry[]) => w.find(e => e.hotelId === 'ahmedabad-the-fern-sattva-resort')?.rows.find(r => r.roomName === 'WGC' && r.planLabel === 'Your dates');
+  const wkManual = findDates(viaManualWk);
+  const wkAuto = findDates(viaAutoWk);
+  if (wkManual && wkAuto && isQuotable(wkManual) && isQuotable(wkAuto)) {
+    ok(wkManual.sellingTotal === wkAuto.sellingTotal,
+      `Inland "Your dates" path: 1 manual mattress (₹${wkManual.sellingTotal}) must equal pax=3 auto-shortfall (₹${wkAuto.sellingTotal})`);
+  } else {
+    ok(false, `Inland "Your dates" manual-mattress fixture did not resolve (manual=${!!wkManual}, auto=${!!wkAuto})`);
+  }
+
+  // Combined: pax already needs 1 auto bed, agent adds 1 more manually — the
+  // total (2) sits exactly at the cap and must still price, matching pax=4
+  // with 0 manual (also 2 auto beds).
+  const combined = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 3, extraMattress: 1, markupMode: 'percent', markupValue: 0 });
+  const fourPax = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 4, extraMattress: 0, markupMode: 'percent', markupValue: 0 });
+  const rowCombined = findRow(combined);
+  const rowFourPax = findRow(fourPax);
+  if (rowCombined && rowFourPax && isQuotable(rowCombined) && isQuotable(rowFourPax)) {
+    ok(rowCombined.sellingTotal === rowFourPax.sellingTotal,
+      `Inland: pax=3+1 manual (₹${rowCombined.sellingTotal}) must equal pax=4+0 manual (₹${rowFourPax.sellingTotal}) — same 2 extra beds either way`);
+  } else {
+    ok(false, 'Inland combined auto+manual mattress fixture did not resolve to a quotable row');
+  }
+
+  // pax=3 (1 auto) + 2 manual = 3 total, past the cap — must block.
+  const tooMany = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 3, extraMattress: 2, markupMode: 'percent', markupValue: 0 });
+  const rowTooMany = findRow(tooMany);
+  ok(!!rowTooMany && isBlocked(rowTooMany), 'Inland: 1 auto + 2 manual (3 total) extra beds must block, not silently cap');
+}
+
+// ── the wall input's extraMattress is optional and 0 is the true default ──
+{
+  const withUndefined = buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 });
+  const withZero = buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 0, markupMode: 'percent', markupValue: 0 });
+  ok(JSON.stringify(withUndefined) === JSON.stringify(withZero), 'omitting extraMattress must behave identically to passing 0');
 }
 
 console.log(`\nChecks: ${checks}`);

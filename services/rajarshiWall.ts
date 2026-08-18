@@ -22,6 +22,11 @@ export interface RajarshiWallInput {
   nights: number;
   rooms: number;
   pax: number;                 // total guests across all rooms
+  // Extra mattresses REQUESTED on top of whatever a room already fits, total
+  // across the booking — separate from the automatic extra-bed charge that
+  // kicks in when pax exceeds a room's base occupancy. Spread across rooms
+  // the same way pax already is.
+  extraMattress?: number;
   markupMode: MarkupMode;
   markupValue: number;
 }
@@ -68,6 +73,7 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
     ? Object.values(byCity).flat()
     : (byCity[input.city] || []);
   const paxPerRoom = Math.ceil(input.pax / Math.max(1, input.rooms));
+  const manualMattressPerRoom = Math.ceil(Math.max(0, input.extraMattress || 0) / Math.max(1, input.rooms));
   const lastNight = addDays(input.checkIn, Math.max(0, input.nights - 1));
 
   return hotels.map(hotel => {
@@ -77,7 +83,12 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
 
     const rows: WallRoomRow[] = hotel.rooms.flatMap((room, ri) => {
       const cap = baseCapacity(room);
-      const extraPerRoom = Math.max(0, paxPerRoom - cap);
+      // Auto shortfall (pax exceeding the room's base capacity) plus whatever
+      // extra mattresses the agent asked for on top of that — both are the
+      // same physical thing (an extra bed) and share the same per-room cap
+      // and the same supplier rate.
+      const autoShortfall = Math.max(0, paxPerRoom - cap);
+      const extraPerRoom = autoShortfall + manualMattressPerRoom;
       const plans = publishedPlans(room);
 
       const publishedRows: WallRoomRow[] = plans.map((plan): WallRoomRow => {
@@ -87,7 +98,9 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
         const blocked = closedReason
           ? closedReason
           : extraPerRoom > MAX_EXTRA_BEDS_PER_ROOM
-            ? `Too small for ${paxPerRoom} pax`
+            ? (autoShortfall === 0
+                ? `Too many extra mattresses requested (max ${MAX_EXTRA_BEDS_PER_ROOM} extra beds per room)`
+                : `Too small for ${paxPerRoom} pax`)
             : extraPerRoom > 0 && !hasExtraRate
               ? `No extra bed rate for ${paxPerRoom} pax`
               : undefined;
