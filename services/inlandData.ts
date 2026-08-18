@@ -39,6 +39,12 @@ export interface InlandRoom {
   mealPlan?: string;       // printed alongside occupancy/weekday axes when the axis itself isn't meal plan
   childAdult?: number | string;  // extra-person/child supplement; string when the sheet's text wasn't a clean number
   lunchDinner?: number | string;
+  // Extra-adult supplement that the sheet prints PER MEAL PLAN rather than as
+  // one figure (e.g. 'Deluxe Room' at Fortune Statue Of Unity Kevadia: 700 for
+  // CPAI, 1000 for MAPAI) — keyed by the exact axisLabels text of the column
+  // it applies to. childAdult above cannot hold this because it is a single
+  // number/string, not one-per-plan.
+  childAdultByPlan?: Record<string, number>;
   season?: InlandHalfSeason;      // only present for hotels split into two half-year blocks
 }
 
@@ -1898,7 +1904,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
     isOnCallOnly: false,
     remark: "Supplement Charges (Festive Periods)\n14 Aug to 16 Aug Independenceday & 28 Aug to 30 Aug Raksha Bandhan \n4 Sep to 6 Sep Janmastami\n4 Nov to 15 Nov Diwali\nChristmas 24 Dec to 31 Dec \n1 Jan to 5 Jan New year \n19 Mar - 24 March Holi | Supplement Charges (Festive Periods)\n14 Aug to 16 Aug Independenceday & 28 Aug to 30 Aug Raksha Bandhan \n4 Sep to 6 Sep Janmastami\n4 Nov to 15 Nov Diwali\nChristmas 24 Dec to 31 Dec \n1 Jan to 5 Jan New year \n19 Mar - 24 March Holi",
     rooms: [
-      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3000, onRequest1: false, rate2: 3300, onRequest2: false, mealPlan: "CPAI", lunchDinner: "700 CPAI \n1000 MAPAI", season: "H1" },
+      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3000, onRequest1: false, rate2: 3300, onRequest2: false, mealPlan: "CPAI", lunchDinner: "700 CPAI \n1000 MAPAI", childAdultByPlan: { CPAI: 700, MAPAI: 1000 }, season: "H1" },
       { name: "Premium Garden View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3300, onRequest1: false, rate2: 3650, onRequest2: false, season: "H1" },
       { name: "Premium River View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3650, onRequest1: false, rate2: 3950, onRequest2: false, season: "H1" },
       { name: "Club Room Statue View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3950, onRequest1: false, rate2: 4300, onRequest2: false, season: "H1" },

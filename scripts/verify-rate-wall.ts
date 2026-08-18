@@ -847,8 +847,11 @@ const BASE_OCC = 2, MAX_EXTRA = 2;
 // The expected extra-person supplement, re-derived. `childAdult` is only a
 // supplement when it is smaller than the room rate — on 22 rooms it holds a
 // third rate column (an APAI figure) instead, and the adapter must refuse it.
-function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: number | null): number | null {
-  const raw = exColRate != null ? exColRate : (typeof room.childAdult === 'number' ? room.childAdult : null);
+function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: number | null, planLabel?: string): number | null {
+  const planSup = planLabel ? room.childAdultByPlan?.[planLabel] ?? null : null;
+  const raw = exColRate != null ? exColRate
+    : planSup != null ? planSup
+    : (typeof room.childAdult === 'number' ? room.childAdult : null);
   if (raw == null || !Number.isFinite(raw) || raw <= 0 || raw >= baseRate) return null;
   return raw;
 }
@@ -945,7 +948,7 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
           const extraHeads = Math.max(0, paxPerRoom - baseOcc);
           let expectedExtra = 0;
           if (extraHeads > 0) {
-            const sup = expectedSupplement(room, baseRate, exColRate);
+            const sup = expectedSupplement(room, baseRate, exColRate, row.planLabel);
             if (sup == null) {
               // No usable supplement: the room is quoted at its base occupancy
               // and MUST say so in the line the customer receives.
@@ -1726,6 +1729,32 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
   // 7 mattresses across 3 rooms exceeds the 3 x 2-bed cap (6) and must block.
   const inlandHugeOverflow = findRow(buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 3, pax: 6, extraMattress: 7, markupMode: 'percent', markupValue: 0 }));
   ok(!!inlandHugeOverflow && isBlocked(inlandHugeOverflow), 'Inland: 7 manual mattresses across 3 rooms (cap 6) must block');
+}
+
+// ── per-plan extra-adult supplement (childAdultByPlan) — Fortune Statue Of
+// Unity Kevadia's Deluxe Room prints '700 CPAI / 1000 MAPAI' as its extra-bed
+// charge, one figure per meal plan rather than the single childAdult number
+// most rooms carry. Before this field existed the room had no usable
+// supplement at all and every 3-pax quote fell back to the base-occupancy
+// caveat ('extra bed to be confirmed') instead of pricing the printed
+// charge. ──
+{
+  const w = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-06-20', nights: 1, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 0 });
+  const hotel = w.find(e => e.hotelId === 'vadodara-fortune-statue-of-unity-kevadia');
+  const cpai = hotel?.rows.find(r => r.key.endsWith('::C1'));
+  const mapai = hotel?.rows.find(r => r.key.endsWith('::C2'));
+  if (cpai && isQuotable(cpai)) {
+    ok(!cpai.clientNote, `Fortune SOU Kevadia CPAI: 3rd guest is covered by the printed 700 supplement, must carry no caveat — got '${cpai.clientNote}'`);
+    ok(cpai.netTotal === 3000 + 700, `Fortune SOU Kevadia CPAI pax3: net must be 3000 room + 700 extra-adult = 3700, got ${cpai.netTotal}`);
+  } else {
+    ok(false, 'Fortune SOU Kevadia CPAI row did not resolve to quotable');
+  }
+  if (mapai && isQuotable(mapai)) {
+    ok(!mapai.clientNote, `Fortune SOU Kevadia MAPAI: 3rd guest is covered by the printed 1000 supplement, must carry no caveat — got '${mapai.clientNote}'`);
+    ok(mapai.netTotal === 3300 + 1000, `Fortune SOU Kevadia MAPAI pax3: net must be 3300 room + 1000 extra-adult = 4300, got ${mapai.netTotal}`);
+  } else {
+    ok(false, 'Fortune SOU Kevadia MAPAI row did not resolve to quotable');
+  }
 }
 
 // ── the wall input's extraMattress is optional and 0 is the true default ──

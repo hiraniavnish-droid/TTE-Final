@@ -260,9 +260,14 @@ function columnRow(s: ColumnRowSpec, i: InlandWallInput, paxPerRoom: number): Wa
   });
   if (q.isOnRequest) return { ...base, quotable: false, blockedReason: ON_REQUEST };
 
+  // A per-plan supplement (childAdultByPlan) applies whenever this column's
+  // own plan label has one printed, but an axis-specific figure the caller
+  // already resolved (e.g. occupancyRows' 'Ex Person' column) is the more
+  // direct printed figure and takes priority.
+  const planSupplement = s.planLabel ? s.room.childAdultByPlan?.[s.planLabel] ?? null : null;
   const extra = extraPersonTotal(
     s.room, paxPerRoom, s.baseOccupancy, q.baseRate,
-    s.explicitSupplement ?? null, i,
+    s.explicitSupplement ?? planSupplement, i,
   );
   if (isExtraBlocked(extra)) return { ...base, quotable: false, blockedReason: extra.reason };
 
