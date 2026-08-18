@@ -127,6 +127,77 @@ const entry = (id: string, cheapest: number | null): WallEntry => ({
   ok(cheapestQuotable([rows[0]]) === null, 'all-blocked rows must yield null');
 }
 
+// ── a band compares like with like: covered rows beat caveated ones ──
+{
+  const caveated = (key: string, total: number): WallRoomRow => ({
+    key, roomName: key, quotable: true, netTotal: total, markupAmount: 0,
+    sellingTotal: total, sellingPerNight: total,
+    clientNote: 'Rate covers 2 guests — extra bed to be confirmed',
+  });
+  const covered = (key: string, total: number): WallRoomRow => ({
+    key, roomName: key, quotable: true, netTotal: total, markupAmount: 0,
+    sellingTotal: total, sellingPerNight: total,
+  });
+
+  // The failure this rule exists for: a hotel's cheap row does not cover the
+  // party, so banding on it would rank the hotel against rates that do.
+  ok(cheapestQuotable([caveated('cheap', 1000), covered('full', 2500)]) === 2500,
+    `a covered row must band the hotel, got ${cheapestQuotable([caveated('cheap', 1000), covered('full', 2500)])}`);
+  ok(cheapestQuotable([covered('a', 4000), covered('b', 2500), caveated('c', 900)]) === 2500,
+    'the CHEAPEST covered row wins, not merely the first');
+
+  // Every row caveated: still a real, quotable rate. Returning null would drop
+  // the hotel into 'On request' and hide a price the card renders in amber.
+  const allCaveated = [caveated('a', 3000), caveated('b', 1800)];
+  ok(cheapestQuotable(allCaveated) === 1800,
+    `an all-caveated hotel must still band, got ${cheapestQuotable(allCaveated)}`);
+
+  // The non-finite/non-positive guard still applies inside each pool.
+  const badCovered: WallRoomRow[] = [
+    { key: 'nan', roomName: 'x', quotable: true, netTotal: NaN, markupAmount: 0, sellingTotal: NaN, sellingPerNight: NaN },
+    caveated('c', 1200),
+  ];
+  ok(cheapestQuotable(badCovered) === 1200,
+    `a corrupt uncaveated row must not beat a real caveated one, got ${cheapestQuotable(badCovered)}`);
+
+  // Banding end to end: the caveated hotel must sort on its covered rate, so
+  // it does not undercut the hotel that genuinely prices the third guest.
+  const cheat: WallEntry = { ...entry('cheat', null), rows: [caveated('x', 1000), covered('y', 9000)] };
+  cheat.cheapestSelling = cheapestQuotable(cheat.rows);
+  const honest: WallEntry = { ...entry('honest', null), rows: [covered('z', 2000)] };
+  honest.cheapestSelling = cheapestQuotable(honest.rows);
+  const w = bandHotels([cheat, honest]);
+  ok(w.bands[0].entries[0].hotelId === 'honest',
+    'a 2-guest rate must not undercut a hotel that prices the whole party');
+}
+
+// ── Rajarshi banding is untouched: no Rajarshi row sets clientNote ──
+{
+  // The rule above only ever changes an entry that mixes covered and caveated
+  // rows. Rajarshi's adapter emits no clientNote at all, so its walls must be
+  // bit-for-bit what they were — asserted here rather than assumed, because
+  // this is a shared function and the regression would be silent.
+  let anyNote = 0;
+  for (const city of ['Bhuj', 'ALL']) {
+    const wall = buildRajarshiWall({
+      city: city as any, checkIn: '2026-11-15', nights: 2, rooms: 1, pax: 2,
+      markupMode: 'percent', markupValue: 15,
+    });
+    for (const e of wall) {
+      for (const r of e.rows) if (r.clientNote) anyNote++;
+      // The cheapest quotable row, computed the old way, must still be the
+      // banding figure.
+      const naive = e.rows.filter(isQuotable)
+        .map(r => r.sellingTotal)
+        .filter(v => Number.isFinite(v) && v > 0);
+      const expected = naive.length ? Math.min(...naive) : null;
+      ok(e.cheapestSelling === expected,
+        `${e.hotelId}: Rajarshi banding figure changed — expected ${expected}, got ${e.cheapestSelling}`);
+    }
+  }
+  ok(anyNote === 0, `no Rajarshi row may carry a clientNote, found ${anyNote}`);
+}
+
 // ── the priciest hotel must never be labelled below the top band ──
 {
   const cases: number[][] = [

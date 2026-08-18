@@ -91,6 +91,18 @@ export interface BandedWall {
 // re-deriving it, so the figure banding sorts on cannot drift from the
 // cheapest figure the card actually renders.
 //
+// A band must compare like with like wherever it can. A row carrying a
+// clientNote is priced for FEWER guests than the agent asked for — the
+// supplier printed no extra-person rate, so the figure covers the room's base
+// occupancy only. Banding on it lets a hotel quoting two heads undercut a
+// hotel that genuinely prices the third, and the sort has no way to tell the
+// two apart: both are just numbers by the time they reach bandHotels().
+//
+// So covered rows win outright when a hotel has any. Only when EVERY quotable
+// row on a hotel is caveated do we fall back to the cheapest caveated one —
+// dropping the hotel to 'On request' instead would hide a real, quotable rate
+// behind a caveat the card already prints in amber.
+//
 // Non-finite and non-positive room totals are skipped rather than allowed to
 // poison the result: Math.min propagates NaN and -Infinity wins outright, so
 // one corrupt room would otherwise hide a hotel's perfectly good rooms behind
@@ -98,9 +110,11 @@ export interface BandedWall {
 export function cheapestQuotable(rows: WallRoomRow[]): number | null {
   const priced = rows
     .filter(isQuotable)
-    .map(r => r.sellingTotal)
-    .filter(v => Number.isFinite(v) && v > 0);
-  return priced.length ? Math.min(...priced) : null;
+    .filter(r => Number.isFinite(r.sellingTotal) && r.sellingTotal > 0);
+  if (!priced.length) return null;
+  const covered = priced.filter(r => !r.clientNote);
+  const pool = covered.length ? covered : priced;
+  return Math.min(...pool.map(r => r.sellingTotal));
 }
 
 const SIMILAR_PRICING_MAX_SPREAD = 1.15;

@@ -432,7 +432,9 @@ export const RajarshiBuilder: React.FC = () => {
       ) : (
         <div className="space-y-3">
           <RateWallControls
-jumps={JUMP_CHIPS}             values={wall}
+            jumps={JUMP_CHIPS}
+            allLabel="All Kutch"
+            values={wall}
             cities={CITIES as string[]}
             onChange={patch => { setWall(w => ({ ...w, ...patch })); if (patch.city) setPicked(new Set()); }}
           />

@@ -26,6 +26,10 @@ interface Props {
   // suppliers — deriving them internally would show Rajarshi's Kutch dates
   // on an Inland Gujarat wall.
   jumps: JumpChip[];
+  // Wording for the value 'ALL' option. Supplied by the page for the same
+  // reason as `jumps`: 'All Kutch' was hard-coded here and read as a supplier
+  // label on every other wall the moment a second supplier arrived.
+  allLabel: string;
   onChange: (patch: Partial<RateWallControlValues>) => void;
 }
 
@@ -59,7 +63,7 @@ const Stepper: React.FC<{ value: number; set: (n: number) => void; min: number; 
   );
 };
 
-export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, onChange }) => {
+export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLabel, onChange }) => {
   const { theme, getInputClass, getSecondaryTextColor } = useTheme();
 
   const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-0.5 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
@@ -77,7 +81,7 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, onCha
         <div>
           <label className={labelCls}>City</label>
           <select value={values.city} className={cn(fieldCls, 'w-[150px] [&>option]:text-black')} onChange={e => onChange({ city: e.target.value })}>
-            <option value="ALL">All Kutch</option>
+            <option value="ALL">{allLabel}</option>
             {cities.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
