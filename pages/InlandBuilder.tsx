@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn, generateId } from '../utils/helpers';
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { INLAND_HOTELS, INLAND_SUPPLIER, type InlandHotel, type InlandRoom } from '../services/inlandData';
 import { quoteInlandStay, hotelsByCity, suggestSeason, fmtINR, type MarkupMode, type RateColumn } from '../services/inlandRates';
-import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, flattenBandedWall, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, flattenBandedWall, budgetStatus, type WallEntry, type QuotableRow } from '../services/rateWall';
 import { buildInlandWall, inlandCities } from '../services/inlandWall';
 import { RateWallControls, type JumpChip } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
@@ -119,7 +119,19 @@ export const InlandBuilder: React.FC = () => {
   const anyOnRequest = legQuotes.some(l => l.quote.isOnRequest);
 
   // ── Rate wall mode ──
-  const [wall, setWall] = useState({ city: WALL_CITIES[0] as string, checkIn: todayISO(), nights: 1, rooms: 1, pax: 2 });
+  const [wall, setWall] = useState({ city: WALL_CITIES[0] as string, checkIn: todayISO(), nights: 1, rooms: 1, pax: 2, budgetPerPerson: undefined as number | undefined, hideOverBudget: false });
+  // Rooms auto-suggests ceil(guests/2) as guests changes, but only while
+  // the agent hasn't diverged from the last suggestion — once they set
+  // rooms manually, this stops touching it.
+  const suggestedRoomsRef = useRef(wall.rooms);
+  useEffect(() => {
+    const suggestion = Math.max(1, Math.ceil(wall.pax / 2));
+    if (wall.rooms === suggestedRoomsRef.current && wall.rooms !== suggestion) {
+      setWall(w => ({ ...w, rooms: suggestion }));
+    }
+    suggestedRoomsRef.current = suggestion;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wall.pax]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const togglePick = (key: string) => setPicked(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
@@ -130,6 +142,15 @@ export const InlandBuilder: React.FC = () => {
 
   const banded = useMemo(() => bandHotels(wallEntries), [wallEntries]);
   const flatEntries = useMemo(() => flattenBandedWall(banded), [banded]);
+
+  const totalBudget = wall.budgetPerPerson ? wall.budgetPerPerson * wall.pax : undefined;
+  const visibleEntries = useMemo(() => {
+    if (!wall.hideOverBudget || !totalBudget) return flatEntries;
+    return flatEntries.filter(({ entry }) => {
+      const b = budgetStatus(entry.cheapestSelling, totalBudget);
+      return !b || b.fits;
+    });
+  }, [flatEntries, wall.hideOverBudget, totalBudget]);
 
   // Quick-pick default so a card never opens on an arbitrary plan — but this
   // only sets what the dropdown SHOWS first; every plan stays one click away,
@@ -535,14 +556,21 @@ export const InlandBuilder: React.FC = () => {
             </p>
           )}
 
+          {flatEntries.length > 0 && visibleEntries.length === 0 && (
+            <p className={cn('text-[12px] text-center py-8', getSecondaryTextColor())}>
+              Nothing fits that budget for {cityLabel} on these dates. Turn off "Hide over budget" to see everything.
+            </p>
+          )}
+
           {/* One flowing grid across every tier — a band with only 1-2 hotels
               no longer leaves the rest of that row empty while the next tier
               starts on a new line. The tier is now a badge ON each card
               (see flattenBandedWall in rateWall.ts) rather than a section
               header above a group of cards. */}
           <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
-            {flatEntries.map(({ entry, bandId, bandLabel }) => (
+            {visibleEntries.map(({ entry, bandId, bandLabel }) => (
               <RateWallCard key={entry.hotelId} entry={entry} preferredPlan={preferredPlan}
+                budget={budgetStatus(entry.cheapestSelling, totalBudget)}
                 bandTone={
                   bandId === 'premium' ? 'border-l-violet-400'
                     : bandId === 'mid' ? 'border-l-sky-400'

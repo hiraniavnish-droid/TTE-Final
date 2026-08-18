@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn, generateId } from '../utils/helpers';
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { RAJARSHI_HOTELS, RAJARSHI_SUPPLIER, type RajCity, type RajPlan } from '../services/rajarshiData';
 import { quoteStay, hotelsByCity, fmtINR, type MarkupMode } from '../services/rajarshiRates';
-import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, flattenBandedWall, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, flattenBandedWall, budgetStatus, type WallEntry, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, rajarshiJumpChips } from '../services/rajarshiWall';
 import { RateWallControls } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
@@ -85,7 +85,20 @@ export const RajarshiBuilder: React.FC = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
-  const [wall, setWall] = useState({ city: CITIES[0] as string, checkIn: todayISO, nights: 1, rooms: 1, pax: 2 });
+  const [wall, setWall] = useState({ city: CITIES[0] as string, checkIn: todayISO, nights: 1, rooms: 1, pax: 2, budgetPerPerson: undefined as number | undefined, hideOverBudget: false });
+  // Rooms auto-suggests ceil(guests/2) as guests changes, but only while
+  // the agent hasn't diverged from the last suggestion — once they set
+  // rooms manually, this stops touching it. Saves the 'divide by two'
+  // arithmetic without ever silently overriding a deliberate choice.
+  const suggestedRoomsRef = useRef(wall.rooms);
+  useEffect(() => {
+    const suggestion = Math.max(1, Math.ceil(wall.pax / 2));
+    if (wall.rooms === suggestedRoomsRef.current && wall.rooms !== suggestion) {
+      setWall(w => ({ ...w, rooms: suggestion }));
+    }
+    suggestedRoomsRef.current = suggestion;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wall.pax]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const togglePick = (key: string) => setPicked(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
@@ -97,6 +110,20 @@ export const RajarshiBuilder: React.FC = () => {
 
   const banded = useMemo(() => bandHotels(wallEntries), [wallEntries]);
   const flatEntries = useMemo(() => flattenBandedWall(banded), [banded]);
+
+  // Total, not per-night — a stated "₹5,000 per person" is read as a figure
+  // for the whole stay, confirmed with the user rather than assumed.
+  const totalBudget = wall.budgetPerPerson ? wall.budgetPerPerson * wall.pax : undefined;
+  const visibleEntries = useMemo(() => {
+    if (!wall.hideOverBudget || !totalBudget) return flatEntries;
+    // A hotel with nothing quotable (budgetStatus returns null) stays visible
+    // — there is no information to say it doesn't fit, so hiding it would be
+    // presuming an answer the data doesn't have.
+    return flatEntries.filter(({ entry }) => {
+      const b = budgetStatus(entry.cheapestSelling, totalBudget);
+      return !b || b.fits;
+    });
+  }, [flatEntries, wall.hideOverBudget, totalBudget]);
 
   // Quick-pick default so a card never opens on an arbitrary plan — but this
   // only sets what the dropdown SHOWS first; every plan stays one click away,
@@ -469,14 +496,21 @@ export const RajarshiBuilder: React.FC = () => {
             </p>
           )}
 
+          {flatEntries.length > 0 && visibleEntries.length === 0 && (
+            <p className={cn('text-[12px] text-center py-8', getSecondaryTextColor())}>
+              Nothing fits that budget for {cityLabel} on these dates. Turn off "Hide over budget" to see everything.
+            </p>
+          )}
+
           {/* One flowing grid across every tier — a band with only 1-2 hotels
               no longer leaves the rest of that row empty while the next tier
               starts on a new line. The tier is now a badge ON each card
               (see flattenBandedWall in rateWall.ts) rather than a section
               header above a group of cards. */}
           <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
-            {flatEntries.map(({ entry, bandId, bandLabel }) => (
+            {visibleEntries.map(({ entry, bandId, bandLabel }) => (
               <RateWallCard key={entry.hotelId} entry={entry} preferredPlan={preferredPlan}
+                budget={budgetStatus(entry.cheapestSelling, totalBudget)}
                 bandTone={
                   bandId === 'premium' ? 'border-l-violet-400'
                     : bandId === 'mid' ? 'border-l-sky-400'
