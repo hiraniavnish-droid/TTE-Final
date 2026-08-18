@@ -504,7 +504,7 @@ export const RajarshiBuilder: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="flex items-start gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-3">
         <div className="flex-1 min-w-0 space-y-3">
           <RateWallControls
             jumps={JUMP_CHIPS}

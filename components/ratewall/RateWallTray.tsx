@@ -33,7 +33,7 @@ export const RateWallTray: React.FC<Props> = ({ selections, onRemove, total, onC
   const isLight = theme === 'light';
 
   return (
-    <div className={cn('w-[248px] shrink-0 sticky top-4 rounded-2xl border p-3 space-y-2.5 transition-shadow',
+    <div className={cn('w-full lg:w-[248px] lg:shrink-0 lg:sticky lg:top-4 rounded-2xl border p-3 space-y-2.5 transition-shadow',
       isLight ? 'bg-white border-slate-200 shadow-[0_2px_16px_-4px_rgba(15,23,42,0.08)]' : 'bg-white/[0.04] border-white/10 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.35)]')}>
       <div className="flex items-center gap-1.5">
         <ClipboardList size={13} className={cn('shrink-0', getSecondaryTextColor())} />
