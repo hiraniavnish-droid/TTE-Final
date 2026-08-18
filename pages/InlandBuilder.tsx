@@ -270,8 +270,8 @@ export const InlandBuilder: React.FC = () => {
   const headerTotal = mode === 'package' ? packageTotal.sellingPrice : pickedTotal;
   const headerTotalUnknown = mode === 'package' && anyOnRequest;
 
-  const headerBtn = cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11.5px] font-bold border active:scale-[0.97] transition',
-    theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30');
+  const headerBtn = cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11.5px] font-bold border active:scale-[0.97] transition-all',
+    theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400 hover:shadow-sm' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30 hover:bg-white/10');
 
   return (
     <div className="animate-in fade-in duration-500 pb-16">

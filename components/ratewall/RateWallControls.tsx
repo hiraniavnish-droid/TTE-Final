@@ -67,16 +67,17 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
   const { theme, getInputClass, getSecondaryTextColor } = useTheme();
 
   const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-0.5 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
-  const fieldCls = cn('px-2 py-1.5 rounded-lg border outline-none text-[13px]', getInputClass());
+  const fieldCls = cn('px-2 py-1.5 rounded-lg border outline-none text-[13px] transition-colors cursor-pointer', getInputClass());
   const stepBtn = cn('px-1.5 py-1.5 border rounded-lg opacity-70 hover:opacity-100 active:scale-90 transition',
-    theme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-white/5');
+    theme === 'light' ? 'border-slate-200 bg-white hover:border-slate-300' : 'border-white/10 bg-white/5 hover:border-white/25');
 
-  const chipBase = 'px-2 py-0.5 rounded-full text-[10.5px] font-bold transition active:scale-95';
-  const plainChip = cn(chipBase, theme === 'light' ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-white/10 text-white/70 hover:bg-white/20');
-  const festiveChip = cn(chipBase, theme === 'light' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20');
+  const chipBase = 'px-2.5 py-1 rounded-full text-[10.5px] font-bold transition-all active:scale-95';
+  const plainChip = cn(chipBase, theme === 'light' ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:shadow-sm' : 'bg-white/10 text-white/70 hover:bg-white/20');
+  const festiveChip = cn(chipBase, theme === 'light' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 hover:shadow-sm' : 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20');
 
   return (
-    <div className={cn('rounded-xl border px-3 py-2.5', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+    <div className={cn('rounded-xl border px-3 py-2.5 transition-shadow',
+      theme === 'light' ? 'bg-white border-slate-200 hover:shadow-[0_2px_14px_-6px_rgba(15,23,42,0.1)]' : 'bg-white/5 border-white/10')}>
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
         <div>
           <label className={labelCls}>City</label>

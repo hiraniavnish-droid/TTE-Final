@@ -84,11 +84,13 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
   const safeRoomIdx = Math.min(roomIdx, Math.max(0, groups.length - 1));
   const activeGroup = groups[safeRoomIdx];
 
-  const cellBorder = theme === 'light' ? 'border-slate-200' : 'border-white/15';
-  const cellSelected = theme === 'light' ? 'border-slate-900 bg-slate-50' : 'border-white/60 bg-white/10';
+  const cellBorder = theme === 'light' ? 'border-slate-200 hover:border-slate-300' : 'border-white/15 hover:border-white/25';
+  const cellSelected = theme === 'light'
+    ? 'border-slate-900 bg-slate-50 shadow-[0_1px_6px_-2px_rgba(15,23,42,0.25)]'
+    : 'border-white/60 bg-white/10 shadow-[0_1px_8px_-2px_rgba(255,255,255,0.15)]';
   const cellPrimary = theme === 'light' ? 'border-slate-400 border-[1.5px]' : 'border-white/40 border-[1.5px]';
   const amber = theme === 'light' ? 'text-amber-700' : 'text-amber-300';
-  const selectCls = cn('text-[10.5px] rounded-md border px-1.5 py-1 outline-none', getInputClass());
+  const selectCls = cn('text-[10.5px] rounded-md border px-1.5 py-1 outline-none cursor-pointer transition-colors', getInputClass());
 
   const renderCell = (row: WallRoomRow, variant: CellVariant) => {
     const small = variant === 'basis';
@@ -200,15 +202,17 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
   // strips it, and the band's colour rule renders as plain grey. Caught in live
   // testing, where the class was simply absent from the rendered element.
   return (
-    <div className={cn('border border-l-[3px] rounded-lg px-3 py-2',
-      theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10',
+    <div className={cn('group border border-l-[3px] rounded-xl px-3 py-2.5 transition-all duration-150',
+      theme === 'light'
+        ? 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-[0_4px_18px_-6px_rgba(15,23,42,0.14)]'
+        : 'bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.06]',
       bandTone)}>
 
       {/* Name on its own line, provenance beneath. At grid width the old
           right-pushed chip wrapped into the hotel name and read as one string. */}
       <div className="flex items-baseline gap-1.5">
         {bandBadgeLabel && (
-          <span className={cn('text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0', bandBadgeClass)}>
+          <span className={cn('text-[8.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0', bandBadgeClass)}>
             {bandBadgeLabel}
           </span>
         )}
@@ -247,7 +251,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
             <span>{[entry.festiveFlag, ...(entry.reviewNotes || [])].filter(Boolean).join(' · ')}</span>
           </div>
           <button type="button" onClick={() => setNotesExpanded(v => !v)}
-            className={cn('text-[9px] font-semibold underline underline-offset-2 mt-0.5', getSecondaryTextColor())}>
+            className={cn('text-[9px] font-semibold underline underline-offset-2 mt-0.5 transition-opacity hover:opacity-70', getSecondaryTextColor())}>
             {notesExpanded ? 'Show less' : 'Show full note'}
           </button>
         </div>
@@ -294,10 +298,11 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
             types) without having to flip the dropdowns back and forth. */}
         {groups.length > 0 && (groups.length > 1 || (groups[0].rows.length > 1 && !groups[0].rows.some(r => r.planLabel === PRIMARY_PLAN))) && (
           <button type="button" onClick={() => setExpanded(v => !v)}
-            className={cn('flex items-center gap-1 mt-1.5 text-[9.5px] font-semibold', getSecondaryTextColor())}>
+            className={cn('flex items-center gap-1 mt-2 text-[9.5px] font-semibold transition-colors hover:text-slate-900',
+              theme === 'dark' && 'hover:text-white', getSecondaryTextColor())}>
             <Rows3 size={10} className="shrink-0" />
             {expanded ? 'Hide all rooms & rates' : 'Compare all rooms & rates'}
-            <ChevronDown size={10} className={cn('shrink-0 transition-transform', expanded && 'rotate-180')} />
+            <ChevronDown size={10} className={cn('shrink-0 transition-transform duration-200', expanded && 'rotate-180')} />
           </button>
         )}
 
