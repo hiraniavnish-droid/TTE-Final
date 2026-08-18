@@ -14,6 +14,13 @@ interface Props {
   // via the dropdown, and ticking is keyed by row.key regardless of what is
   // currently on screen, so this can never hide or lose a selection.
   preferredPlan?: string;
+  // A small pill ('Premium' / 'Mid' / 'Value' / 'On request') printed on the
+  // card itself. All bands now flow through ONE grid rather than each band
+  // getting its own — a band with only 1-2 hotels used to leave the rest of
+  // that row empty because the next band was forced onto a new row. The
+  // badge is how the agent still sees which tier a card belongs to.
+  bandBadgeLabel?: string;
+  bandBadgeClass?: string;       // bg/text classes for the badge, chosen by the page
 }
 
 // One line per ROOM, with that room's meal plans priced side by side, so an
@@ -63,7 +70,7 @@ function pickDefaultRow(rows: WallRoomRow[], preferredPlan: string | undefined):
   return rows.find(isQuotable) || rows[0];
 }
 
-export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, onToggle, preferredPlan }) => {
+export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, onToggle, preferredPlan, bandBadgeLabel, bandBadgeClass }) => {
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
   const groups = useMemo(() => groupByRoom(entry.rows), [entry.rows]);
   const [roomIdx, setRoomIdx] = useState(0);
@@ -171,21 +178,20 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
       </select>
     ) : null;
 
+    // The printed WEEKDAYS/WEEKENDS columns this figure was split from are
+    // deliberately NOT shown here. Once a check-in date is entered, 'Your
+    // dates' already IS the answer — showing the two source columns again
+    // right next to it read as three different rates for the same room, and
+    // agents could not tell why. They are still one click away in 'Compare
+    // all rooms & rates' for the rare case of quoting a pure weekday rate on
+    // purpose; see the note prop threaded through to the header instead.
     const rates = (
-      <>
-        <div className="space-y-0.5">
-          {shown.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
-        </div>
-        {basis.length > 0 && (
-          <div className="mt-1 pl-2 space-y-0.5">
-            <span className={cn('text-[9px] font-bold uppercase tracking-wider', getSecondaryTextColor())}>Printed basis</span>
-            {basis.map(row => renderCell(row, 'basis'))}
-          </div>
-        )}
-      </>
+      <div className="space-y-0.5">
+        {shown.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
+      </div>
     );
 
-    return { planSelect, rates };
+    return { planSelect, rates, hasBasis: basis.length > 0 };
   };
 
   // bandTone MUST be the last argument to cn(). cn() runs twMerge, which treats
@@ -201,6 +207,11 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
       {/* Name on its own line, provenance beneath. At grid width the old
           right-pushed chip wrapped into the hotel name and read as one string. */}
       <div className="flex items-baseline gap-1.5">
+        {bandBadgeLabel && (
+          <span className={cn('text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0', bandBadgeClass)}>
+            {bandBadgeLabel}
+          </span>
+        )}
         <span className={cn('text-[12.5px] font-bold leading-tight', getTextColor())}>{entry.hotelName}</span>
         {entry.starLabel && (
           <span className={cn('text-[9.5px] leading-tight ml-auto shrink-0', getSecondaryTextColor())}>{entry.starLabel}</span>

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { RAJARSHI_HOTELS, RAJARSHI_SUPPLIER, type RajCity, type RajPlan } from '../services/rajarshiData';
 import { quoteStay, hotelsByCity, fmtINR, type MarkupMode } from '../services/rajarshiRates';
-import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, flattenBandedWall, type WallEntry, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, rajarshiJumpChips } from '../services/rajarshiWall';
 import { RateWallControls } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
@@ -96,6 +96,7 @@ export const RajarshiBuilder: React.FC = () => {
   }), [wall, markupMode, markupValue]);
 
   const banded = useMemo(() => bandHotels(wallEntries), [wallEntries]);
+  const flatEntries = useMemo(() => flattenBandedWall(banded), [banded]);
 
   // Quick-pick default so a card never opens on an arbitrary plan — but this
   // only sets what the dropdown SHOWS first; every plan stays one click away,
@@ -462,52 +463,38 @@ export const RajarshiBuilder: React.FC = () => {
             onChange={patch => { setWall(w => ({ ...w, ...patch })); if (patch.city) setPicked(new Set()); }}
           />
 
-          {banded.bands.length === 0 && banded.onRequestOnly.length === 0 && (
+          {flatEntries.length === 0 && (
             <p className={cn('text-[12px] text-center py-8', getSecondaryTextColor())}>
               No hotels listed for {cityLabel}.
             </p>
           )}
 
-          {/* Rendered Premium -> Value: the highest tier is what the agent usually
-              wants to lead with on a call. bandHotels() itself still returns
-              Value-first internally — nothing about ranking or export order
-              changes, this only flips which one prints first on screen. */}
-          {[...banded.bands].reverse().map(band => (
-            <div key={band.id} className="space-y-1.5">
-              {band.label && (
-                <div className="flex items-center gap-2">
-                  <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
-                    band.id === 'premium' ? 'bg-violet-100 text-violet-700'
-                      : band.id === 'mid' ? 'bg-sky-100 text-sky-700'
-                      : band.id === 'similar' ? 'bg-slate-100 text-slate-700'
-                      : 'bg-emerald-100 text-emerald-700')}>{band.label}</span>
-                  <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
-                </div>
-              )}
-              <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(270px,1fr))]">
-                {band.entries.map(entry => (
-                  <RateWallCard key={entry.hotelId} entry={entry} preferredPlan={preferredPlan}
-                    bandTone={band.id === 'premium' ? 'border-l-violet-400' : band.id === 'mid' ? 'border-l-sky-400' : band.id === 'similar' ? 'border-l-slate-400' : 'border-l-emerald-400'}
-                    selectedKeys={picked} onToggle={togglePick} />
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {banded.onRequestOnly.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">On request</span>
-                <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
-              </div>
-              <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(270px,1fr))]">
-                {banded.onRequestOnly.map(entry => (
-                  <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400" preferredPlan={preferredPlan}
-                    selectedKeys={picked} onToggle={togglePick} />
-                ))}
-              </div>
-            </div>
-          )}
+          {/* One flowing grid across every tier — a band with only 1-2 hotels
+              no longer leaves the rest of that row empty while the next tier
+              starts on a new line. The tier is now a badge ON each card
+              (see flattenBandedWall in rateWall.ts) rather than a section
+              header above a group of cards. */}
+          <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
+            {flatEntries.map(({ entry, bandId, bandLabel }) => (
+              <RateWallCard key={entry.hotelId} entry={entry} preferredPlan={preferredPlan}
+                bandTone={
+                  bandId === 'premium' ? 'border-l-violet-400'
+                    : bandId === 'mid' ? 'border-l-sky-400'
+                    : bandId === 'similar' ? 'border-l-slate-400'
+                    : bandId === 'onrequest' ? 'border-l-amber-400'
+                    : 'border-l-emerald-400'
+                }
+                bandBadgeLabel={bandLabel || undefined}
+                bandBadgeClass={
+                  bandId === 'premium' ? 'bg-violet-100 text-violet-700'
+                    : bandId === 'mid' ? 'bg-sky-100 text-sky-700'
+                    : bandId === 'similar' ? 'bg-slate-100 text-slate-700'
+                    : bandId === 'onrequest' ? 'bg-amber-100 text-amber-700'
+                    : 'bg-emerald-100 text-emerald-700'
+                }
+                selectedKeys={picked} onToggle={togglePick} />
+            ))}
+          </div>
         </div>
         <RateWallTray
           selections={pickedSelections}

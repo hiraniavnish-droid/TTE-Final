@@ -371,3 +371,28 @@ const NOT_A_DEFAULTABLE_PLAN = /mon|tue|wed|thu|fri|sat|sun|week|till|from|seaso
 export function topMealPlanLabels(entries: WallEntry[], limit = 4): string[] {
   return topPlanLabels(entries, 50).filter(label => !NOT_A_DEFAULTABLE_PLAN.test(label)).slice(0, limit);
 }
+
+export interface FlatWallEntry {
+  entry: WallEntry;
+  bandId: PriceBandId | 'onrequest';
+  bandLabel: string;   // '' when the band carries no meaningful tier name
+}
+
+// Bands used to each get their own grid row, so a band with only 1-2 hotels
+// left the rest of that row empty while the next band was forced onto a new
+// line underneath. Flattening into one ordered list lets every card pack
+// against its neighbours regardless of how many hotels share its tier — the
+// tier becomes a badge ON the card (see RateWallCard's bandBadgeLabel) rather
+// than a section header ABOVE a group of cards.
+//
+// Reversed to premium-first: the highest tier is what an agent usually wants
+// to lead with on a call. bandHotels() itself still returns Value-first
+// internally — this only changes the order cards are handed to the caller.
+export function flattenBandedWall(banded: BandedWall): FlatWallEntry[] {
+  const out: FlatWallEntry[] = [];
+  for (const band of [...banded.bands].reverse()) {
+    for (const entry of band.entries) out.push({ entry, bandId: band.id, bandLabel: band.label });
+  }
+  for (const entry of banded.onRequestOnly) out.push({ entry, bandId: 'onrequest', bandLabel: 'On request' });
+  return out;
+}
