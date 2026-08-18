@@ -1,11 +1,11 @@
 // Verification for the Rate Wall. Run: npx tsx scripts/verify-rate-wall.ts
 // Covers price banding: strict partition, tie handling, spread collapse, and
 // exclusion of anything that cannot be priced. Later tasks extend this file.
-import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, isQuotable, budgetStatus, compareByBudgetFit, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
+import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, isQuotable, budgetStatus, compareByBudgetFit, topMealPlanLabels, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, RAJARSHI_PLANS } from '../services/rajarshiWall';
 import { RAJARSHI_HOTELS, type RajPlan, type RajRoom } from '../services/rajarshiData';
 import { quoteStay } from '../services/rajarshiRates';
-import { buildInlandWall, inlandCities } from '../services/inlandWall';
+import { buildInlandWall, inlandCities, mapDerivable } from '../services/inlandWall';
 import { INLAND_HOTELS, type InlandRoom } from '../services/inlandData';
 import { readFileSync } from 'node:fs';
 
@@ -886,10 +886,20 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
             ok(isBlocked(row), `${row.key}: an ON CALL hotel must never price`);
             continue;
           }
-          const [, riStr, suffix] = row.key.split('::');
+          const [, riStr, rawSuffix] = row.key.split('::');
           const room = hotel.rooms[Number(riStr)];
           ok(!!room, `${row.key}: row key does not point at a real room`);
           if (!room) continue;
+
+          // A '-MAP' suffix is a derived MAP-plan twin of the base C1/C2/DATES
+          // row (see mapDerivable() in inlandWall.ts) — same printed rate,
+          // plus one lunch/dinner supplement per guest per night. It must
+          // only ever appear where the room actually qualifies.
+          const isMapDerived = rawSuffix.endsWith('-MAP');
+          const suffix = isMapDerived ? rawSuffix.slice(0, -4) : rawSuffix;
+          if (isMapDerived) {
+            ok(mapDerivable(room), `${row.key}: a -MAP row was emitted for a room that should not qualify`);
+          }
 
           // A room belonging to the other printed half-year must not appear.
           ok(room.season == null || room.season === half,
@@ -967,9 +977,13 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
           ok(paxPerRoom - BASE_OCC <= MAX_EXTRA,
             `${row.key}: priced ${paxPerRoom} pax in one room, over the 2 extra-bed ceiling`);
 
-          const expectedNet = netRoomTotal + expectedExtra;
+          // A derived MAP row adds one lunch/dinner supplement per guest per
+          // night for the WHOLE party — input.pax, not paxPerRoom — mirroring
+          // rajarshiWall.ts's derived MAPAI row.
+          const expectedMeal = isMapDerived ? (room.lunchDinner as number) * pax * NIGHTS : 0;
+          const expectedNet = netRoomTotal + expectedExtra + expectedMeal;
           ok(row.netTotal === expectedNet,
-            `${row.key} @${checkIn} pax${pax}: netTotal ${row.netTotal} != printed ${netRoomTotal} + extras ${expectedExtra} = ${expectedNet}`);
+            `${row.key} @${checkIn} pax${pax}: netTotal ${row.netTotal} != printed ${netRoomTotal} + extras ${expectedExtra} + meal ${expectedMeal} = ${expectedNet}`);
           ok(row.markupAmount === 0, `${row.key}: 0% markup must produce a zero markup, got ${row.markupAmount}`);
           ok(row.sellingTotal === row.netTotal, `${row.key}: sellingTotal must equal netTotal at 0% markup`);
           ok(Number.isFinite(row.sellingTotal) && row.sellingTotal > 0,
@@ -1014,9 +1028,12 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
       const hotel = INLAND_HOTELS.find(h => h.id === e.hotelId)!;
       for (const row of e.rows.filter(isQuotable)) {
         if (row.key.endsWith('::oncall')) { ok(false, `${row.key}: ON CALL hotel priced`); continue; }
-        const [, riStr, suffix] = row.key.split('::');
+        const [, riStr, rawSuffix] = row.key.split('::');
         const room = hotel.rooms[Number(riStr)];
         if (!room) continue;
+        // A '-MAP' row prices the SAME column as its base twin, plus a meal
+        // supplement — stripping it here reduces it back to the column check.
+        const suffix = rawSuffix.endsWith('-MAP') ? rawSuffix.slice(0, -4) : rawSuffix;
         if (suffix === 'C1') ok(!room.onRequest1 && room.rate1 != null, `${row.key}: priced an on-request column 1`);
         else if (suffix === 'C2') ok(!room.onRequest2 && room.rate2 != null, `${row.key}: priced an on-request column 2`);
         else {
@@ -1077,11 +1094,25 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
       if (room.season != null && room.season !== 'H2') return;
       bareRooms++; hotelHasBare = true;
       const rows = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`));
-      ok(rows.length === 2, `${hotel.id}::${ri}: a bare WEEKDAYS/WEEKENDS room must emit exactly 2 rows, got ${rows.length}`);
-      ok(!rows.some(r => r.key.endsWith('::DATES')), `${hotel.id}::${ri}: a 'Your dates' row was invented from undefined weekend days`);
-      ok(!rows.some(r => r.planLabel === 'Your dates'), `${hotel.id}::${ri}: a row is labelled 'Your dates' without printed weekend days`);
-      ok(rows[0]?.planLabel === 'WEEKDAYS' && rows[1]?.planLabel === 'WEEKENDS',
-        `${hotel.id}::${ri}: rows must carry the sheet's own labels, got '${rows[0]?.planLabel}' / '${rows[1]?.planLabel}'`);
+      // A derivable room (mapDerivable() — see inlandWall.ts) gets 2 extra
+      // '-MAP' twins of these same bare columns, since there is no resolved
+      // 'Your dates' row here to hang the derived MAP option off instead.
+      const baseRows = rows.filter(r => !r.key.endsWith('-MAP'));
+      const mapRows = rows.filter(r => r.key.endsWith('-MAP'));
+      ok(baseRows.length === 2, `${hotel.id}::${ri}: a bare WEEKDAYS/WEEKENDS room must emit exactly 2 base rows, got ${baseRows.length}`);
+      ok(!rows.some(r => r.key.endsWith('::DATES') || r.key.endsWith('::DATES-MAP')),
+        `${hotel.id}::${ri}: a 'Your dates' row was invented from undefined weekend days`);
+      ok(!rows.some(r => r.planLabel === 'Your dates' || r.planLabel === 'Your dates (MAP)'),
+        `${hotel.id}::${ri}: a row is labelled 'Your dates' without printed weekend days`);
+      ok(baseRows[0]?.planLabel === 'WEEKDAYS' && baseRows[1]?.planLabel === 'WEEKENDS',
+        `${hotel.id}::${ri}: rows must carry the sheet's own labels, got '${baseRows[0]?.planLabel}' / '${baseRows[1]?.planLabel}'`);
+      if (mapDerivable(room)) {
+        ok(mapRows.length === 2, `${hotel.id}::${ri}: a derivable bare room must emit exactly 2 MAP rows too, got ${mapRows.length}`);
+        ok(mapRows[0]?.planLabel === 'WEEKDAYS (MAP)' && mapRows[1]?.planLabel === 'WEEKENDS (MAP)',
+          `${hotel.id}::${ri}: MAP rows must carry the sheet's labels + ' (MAP)', got '${mapRows[0]?.planLabel}' / '${mapRows[1]?.planLabel}'`);
+      } else {
+        ok(mapRows.length === 0, `${hotel.id}::${ri}: unexpected MAP rows on a non-derivable room`);
+      }
     });
     if (hotelHasBare) {
       bareHotels++;
@@ -1313,7 +1344,12 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
       const checkIn = `2026-${String(month).padStart(2, '0')}-15`;
       const e = buildInlandWall({ city: hotel.city, checkIn, nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
         .find(x => x.hotelId === hotel.id)!;
-      const suffixes = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`)).map(r => r.key.split('::')[2]).sort();
+      // Exclude derived MAP rows (key suffix 'C1-MAP'/'C2-MAP') — this test is
+      // about which PRINTED season column resolved, and a room that also
+      // qualifies for a derived MAP twin (see mapDerivable() in
+      // inlandWall.ts) still resolves to exactly one printed column either way.
+      const suffixes = e.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`) && !r.key.endsWith('-MAP'))
+        .map(r => r.key.split('::')[2]).sort();
       const in1 = m1.includes(month), in2 = m2.includes(month);
       if (in1 && !in2) ok(suffixes.join(',') === 'C1', `${hotel.id} month ${month}: expected only C1 for '${key}', got '${suffixes.join(',')}'`);
       else if (in2 && !in1) ok(suffixes.join(',') === 'C2', `${hotel.id} month ${month}: expected only C2 for '${key}', got '${suffixes.join(',')}'`);
@@ -1335,7 +1371,7 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
       `fixture drifted: labels are '${labelKey(hotel.rooms[ri])}'`);
     const sept = buildInlandWall({ city: hotel.city, checkIn: '2026-09-15', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
       .find(x => x.hotelId === hotel.id)!;
-    const rows = sept.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`));
+    const rows = sept.rows.filter(r => r.key.startsWith(`${hotel.id}::${ri}::`) && !r.key.endsWith('-MAP'));
     ok(rows.length === 1 && rows[0].key.endsWith('::C2'),
       `September at Lords Inn must resolve to the Sep-Mar column, got '${rows.map(r => r.key.split('::')[2]).join(',')}'`);
   }
@@ -1794,6 +1830,92 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
   } else {
     ok(false, 'Villa Euphoria MAPAI H2 row did not resolve to quotable');
   }
+}
+
+// ── derived MAP option (mapDerivable) — the 4 KEVADIYA hotels that print a
+// CPAI-only rate plus a genuine per-person lunch/dinner supplement, so a MAP
+// upgrade is computable even though the sheet never prints a MAPAI column.
+// Each is a different axis, exercising a different code path: weekday_weekend
+// with unresolved (bare) days, weekday_weekend with resolvable days, and
+// season. All at pax=2 (base occupancy) to isolate the meal-derivation math
+// from the extra-bed math, which is covered elsewhere. ──
+{
+  // The Fern Sardar Sarovar Resort, 'Winter Green Room': bare 'WEEKDAYS' /
+  // 'WEEKENDS' labels (no day names) — this is the hotel that could never
+  // show a MAP option at all before, since it never resolves a 'Your dates'
+  // row to derive from. CPAI 5500/6300, lunch/dinner 750.
+  const fern = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-11-19', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+    .find(e => e.hotelId === 'vadodara-the-fern-sardar-sarovar-resort');
+  const fernCpai = fern?.rows.find(r => r.key.endsWith('::C1') && r.roomName === 'Winter Green Room');
+  const fernMap = fern?.rows.find(r => r.key.endsWith('::C1-MAP') && r.roomName === 'Winter Green Room');
+  if (fernCpai && isQuotable(fernCpai) && fernMap && isQuotable(fernMap)) {
+    ok(fernCpai.netTotal === 5500, `Fern Sardar Sarovar CPAI (WEEKDAYS): net must be 5500, got ${fernCpai.netTotal}`);
+    ok(fernMap.planLabel === 'WEEKDAYS (MAP)', `Fern Sardar Sarovar MAP row must be labelled 'WEEKDAYS (MAP)', got '${fernMap.planLabel}'`);
+    ok(fernMap.netTotal === 5500 + 750 * 2, `Fern Sardar Sarovar MAP: net must be 5500 room + 750x2 guests meal = 7000, got ${fernMap.netTotal}`);
+  } else {
+    ok(false, 'Fern Sardar Sarovar CPAI/MAP fixture did not resolve to quotable rows');
+  }
+
+  // Regenta Resort Vindhyachal, 'Premier Garden View Room': WEEKDAYS /
+  // WEEKENDS (FRI-SAT) — day names ARE printed, so this one DOES resolve a
+  // 'Your dates' row, and the MAP twin must ride on that instead. A Thursday
+  // check-in keeps the single night a pure weekday. CPAI 5025, lunch/dinner 650.
+  const regenta = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-11-19', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+    .find(e => e.hotelId === 'vadodara-regenta-resort-vindhyachal');
+  const regentaDates = regenta?.rows.find(r => r.key.endsWith('::DATES') && r.roomName === 'Premier Garden View Room');
+  const regentaMap = regenta?.rows.find(r => r.key.endsWith('::DATES-MAP') && r.roomName === 'Premier Garden View Room');
+  if (regentaDates && isQuotable(regentaDates) && regentaMap && isQuotable(regentaMap)) {
+    ok(regentaDates.planLabel === 'Your dates', `Regenta Vindhyachal base row must be 'Your dates', got '${regentaDates.planLabel}'`);
+    ok(regentaMap.planLabel === 'Your dates (MAP)', `Regenta Vindhyachal MAP row must be 'Your dates (MAP)', got '${regentaMap.planLabel}'`);
+    ok(regentaMap.netTotal === regentaDates.netTotal + 650 * 2, `Regenta Vindhyachal MAP: net must be base + 650x2 guests meal, got ${regentaMap.netTotal} vs base ${regentaDates.netTotal}`);
+  } else {
+    ok(false, 'Regenta Vindhyachal Your-dates/MAP fixture did not resolve to quotable rows');
+  }
+
+  // Soil to Soul Resort Ekta Nagar, 'Deluxe cottage': season axis, CPAI-only,
+  // lunch/dinner 500. Rate till Sep 2026 = 3500.
+  const soil = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-06-20', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+    .find(e => e.hotelId === 'vadodara-soil-to-soul-resort-ekta-nagar');
+  const soilCpai = soil?.rows.find(r => r.key.endsWith('::C1') && r.roomName === 'Deluxe cottage');
+  const soilMap = soil?.rows.find(r => r.key.endsWith('::C1-MAP') && r.roomName === 'Deluxe cottage');
+  if (soilCpai && isQuotable(soilCpai) && soilMap && isQuotable(soilMap)) {
+    ok(soilCpai.netTotal === 3500, `Soil to Soul CPAI: net must be 3500, got ${soilCpai.netTotal}`);
+    ok(soilMap.netTotal === 3500 + 500 * 2, `Soil to Soul MAP: net must be 3500 room + 500x2 guests meal = 4500, got ${soilMap.netTotal}`);
+  } else {
+    ok(false, 'Soil to Soul CPAI/MAP fixture did not resolve to quotable rows');
+  }
+
+  // Enrise by Sayaji Kevadia, 'Grande Room': season axis, CPAI-only,
+  // lunch/dinner 500. Rate till Sep 2026 = 4000.
+  const enrise = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-06-20', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+    .find(e => e.hotelId === 'vadodara-enrise-by-sayaji-kevadia');
+  const enriseCpai = enrise?.rows.find(r => r.key.endsWith('::C1') && r.roomName === 'Grande Room');
+  const enriseMap = enrise?.rows.find(r => r.key.endsWith('::C1-MAP') && r.roomName === 'Grande Room');
+  if (enriseCpai && isQuotable(enriseCpai) && enriseMap && isQuotable(enriseMap)) {
+    ok(enriseCpai.netTotal === 4000, `Enrise by Sayaji CPAI: net must be 4000, got ${enriseCpai.netTotal}`);
+    ok(enriseMap.netTotal === 4000 + 500 * 2, `Enrise by Sayaji MAP: net must be 4000 room + 500x2 guests meal = 5000, got ${enriseMap.netTotal}`);
+  } else {
+    ok(false, 'Enrise by Sayaji CPAI/MAP fixture did not resolve to quotable rows');
+  }
+
+  // A room with NO printed lunch/dinner figure must never get a MAP row —
+  // deriving one would be a guess, not a printed number. Fortune Statue Of
+  // Unity Kevadia already prints a real MAPAI column, so it must ALSO be
+  // excluded (meal_plan axis rooms are never derivation candidates).
+  const fortune = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-06-20', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 })
+    .find(e => e.hotelId === 'vadodara-fortune-statue-of-unity-kevadia');
+  ok(!!fortune && !fortune.rows.some(r => r.key.endsWith('-MAP')),
+    'Fortune SOU Kevadia (meal_plan axis, real MAPAI column) must never get a derived MAP row');
+
+  // A derived '(MAP)' label must never leak into the 'Default rate' global
+  // quick-pick chips — it is a printed axis label plus a derived meal
+  // upgrade ('DOUBLE (MAP)'), not a standalone plan name comparable to
+  // CPAI/MAPAI, and offering it as a settable citywide default reads as
+  // nonsense.
+  const allKevadiya = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-11-19', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 });
+  const defaultable = topMealPlanLabels(allKevadiya, 50);
+  ok(!defaultable.some(l => /\(MAP\)/i.test(l)),
+    `derived '(MAP)' labels leaked into the default-rate quick-picks: ${JSON.stringify(defaultable.filter(l => /\(MAP\)/i.test(l)))}`);
 }
 
 // ── the wall input's extraMattress is optional and 0 is the true default ──

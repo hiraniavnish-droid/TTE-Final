@@ -366,7 +366,11 @@ export function topPlanLabels(entries: WallEntry[], limit = 4): string[] {
 // Presenting them as if they were a comparable choice to CPAI/MAPAI would
 // invite an agent to "default" a city to a weekend rate that most of its
 // hotels will simply ignore because the date does the choosing already.
-const NOT_A_DEFAULTABLE_PLAN = /mon|tue|wed|thu|fri|sat|sun|week|till|from|season|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|20\d\d|your dates/i;
+// '\(MAP\)$' catches Inland's derived-MAP labels (inlandWall.ts's
+// mapDerivable()) — 'DOUBLE (MAP)', 'WEEKDAYS (MAP)' etc. are a printed axis
+// label plus a derived meal upgrade, not a standalone plan name, so offering
+// one as a global default reads as nonsense next to 'CPAI'/'MAPAI'.
+const NOT_A_DEFAULTABLE_PLAN = /mon|tue|wed|thu|fri|sat|sun|week|till|from|season|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|20\d\d|your dates|\(map\)$/i;
 
 export function topMealPlanLabels(entries: WallEntry[], limit = 4): string[] {
   return topPlanLabels(entries, 50).filter(label => !NOT_A_DEFAULTABLE_PLAN.test(label)).slice(0, limit);

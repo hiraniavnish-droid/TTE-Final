@@ -53,6 +53,13 @@ function groupByRoom(rows: WallRoomRow[]): { roomName: string; rows: WallRoomRow
 // group takes the 'normal' path below and renders exactly as it did before.
 const PRIMARY_PLAN = 'Your dates';
 
+// A room whose CPAI rate is CPAI-only in the sheet but prints a genuine
+// lunch/dinner supplement gets a derived 'Your dates (MAP)' twin (see
+// mapDerivable() in inlandWall.ts) — still an answer to "what does this stay
+// cost", just under the other plan, so it counts as primary too.
+const isPrimaryLabel = (label: string | undefined | null) =>
+  label === PRIMARY_PLAN || (label || '').startsWith(`${PRIMARY_PLAN} (`);
+
 // primary — the answer; basis — the printed rates it was split from, kept
 // selectable (an agent does sometimes quote a pure weekday stay) but visually
 // subordinate so the wall never presents three equal candidates per room.
@@ -162,11 +169,14 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
   // 'Deluxe Room' above 'CPAI' above the price — three lines of chrome for
   // what is really one choice of (room, plan).
   const buildGroup = (g: { roomName: string; rows: WallRoomRow[] }) => {
-    const primary = g.rows.filter(r => r.planLabel === PRIMARY_PLAN);
-    const basis = primary.length ? g.rows.filter(r => r.planLabel !== PRIMARY_PLAN) : [];
+    const primary = g.rows.filter(r => isPrimaryLabel(r.planLabel));
+    const basis = primary.length ? g.rows.filter(r => !isPrimaryLabel(r.planLabel)) : [];
     const main = primary.length ? primary : g.rows;
 
-    const isPlanChoice = !primary.length && main.length > 1;
+    // A room can have >1 primary row now — a plain 'Your dates' plus its
+    // derived '(MAP)' twin — and that pair must be plan-selectable exactly
+    // like any other multi-plan room, not just rooms with zero primary rows.
+    const isPlanChoice = main.length > 1;
     const activeRow = isPlanChoice
       ? (main.find(r => r.planLabel === planOverride[g.roomName]) || pickDefaultRow(main, preferredPlan))
       : main[0];
@@ -353,8 +363,8 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
               <div key={g.roomName}>
                 <div className={cn('text-[11px] leading-tight mb-0.5', getTextColor())}>{g.roomName}</div>
                 {(() => {
-                  const primary = g.rows.filter(r => r.planLabel === PRIMARY_PLAN);
-                  const basis = primary.length ? g.rows.filter(r => r.planLabel !== PRIMARY_PLAN) : [];
+                  const primary = g.rows.filter(r => isPrimaryLabel(r.planLabel));
+                  const basis = primary.length ? g.rows.filter(r => !isPrimaryLabel(r.planLabel)) : [];
                   const main = primary.length ? primary : g.rows;
                   return (
                     <>

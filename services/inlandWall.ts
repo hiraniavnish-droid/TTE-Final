@@ -242,6 +242,12 @@ interface ColumnRowSpec {
   baseOccupancy: number;         // 2 normally; 3 when the column is a printed triple rate
   explicitSupplement?: number | null;  // an 'Ex Person' column's own figure, when the sheet prints one
   derivedNote?: string;
+  // A per-guest, per-night meal upgrade added on top of the printed room
+  // rate — see mapDerivable() below. Unlike explicitSupplement (an extra
+  // BED), this is charged for every guest in the party, mirroring how
+  // rajarshiWall.ts derives a MAPAI row from CPAI + the hotel's own meal
+  // supplement.
+  mealSupplementPerGuestNight?: number;
 }
 
 function columnRow(s: ColumnRowSpec, i: InlandWallInput, paxPerRoom: number): WallRoomRow {
@@ -271,7 +277,19 @@ function columnRow(s: ColumnRowSpec, i: InlandWallInput, paxPerRoom: number): Wa
   );
   if (isExtraBlocked(extra)) return { ...base, quotable: false, blockedReason: extra.reason };
 
-  const m = money(q.netRoomTotal, extra.total, q.markupAmount, i);
+  // The meal upgrade is charged for the WHOLE party (input.pax), not a
+  // per-room figure — one extra dinner per guest per night, same rule
+  // rajarshiWall.ts's derived MAPAI row uses. A percent markup is then a
+  // percentage of netRoomTotal INCLUDING the meal upgrade (it is part of the
+  // room product now, unlike the extra-bed supplement); flat markup is
+  // unaffected since it never depended on the net at all.
+  const mealNet = s.mealSupplementPerGuestNight ? s.mealSupplementPerGuestNight * i.pax * i.nights : 0;
+  const netRoomTotal = q.netRoomTotal + mealNet;
+  const markupAmount = mealNet > 0 && i.markupMode === 'percent'
+    ? Math.round(netRoomTotal * i.markupValue / 100)
+    : q.markupAmount;
+
+  const m = money(netRoomTotal, extra.total, markupAmount, i);
   if (!m) return { ...base, quotable: false, blockedReason: ON_REQUEST };
   if (extra.uncovered > 0) {
     return {
@@ -281,6 +299,19 @@ function columnRow(s: ColumnRowSpec, i: InlandWallInput, paxPerRoom: number): Wa
     };
   }
   return { ...base, quotable: true, ...m };
+}
+
+// A MAP option is derivable from a CPAI-only room when the sheet ALSO prints
+// a clean per-person lunch/dinner figure FOR THAT SPECIFIC ROOM — never
+// inferred from a sibling row in the same hotel block, since a blank cell
+// might mean 'not printed' rather than 'same as above'. meal_plan-axis rooms
+// are excluded: when the sheet already prints a real MAPAI column, deriving
+// a second one would just shadow it (or worse, disagree with it).
+export function mapDerivable(room: InlandRoom): boolean {
+  if (room.axisType === 'meal_plan') return false;
+  const plan = (room.mealPlan || '').trim().toUpperCase();
+  if (plan !== 'CPAI' && plan !== 'CP') return false;
+  return typeof room.lunchDinner === 'number' && Number.isFinite(room.lunchDinner) && room.lunchDinner > 0;
 }
 
 // A column is "printed" when the sheet gave it either a header or a value.
@@ -338,11 +369,20 @@ function occupancyRows(hotel: InlandHotel, room: InlandRoom, ri: number, i: Inla
     else column = (double ?? single ?? 1) as RateColumn;
   }
 
-  return [columnRow({
+  const label = room.axisLabels[column - 1] || undefined;
+  const rows: WallRoomRow[] = [columnRow({
     hotel, room, key: k(`C${column}`), column,
-    planLabel: room.axisLabels[column - 1] || undefined,
-    baseOccupancy, explicitSupplement,
+    planLabel: label, baseOccupancy, explicitSupplement,
   }, i, paxPerRoom)];
+
+  if (mapDerivable(room)) {
+    rows.push(columnRow({
+      hotel, room, key: k(`C${column}-MAP`), column,
+      planLabel: `${label || 'Rate'} (MAP)`, baseOccupancy, explicitSupplement,
+      mealSupplementPerGuestNight: room.lunchDinner as number,
+    }, i, paxPerRoom));
+  }
+  return rows;
 }
 
 // ── meal-plan axis ───────────────────────────────────────────────────────
@@ -394,23 +434,49 @@ const isSameRate = (room: InlandRoom): boolean =>
 
 function weekdayWeekendRows(hotel: InlandHotel, room: InlandRoom, ri: number, i: InlandWallInput, paxPerRoom: number): WallRoomRow[] {
   const k = (suffix: string) => `${hotel.id}::${ri}::${suffix}`;
+  const derivable = mapDerivable(room);
+  const mealSupplement = derivable ? (room.lunchDinner as number) : undefined;
 
   // 'WEEKDAYS / WEEKENDS Same Rate' — one figure covering every night. Nothing
   // to split, so a second row and a 'Your dates' row would both be the same
   // number printed three times.
   if (isSameRate(room)) {
-    return [columnRow({
+    const label = room.axisLabels[0] || undefined;
+    const rows: WallRoomRow[] = [columnRow({
       hotel, room, key: k('C1'), column: 1,
-      planLabel: room.axisLabels[0] || undefined, baseOccupancy: BASE_OCCUPANCY,
+      planLabel: label, baseOccupancy: BASE_OCCUPANCY,
     }, i, paxPerRoom)];
+    if (derivable) {
+      rows.push(columnRow({
+        hotel, room, key: k('C1-MAP'), column: 1,
+        planLabel: `${label || 'Rate'} (MAP)`, baseOccupancy: BASE_OCCUPANCY,
+        mealSupplementPerGuestNight: mealSupplement,
+      }, i, paxPerRoom));
+    }
+    return rows;
   }
 
   const cols: RateColumn[] = hasColumn2(room) ? [1, 2] : [1];
-  const rows: WallRoomRow[] = cols.map(c => columnRow({
-    hotel, room, key: k(`C${c}`), column: c,
-    planLabel: room.axisLabels[c - 1] || undefined,
-    baseOccupancy: BASE_OCCUPANCY,
-  }, i, paxPerRoom));
+  const rows: WallRoomRow[] = cols.flatMap(c => {
+    const label = room.axisLabels[c - 1] || undefined;
+    const out: WallRoomRow[] = [columnRow({
+      hotel, room, key: k(`C${c}`), column: c,
+      planLabel: label, baseOccupancy: BASE_OCCUPANCY,
+    }, i, paxPerRoom)];
+    // Some weekday/weekend hotels never resolve to a 'Your dates' row at all —
+    // the sheet prints bare 'WEEKDAYS'/'WEEKENDS' with no day names, so
+    // weekendDays() below can't split a stay across them. The MAP option
+    // still has to live somewhere, so it is derived on these raw printed
+    // columns too, not only on the (possibly absent) resolved row.
+    if (derivable) {
+      out.push(columnRow({
+        hotel, room, key: k(`C${c}-MAP`), column: c,
+        planLabel: `${label || 'Rate'} (MAP)`, baseOccupancy: BASE_OCCUPANCY,
+        mealSupplementPerGuestNight: mealSupplement,
+      }, i, paxPerRoom));
+    }
+    return out;
+  });
 
   const weekend = weekendDays(room);
   if (!weekend || cols.length < 2) return rows;
@@ -422,8 +488,6 @@ function weekdayWeekendRows(hotel: InlandHotel, room: InlandRoom, ri: number, i:
   let weekendNights = 0;
   for (let n = 0; n < i.nights; n++) if (weekend.has(weekdayOfNight(i.checkIn, n))) weekendNights++;
   const weekdayNights = i.nights - weekendNights;
-
-  const base = { key: k('DATES'), roomName: displayRoomName(room), planLabel: 'Your dates' };
 
   // Block only when a bucket the stay ACTUALLY occupies has no printed rate.
   //
@@ -437,7 +501,7 @@ function weekdayWeekendRows(hotel: InlandHotel, room: InlandRoom, ri: number, i:
   const weekdayOk = !room.onRequest1 && room.rate1 != null;
   const weekendOk = !room.onRequest2 && room.rate2 != null;
   if ((weekdayNights > 0 && !weekdayOk) || (weekendNights > 0 && !weekendOk)) {
-    return [...rows, { ...base, quotable: false, blockedReason: ON_REQUEST }];
+    return [...rows, { key: k('DATES'), roomName: displayRoomName(room), planLabel: 'Your dates', quotable: false, blockedReason: ON_REQUEST }];
   }
 
   // A bucket with no nights contributes nothing, so its (possibly absent) rate
@@ -457,19 +521,34 @@ function weekdayWeekendRows(hotel: InlandHotel, room: InlandRoom, ri: number, i:
     usedRates.length ? Math.min(...usedRates) : 0, null, i,
   );
   if (isExtraBlocked(extra)) {
-    return [...rows, { ...base, derivedNote, quotable: false, blockedReason: extra.reason }];
+    return [...rows, { key: k('DATES'), roomName: displayRoomName(room), planLabel: 'Your dates', derivedNote, quotable: false, blockedReason: extra.reason }];
   }
 
-  const m = money(netRoomTotal, extra.total, markupFor(netRoomTotal, i), i);
-  if (!m) return [...rows, { ...base, derivedNote, quotable: false, blockedReason: ON_REQUEST }];
-  if (extra.uncovered > 0) {
-    return [...rows, {
-      ...base, quotable: true, ...m,
-      clientNote: coverageNote(BASE_OCCUPANCY),
-      derivedNote: joinNotes(derivedNote, coverageProvenance(extra.uncovered)),
-    }];
-  }
-  return [...rows, { ...base, derivedNote, quotable: true, ...m }];
+  // Builds the 'Your dates' row, and its MAP-upgraded twin when the room
+  // qualifies — both share the same night split and extra-bed arithmetic
+  // above, differing only in whether a meal upgrade is layered on top.
+  const buildDatesRow = (planLabel: string, key: string, mealSupplementPerGuestNight: number | undefined): WallRoomRow => {
+    const base = { key, roomName: displayRoomName(room), planLabel };
+    const mealNet = mealSupplementPerGuestNight ? mealSupplementPerGuestNight * i.pax * i.nights : 0;
+    const total = netRoomTotal + mealNet;
+    const markupAmount = mealNet > 0 && i.markupMode === 'percent'
+      ? Math.round(total * i.markupValue / 100)
+      : markupFor(netRoomTotal, i);
+    const m = money(total, extra.total, markupAmount, i);
+    if (!m) return { ...base, quotable: false, blockedReason: ON_REQUEST };
+    if (extra.uncovered > 0) {
+      return {
+        ...base, quotable: true, ...m,
+        clientNote: coverageNote(BASE_OCCUPANCY),
+        derivedNote: joinNotes(derivedNote, coverageProvenance(extra.uncovered)),
+      };
+    }
+    return { ...base, derivedNote, quotable: true, ...m };
+  };
+
+  const out = [...rows, buildDatesRow('Your dates', k('DATES'), undefined)];
+  if (derivable) out.push(buildDatesRow('Your dates (MAP)', k('DATES-MAP'), mealSupplement));
+  return out;
 }
 
 // ── season axis ──────────────────────────────────────────────────────────
@@ -575,14 +654,19 @@ function seasonRows(hotel: InlandHotel, room: InlandRoom, ri: number, i: InlandW
   const pick = pickSeasonColumn(room, i.checkIn);
 
   if (pick.column) {
-    return {
-      rows: [columnRow({
-        hotel, room, key: k(`C${pick.column}`), column: pick.column,
-        planLabel: room.axisLabels[pick.column - 1] || undefined,
-        baseOccupancy: BASE_OCCUPANCY,
-      }, i, paxPerRoom)],
-      resolved: true,
-    };
+    const label = room.axisLabels[pick.column - 1] || undefined;
+    const rows: WallRoomRow[] = [columnRow({
+      hotel, room, key: k(`C${pick.column}`), column: pick.column,
+      planLabel: label, baseOccupancy: BASE_OCCUPANCY,
+    }, i, paxPerRoom)];
+    if (mapDerivable(room)) {
+      rows.push(columnRow({
+        hotel, room, key: k(`C${pick.column}-MAP`), column: pick.column,
+        planLabel: `${label || 'Rate'} (MAP)`, baseOccupancy: BASE_OCCUPANCY,
+        mealSupplementPerGuestNight: room.lunchDinner as number,
+      }, i, paxPerRoom));
+    }
+    return { rows, resolved: true };
   }
 
   // The printed periods do not decide it (they overlap, they cover no month
