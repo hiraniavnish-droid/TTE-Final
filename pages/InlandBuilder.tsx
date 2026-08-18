@@ -9,10 +9,11 @@ import {
 } from 'lucide-react';
 import { INLAND_HOTELS, INLAND_SUPPLIER, type InlandHotel, type InlandRoom } from '../services/inlandData';
 import { quoteInlandStay, hotelsByCity, suggestSeason, fmtINR, type MarkupMode, type RateColumn } from '../services/inlandRates';
-import { bandHotels, formatClientExport, isQuotable, topPlanLabels, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, type WallEntry, type QuotableRow } from '../services/rateWall';
 import { buildInlandWall, inlandCities } from '../services/inlandWall';
 import { RateWallControls, type JumpChip } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
+import { RateWallTray } from '../components/ratewall/RateWallTray';
 
 type Mode = 'package' | 'rates';
 const CITY_MAP = hotelsByCity();
@@ -133,7 +134,7 @@ export const InlandBuilder: React.FC = () => {
   // only sets what the dropdown SHOWS first; every plan stays one click away,
   // and ticking is keyed to the row itself, so switching this never loses a
   // selection already made under a different plan.
-  const planChoices = useMemo(() => topPlanLabels(wallEntries), [wallEntries]);
+  const planChoices = useMemo(() => topMealPlanLabels(wallEntries), [wallEntries]);
   const [preferredPlan, setPreferredPlan] = useState<string | undefined>('CPAI');
 
   const jumps = useMemo(() => seasonJump(wall.checkIn), [wall.checkIn]);
@@ -278,7 +279,7 @@ export const InlandBuilder: React.FC = () => {
         <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-emerald-50 text-emerald-600' : 'bg-emerald-500/15 text-emerald-300')}><Building2 size={16} /></div>
         <div className="mr-1">
           <h1 className={cn('text-[17px] font-bold tracking-tight leading-none', getTextColor())}>{INLAND_SUPPLIER.name}</h1>
-          <p className={cn('text-[10px] mt-1 leading-none', getSecondaryTextColor())}>Season {INLAND_SUPPLIER.season} · {INLAND_SUPPLIER.location} · {INLAND_HOTELS.length} hotels</p>
+          <p className={cn('text-[10px] mt-1 leading-none', getSecondaryTextColor())}>Season {INLAND_SUPPLIER.season} · {INLAND_SUPPLIER.location} · {INLAND_HOTELS.length} hotels · GST included</p>
         </div>
 
         <div className={cn('inline-flex p-0.5 rounded-lg border', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
@@ -517,7 +518,8 @@ export const InlandBuilder: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0 space-y-3">
           <RateWallControls
             jumps={jumps}
             allLabel="All Gujarat"
@@ -532,7 +534,11 @@ export const InlandBuilder: React.FC = () => {
             </p>
           )}
 
-          {banded.bands.map(band => (
+          {/* Rendered Premium -> Value: the highest tier is what the agent usually
+              wants to lead with on a call. bandHotels() itself still returns
+              Value-first internally — nothing about ranking or export order
+              changes, this only flips which one prints first on screen. */}
+          {[...banded.bands].reverse().map(band => (
             <div key={band.id} className="space-y-1.5">
               {band.label && (
                 <div className="flex items-center gap-2">
@@ -568,6 +574,16 @@ export const InlandBuilder: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+        <RateWallTray
+          selections={pickedSelections}
+          onRemove={togglePick}
+          total={pickedTotal}
+          onCopy={copyText}
+          onPdf={downloadPdf}
+          onSend={openWhatsApp}
+          pdfBusy={pdfBusy}
+        />
         </div>
       )}
     </div>

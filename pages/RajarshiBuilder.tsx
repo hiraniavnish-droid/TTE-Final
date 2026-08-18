@@ -9,10 +9,11 @@ import {
 } from 'lucide-react';
 import { RAJARSHI_HOTELS, RAJARSHI_SUPPLIER, type RajCity, type RajPlan } from '../services/rajarshiData';
 import { quoteStay, hotelsByCity, fmtINR, type MarkupMode } from '../services/rajarshiRates';
-import { bandHotels, formatClientExport, isQuotable, topPlanLabels, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { bandHotels, formatClientExport, isQuotable, topMealPlanLabels, type WallEntry, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, rajarshiJumpChips } from '../services/rajarshiWall';
 import { RateWallControls } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
+import { RateWallTray } from '../components/ratewall/RateWallTray';
 
 type Mode = 'package' | 'rates';
 // Derived once at module load from the sheet's own festive windows.
@@ -100,7 +101,7 @@ export const RajarshiBuilder: React.FC = () => {
   // only sets what the dropdown SHOWS first; every plan stays one click away,
   // and ticking is keyed to the row itself, so switching this never loses a
   // selection already made under a different plan.
-  const planChoices = useMemo(() => topPlanLabels(wallEntries), [wallEntries]);
+  const planChoices = useMemo(() => topMealPlanLabels(wallEntries), [wallEntries]);
   const [preferredPlan, setPreferredPlan] = useState<string | undefined>('CPAI');
 
   const pickedSelections = useMemo(() => {
@@ -246,7 +247,7 @@ export const RajarshiBuilder: React.FC = () => {
         <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Building2 size={16} /></div>
         <div className="mr-1">
           <h1 className={cn('text-[17px] font-bold tracking-tight leading-none', getTextColor())}>{RAJARSHI_SUPPLIER.name}</h1>
-          <p className={cn('text-[10px] mt-1 leading-none', getSecondaryTextColor())}>Season {RAJARSHI_SUPPLIER.season} · {RAJARSHI_SUPPLIER.location} · {RAJARSHI_HOTELS.length} hotels</p>
+          <p className={cn('text-[10px] mt-1 leading-none', getSecondaryTextColor())}>Season {RAJARSHI_SUPPLIER.season} · {RAJARSHI_SUPPLIER.location} · {RAJARSHI_HOTELS.length} hotels · GST included</p>
         </div>
 
         <div className={cn('inline-flex p-0.5 rounded-lg border', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
@@ -451,7 +452,8 @@ export const RajarshiBuilder: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0 space-y-3">
           <RateWallControls
             jumps={JUMP_CHIPS}
             allLabel="All Kutch"
@@ -466,7 +468,11 @@ export const RajarshiBuilder: React.FC = () => {
             </p>
           )}
 
-          {banded.bands.map(band => (
+          {/* Rendered Premium -> Value: the highest tier is what the agent usually
+              wants to lead with on a call. bandHotels() itself still returns
+              Value-first internally — nothing about ranking or export order
+              changes, this only flips which one prints first on screen. */}
+          {[...banded.bands].reverse().map(band => (
             <div key={band.id} className="space-y-1.5">
               {band.label && (
                 <div className="flex items-center gap-2">
@@ -502,6 +508,16 @@ export const RajarshiBuilder: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+        <RateWallTray
+          selections={pickedSelections}
+          onRemove={togglePick}
+          total={pickedTotal}
+          onCopy={copyText}
+          onPdf={downloadPdf}
+          onSend={openWhatsApp}
+          pdfBusy={pdfBusy}
+        />
         </div>
       )}
     </div>

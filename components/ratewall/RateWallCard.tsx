@@ -72,6 +72,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
   // room name so switching back to a room the agent already adjusted returns
   // to ITS choice rather than the global default.
   const [planOverride, setPlanOverride] = useState<Record<string, string>>({});
+  const [notesExpanded, setNotesExpanded] = useState(false);
 
   const safeRoomIdx = Math.min(roomIdx, Math.max(0, groups.length - 1));
   const activeGroup = groups[safeRoomIdx];
@@ -141,7 +142,12 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
   // single active rate. 'Your dates' groups skip the plan dropdown entirely —
   // there is nothing to choose, the split already answers the question — and
   // keep their existing primary+basis rendering underneath.
-  const renderGroup = (g: { roomName: string; rows: WallRoomRow[] }) => {
+  // Splits a room group into its plan <select> (or null when there is only
+  // one plan to show) and the rate row(s) beneath it, so the CALLER can place
+  // the plan select beside the room select on one line instead of stacking
+  // 'Deluxe Room' above 'CPAI' above the price — three lines of chrome for
+  // what is really one choice of (room, plan).
+  const buildGroup = (g: { roomName: string; rows: WallRoomRow[] }) => {
     const primary = g.rows.filter(r => r.planLabel === PRIMARY_PLAN);
     const basis = primary.length ? g.rows.filter(r => r.planLabel !== PRIMARY_PLAN) : [];
     const main = primary.length ? primary : g.rows;
@@ -152,20 +158,21 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
       : main[0];
     const shown = isPlanChoice ? [activeRow] : main;
 
-    return (
-      <div>
-        {isPlanChoice && (
-          <select
-            value={activeRow.planLabel || ''}
-            onChange={e => setPlanOverride(p => ({ ...p, [g.roomName]: e.target.value }))}
-            className={cn(selectCls, 'w-full mb-1')}>
-            {main.map(r => (
-              <option key={r.key} value={r.planLabel || ''}>
-                {r.planLabel || 'Rate'}{!isQuotable(r) ? ` — ${r.blockedReason}` : ''}
-              </option>
-            ))}
-          </select>
-        )}
+    const planSelect = isPlanChoice ? (
+      <select
+        value={activeRow.planLabel || ''}
+        onChange={e => setPlanOverride(p => ({ ...p, [g.roomName]: e.target.value }))}
+        className={cn(selectCls, 'flex-1 min-w-0')}>
+        {main.map(r => (
+          <option key={r.key} value={r.planLabel || ''}>
+            {r.planLabel || 'Rate'}{!isQuotable(r) ? ` — ${r.blockedReason}` : ''}
+          </option>
+        ))}
+      </select>
+    ) : null;
+
+    const rates = (
+      <>
         <div className="space-y-0.5">
           {shown.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
         </div>
@@ -175,8 +182,10 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
             {basis.map(row => renderCell(row, 'basis'))}
           </div>
         )}
-      </div>
+      </>
     );
+
+    return { planSelect, rates };
   };
 
   // bandTone MUST be the last argument to cn(). cn() runs twMerge, which treats
@@ -197,30 +206,39 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
           <span className={cn('text-[9.5px] leading-tight ml-auto shrink-0', getSecondaryTextColor())}>{entry.starLabel}</span>
         )}
       </div>
-      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-        {entry.inclusions && <span className={cn('text-[9.5px]', getSecondaryTextColor())}>{entry.inclusions}</span>}
-        {entry.festiveFlag ? (
-          <span className={cn('flex items-center gap-1 text-[9.5px] font-semibold',
-            theme === 'light' ? 'text-amber-700' : 'text-amber-300')}>
-            <AlertTriangle size={9} className="shrink-0" /> {entry.festiveFlag}
-          </span>
-        ) : (
-          <span className={cn('flex items-center gap-1 text-[9.5px]', entry.resolutionOk ? getSecondaryTextColor() : 'text-amber-500')}>
-            <Wand2 size={9} className="shrink-0" /> {entry.resolutionChip}
-          </span>
-        )}
-      </div>
+      {/* GST-included and the per-hotel resolution basis ('standard dates',
+          'both meal plans priced'...) are dropped from the collapsed header —
+          GST applies to every hotel on both sheets, so repeating it on every
+          one of 20-190 cards was pure noise. The resolution chip only matters
+          when something ISN'T straightforward, so it now only appears as the
+          amber flag below when resolutionOk is false. */}
+      {!entry.resolutionOk && !entry.festiveFlag && (
+        <div className={cn('flex items-center gap-1 text-[9.5px] mt-0.5', 'text-amber-500')}>
+          <Wand2 size={9} className="shrink-0" /> {entry.resolutionChip}
+        </div>
+      )}
 
       {entry.closedReason && (
         <div className={cn('text-[10px] mt-1', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>{entry.closedReason}</div>
       )}
 
-      {/* Agent-only supplier caveats — parser ambiguities, hotels printed twice
-          with conflicting rates. Never exported, by contract in rateWall.ts. */}
-      {entry.reviewNotes?.length ? (
-        <div className={cn('flex items-start gap-1 text-[10px] leading-snug mt-1', amber)}>
-          <AlertTriangle size={10} className="shrink-0 mt-[1.5px]" />
-          <span>{entry.reviewNotes.join(' · ')}</span>
+      {/* Supplier festive/blackout wording and agent-only supplier caveats
+          (parser ambiguities, hotels printed twice with conflicting rates)
+          are free text straight off the sheet and can run to a whole
+          paragraph — 'Fortune Statue Of Unity Kevadia' prints six festival
+          windows in one remark. Clamped to 2 lines with a toggle so one long
+          note cannot blow out every card's height; never exported, by
+          contract in rateWall.ts / formatClientExport. */}
+      {(entry.festiveFlag || entry.reviewNotes?.length) ? (
+        <div className="mt-1">
+          <div className={cn('flex items-start gap-1 text-[10px] leading-snug', amber, !notesExpanded && 'line-clamp-2')}>
+            <AlertTriangle size={10} className="shrink-0 mt-[1.5px]" />
+            <span>{[entry.festiveFlag, ...(entry.reviewNotes || [])].filter(Boolean).join(' · ')}</span>
+          </div>
+          <button type="button" onClick={() => setNotesExpanded(v => !v)}
+            className={cn('text-[9px] font-semibold underline underline-offset-2 mt-0.5', getSecondaryTextColor())}>
+            {notesExpanded ? 'Show less' : 'Show full note'}
+          </button>
         </div>
       ) : null}
 
@@ -231,23 +249,34 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
       <div className="mt-1.5">
         {/* The collapsed room/plan pickers are hidden once expanded — the full
             listing below already contains this exact combination, and showing
-            both left the same tick box appearing to duplicate itself. */}
-        {!expanded && groups.length > 1 && (
-          <select
-            value={safeRoomIdx}
-            onChange={e => setRoomIdx(Number(e.target.value))}
-            className={cn(selectCls, 'w-full mb-1')}>
-            {groups.map((g, i) => <option key={g.roomName} value={i}>{g.roomName}</option>)}
-          </select>
-        )}
-        {!expanded && groups.length > 0 && (
-          <>
-            {groups.length <= 1 && (
-              <div className={cn('text-[11.5px] leading-tight mb-0.5', getTextColor())}>{activeGroup.roomName}</div>
-            )}
-            {renderGroup(activeGroup)}
-          </>
-        )}
+            both left the same tick box appearing to duplicate itself.
+            Room select and plan select share ONE row rather than stacking —
+            'Deluxe Room' above 'CPAI' above the price was three lines of
+            chrome for a single (room, plan) choice. */}
+        {!expanded && groups.length > 0 && (() => {
+          const { planSelect, rates } = buildGroup(activeGroup);
+          const roomSelect = groups.length > 1 ? (
+            <select
+              value={safeRoomIdx}
+              onChange={e => setRoomIdx(Number(e.target.value))}
+              className={cn(selectCls, 'flex-1 min-w-0')}>
+              {groups.map((g, i) => <option key={g.roomName} value={i}>{g.roomName}</option>)}
+            </select>
+          ) : (
+            <div className={cn('text-[11.5px] leading-tight flex-1 min-w-0 truncate self-center', getTextColor())}>
+              {activeGroup.roomName}
+            </div>
+          );
+          return (
+            <>
+              <div className="flex items-center gap-1 mb-1">
+                {roomSelect}
+                {planSelect}
+              </div>
+              {rates}
+            </>
+          );
+        })()}
 
         {/* Every room x every plan, exactly as before — for ticking several
             combinations from the same hotel (e.g. CPAI AND MAPAI, or two room
