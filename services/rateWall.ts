@@ -333,3 +333,27 @@ export function formatClientExport(selections: ExportSelection[], ctx: ExportCon
   L.push('The Tourism Experts');
   return L.join('\n');
 }
+
+// The distinct plan labels actually on screen, most common first, so a page
+// can offer "default to CPAI" as a quick pick without hard-coding one
+// supplier's vocabulary — Inland's labels are not Rajarshi's. Excludes the
+// synthetic 'Your dates' row (nothing to default there, it is not a choice)
+// and counts a label once per hotel rather than once per row, so a plan
+// offered by every hotel outranks one that happens to have more blocked rows
+// printed under it at a single property.
+export function topPlanLabels(entries: WallEntry[], limit = 4): string[] {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const seen = new Set<string>();
+    for (const row of entry.rows) {
+      const label = row.planLabel;
+      if (!label || label === 'Your dates' || seen.has(label)) continue;
+      seen.add(label);
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([label]) => label);
+}

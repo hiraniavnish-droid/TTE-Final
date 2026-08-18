@@ -43,6 +43,12 @@ export const Layout = () => {
   useReminderNotifications();
   const location = useLocation();
   const isBoard = location.pathname === '/leads'; // full-bleed Kanban board
+  // The rate walls pack 5-6 hotel cards per row and were being capped at
+  // max-w-7xl (1280px) by this layout ON TOP OF their own max-w-6xl, so on
+  // any screen wider than ~1280px the page sat in a fixed-width column with
+  // large dead margins either side. These two routes get the full viewport
+  // width instead, same as the Kanban board does.
+  const isWide = location.pathname === '/rajarshi-builder' || location.pathname === '/inland-builder';
   const mainRef = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -379,7 +385,9 @@ export const Layout = () => {
       )}>
         <div className={cn(
           'text-sm md:text-base',
-          isBoard ? 'p-3 md:px-6 md:py-5 md:h-full' : 'p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8'
+          isBoard ? 'p-3 md:px-6 md:py-5 md:h-full'
+            : isWide ? 'p-3 md:px-6 md:py-5 space-y-6 md:space-y-8'
+            : 'p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8'
         )}>
           <AnimatePresence mode="wait">
             <MotionDiv

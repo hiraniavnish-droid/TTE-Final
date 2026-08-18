@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils/helpers';
-import { AlertTriangle, Wand2 } from 'lucide-react';
+import { AlertTriangle, Wand2, ChevronDown, Rows3 } from 'lucide-react';
 import { fmtINR, isQuotable, type WallEntry, type WallRoomRow } from '../../services/rateWall';
 
 interface Props {
@@ -9,6 +9,11 @@ interface Props {
   bandTone: string;              // tailwind border colour class for the left rule
   selectedKeys: Set<string>;
   onToggle: (key: string) => void;
+  // A page-level preference (e.g. 'CPAI') used only to pick which plan a card
+  // defaults to showing. Purely a display default — every plan stays reachable
+  // via the dropdown, and ticking is keyed by row.key regardless of what is
+  // currently on screen, so this can never hide or lose a selection.
+  preferredPlan?: string;
 }
 
 // One line per ROOM, with that room's meal plans priced side by side, so an
@@ -41,14 +46,41 @@ const PRIMARY_PLAN = 'Your dates';
 // subordinate so the wall never presents three equal candidates per room.
 type CellVariant = 'primary' | 'basis' | 'normal';
 
-export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, onToggle }) => {
-  const { theme, getTextColor, getSecondaryTextColor } = useTheme();
-  const groups = groupByRoom(entry.rows);
+// Loose match so 'CPAI', 'CP', 'cpai (breakfast)' etc. all count as the same
+// preference — the two suppliers do not spell their plans identically.
+const norm = (s: string | undefined | null) => (s || '').toLowerCase().replace(/[^a-z]/g, '');
+
+function pickDefaultRow(rows: WallRoomRow[], preferredPlan: string | undefined): WallRoomRow {
+  if (preferredPlan) {
+    const pref = norm(preferredPlan);
+    const exact = rows.find(r => norm(r.planLabel) === pref);
+    if (exact) return exact;
+    const starts = rows.find(r => norm(r.planLabel).startsWith(pref) || pref.startsWith(norm(r.planLabel)));
+    if (starts) return starts;
+  }
+  // No preference, or nothing matched it: prefer a quotable row over a blocked
+  // one so the default view is never a dead end when a choice exists.
+  return rows.find(isQuotable) || rows[0];
+}
+
+export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, onToggle, preferredPlan }) => {
+  const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
+  const groups = useMemo(() => groupByRoom(entry.rows), [entry.rows]);
+  const [roomIdx, setRoomIdx] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  // Reset to the group's own default whenever the room changes; keyed on the
+  // room name so switching back to a room the agent already adjusted returns
+  // to ITS choice rather than the global default.
+  const [planOverride, setPlanOverride] = useState<Record<string, string>>({});
+
+  const safeRoomIdx = Math.min(roomIdx, Math.max(0, groups.length - 1));
+  const activeGroup = groups[safeRoomIdx];
 
   const cellBorder = theme === 'light' ? 'border-slate-200' : 'border-white/15';
   const cellSelected = theme === 'light' ? 'border-slate-900 bg-slate-50' : 'border-white/60 bg-white/10';
   const cellPrimary = theme === 'light' ? 'border-slate-400 border-[1.5px]' : 'border-white/40 border-[1.5px]';
   const amber = theme === 'light' ? 'text-amber-700' : 'text-amber-300';
+  const selectCls = cn('text-[10.5px] rounded-md border px-1.5 py-1 outline-none', getInputClass());
 
   const renderCell = (row: WallRoomRow, variant: CellVariant) => {
     const small = variant === 'basis';
@@ -103,6 +135,50 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
     );
   };
 
+  // Renders ONE room group in the current default (collapsed) view: a room
+  // dropdown (only when the hotel has more than one room type), a plan
+  // dropdown (only when that room has more than one priced plan), and the
+  // single active rate. 'Your dates' groups skip the plan dropdown entirely —
+  // there is nothing to choose, the split already answers the question — and
+  // keep their existing primary+basis rendering underneath.
+  const renderGroup = (g: { roomName: string; rows: WallRoomRow[] }) => {
+    const primary = g.rows.filter(r => r.planLabel === PRIMARY_PLAN);
+    const basis = primary.length ? g.rows.filter(r => r.planLabel !== PRIMARY_PLAN) : [];
+    const main = primary.length ? primary : g.rows;
+
+    const isPlanChoice = !primary.length && main.length > 1;
+    const activeRow = isPlanChoice
+      ? (main.find(r => r.planLabel === planOverride[g.roomName]) || pickDefaultRow(main, preferredPlan))
+      : main[0];
+    const shown = isPlanChoice ? [activeRow] : main;
+
+    return (
+      <div>
+        {isPlanChoice && (
+          <select
+            value={activeRow.planLabel || ''}
+            onChange={e => setPlanOverride(p => ({ ...p, [g.roomName]: e.target.value }))}
+            className={cn(selectCls, 'w-full mb-1')}>
+            {main.map(r => (
+              <option key={r.key} value={r.planLabel || ''}>
+                {r.planLabel || 'Rate'}{!isQuotable(r) ? ` — ${r.blockedReason}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="space-y-0.5">
+          {shown.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
+        </div>
+        {basis.length > 0 && (
+          <div className="mt-1 pl-2 space-y-0.5">
+            <span className={cn('text-[9px] font-bold uppercase tracking-wider', getSecondaryTextColor())}>Printed basis</span>
+            {basis.map(row => renderCell(row, 'basis'))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // bandTone MUST be the last argument to cn(). cn() runs twMerge, which treats
   // border-l-* and the all-sides border-* as one conflict group and keeps
   // whichever comes later — passing bandTone before the theme classes silently
@@ -148,34 +224,70 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
         </div>
       ) : null}
 
-      {/* The card sits in a multi-column grid, so it is roughly 280-340px wide.
-          Room name and rates therefore STACK rather than sitting on one line
-          pushed to opposite edges — that older full-width layout left a large
-          empty gutter down the middle of every row. */}
-      <div className="mt-1.5 space-y-1.5">
-        {groups.map(g => {
-          // A 'Your dates' row is the answer; the printed columns beside it are
-          // the basis it was split from. Keeping the basis visually subordinate
-          // stops the agent quoting a weekday rate for a stay that runs over a
-          // Saturday.
-          const primary = g.rows.filter(r => r.planLabel === PRIMARY_PLAN);
-          const basis = primary.length ? g.rows.filter(r => r.planLabel !== PRIMARY_PLAN) : [];
-          const main = primary.length ? primary : g.rows;
-          return (
-            <div key={g.roomName}>
-              <div className={cn('text-[11.5px] leading-tight mb-0.5', getTextColor())}>{g.roomName}</div>
-              <div className="space-y-0.5">
-                {main.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
+      {/* Collapsed default: one room, one plan, one rate — a room dropdown
+          only appears when the hotel has more than one room type. This is
+          what keeps the card to a couple of rows instead of listing every
+          room x every plan, so 5-6 hotels fit across a row instead of 1-2. */}
+      <div className="mt-1.5">
+        {/* The collapsed room/plan pickers are hidden once expanded — the full
+            listing below already contains this exact combination, and showing
+            both left the same tick box appearing to duplicate itself. */}
+        {!expanded && groups.length > 1 && (
+          <select
+            value={safeRoomIdx}
+            onChange={e => setRoomIdx(Number(e.target.value))}
+            className={cn(selectCls, 'w-full mb-1')}>
+            {groups.map((g, i) => <option key={g.roomName} value={i}>{g.roomName}</option>)}
+          </select>
+        )}
+        {!expanded && groups.length > 0 && (
+          <>
+            {groups.length <= 1 && (
+              <div className={cn('text-[11.5px] leading-tight mb-0.5', getTextColor())}>{activeGroup.roomName}</div>
+            )}
+            {renderGroup(activeGroup)}
+          </>
+        )}
+
+        {/* Every room x every plan, exactly as before — for ticking several
+            combinations from the same hotel (e.g. CPAI AND MAPAI, or two room
+            types) without having to flip the dropdowns back and forth. */}
+        {groups.length > 0 && (groups.length > 1 || (groups[0].rows.length > 1 && !groups[0].rows.some(r => r.planLabel === PRIMARY_PLAN))) && (
+          <button type="button" onClick={() => setExpanded(v => !v)}
+            className={cn('flex items-center gap-1 mt-1.5 text-[9.5px] font-semibold', getSecondaryTextColor())}>
+            <Rows3 size={10} className="shrink-0" />
+            {expanded ? 'Hide all rooms & rates' : 'Compare all rooms & rates'}
+            <ChevronDown size={10} className={cn('shrink-0 transition-transform', expanded && 'rotate-180')} />
+          </button>
+        )}
+
+        {expanded && (
+          <div className={cn('mt-1.5 pt-1.5 border-t space-y-1.5', theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
+            {groups.map(g => (
+              <div key={g.roomName}>
+                <div className={cn('text-[11px] leading-tight mb-0.5', getTextColor())}>{g.roomName}</div>
+                {(() => {
+                  const primary = g.rows.filter(r => r.planLabel === PRIMARY_PLAN);
+                  const basis = primary.length ? g.rows.filter(r => r.planLabel !== PRIMARY_PLAN) : [];
+                  const main = primary.length ? primary : g.rows;
+                  return (
+                    <>
+                      <div className="space-y-0.5">
+                        {main.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
+                      </div>
+                      {basis.length > 0 && (
+                        <div className="mt-1 pl-2 space-y-0.5">
+                          <span className={cn('text-[9px] font-bold uppercase tracking-wider', getSecondaryTextColor())}>Printed basis</span>
+                          {basis.map(row => renderCell(row, 'basis'))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
-              {basis.length > 0 && (
-                <div className="mt-1 pl-2 space-y-0.5">
-                  <span className={cn('text-[9px] font-bold uppercase tracking-wider', getSecondaryTextColor())}>Printed basis</span>
-                  {basis.map(row => renderCell(row, 'basis'))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

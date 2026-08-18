@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { RAJARSHI_HOTELS, RAJARSHI_SUPPLIER, type RajCity, type RajPlan } from '../services/rajarshiData';
 import { quoteStay, hotelsByCity, fmtINR, type MarkupMode } from '../services/rajarshiRates';
-import { bandHotels, formatClientExport, isQuotable, type WallEntry, type QuotableRow } from '../services/rateWall';
+import { bandHotels, formatClientExport, isQuotable, topPlanLabels, type WallEntry, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, rajarshiJumpChips } from '../services/rajarshiWall';
 import { RateWallControls } from '../components/ratewall/RateWallControls';
 import { RateWallCard } from '../components/ratewall/RateWallCard';
@@ -95,6 +95,13 @@ export const RajarshiBuilder: React.FC = () => {
   }), [wall, markupMode, markupValue]);
 
   const banded = useMemo(() => bandHotels(wallEntries), [wallEntries]);
+
+  // Quick-pick default so a card never opens on an arbitrary plan — but this
+  // only sets what the dropdown SHOWS first; every plan stays one click away,
+  // and ticking is keyed to the row itself, so switching this never loses a
+  // selection already made under a different plan.
+  const planChoices = useMemo(() => topPlanLabels(wallEntries), [wallEntries]);
+  const [preferredPlan, setPreferredPlan] = useState<string | undefined>('CPAI');
 
   const pickedSelections = useMemo(() => {
     // isQuotable rather than row.quotable — the repo's tsconfig omits strict, so
@@ -233,7 +240,7 @@ export const RajarshiBuilder: React.FC = () => {
     theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30');
 
   return (
-    <div className="max-w-6xl mx-auto animate-in fade-in duration-500 pb-16">
+    <div className="animate-in fade-in duration-500 pb-16">
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
         <button onClick={() => navigate('/builder')} title="Back to the builder list" className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
         <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Building2 size={16} /></div>
@@ -294,6 +301,20 @@ export const RajarshiBuilder: React.FC = () => {
           <input type="number" inputMode="decimal" min={0} value={markupValue}
             onChange={e => setMarkupValue(Math.max(0, Number(e.target.value) || 0))} className={cn(compactInput, 'font-mono w-28')} />
         </div>
+        {mode === 'rates' && planChoices.length > 0 && (
+          <div>
+            <label className={miniLabel}>Default rate</label>
+            <div className="flex items-center gap-1 flex-wrap">
+              {planChoices.map(p => (
+                <button key={p} type="button" onClick={() => setPreferredPlan(p)}
+                  className={cn('px-2 py-1 rounded-md border text-[11px] font-bold transition',
+                    preferredPlan === p ? 'bg-slate-900 text-white border-slate-900' : cn(theme === 'light' ? 'bg-white text-slate-500 border-slate-200' : 'bg-white/5 text-white/50 border-white/10'))}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {mode === 'package' ? (
@@ -459,7 +480,7 @@ export const RajarshiBuilder: React.FC = () => {
               )}
               <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(270px,1fr))]">
                 {band.entries.map(entry => (
-                  <RateWallCard key={entry.hotelId} entry={entry}
+                  <RateWallCard key={entry.hotelId} entry={entry} preferredPlan={preferredPlan}
                     bandTone={band.id === 'premium' ? 'border-l-violet-400' : band.id === 'mid' ? 'border-l-sky-400' : band.id === 'similar' ? 'border-l-slate-400' : 'border-l-emerald-400'}
                     selectedKeys={picked} onToggle={togglePick} />
                 ))}
@@ -475,7 +496,7 @@ export const RajarshiBuilder: React.FC = () => {
               </div>
               <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(270px,1fr))]">
                 {banded.onRequestOnly.map(entry => (
-                  <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400"
+                  <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400" preferredPlan={preferredPlan}
                     selectedKeys={picked} onToggle={togglePick} />
                 ))}
               </div>
