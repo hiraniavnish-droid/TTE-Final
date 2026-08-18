@@ -907,12 +907,21 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
             ok(!!weekend, `${row.key}: a 'Your dates' row on a room whose weekend days are not printed`);
             if (!weekend) continue;
             const r1 = rateOf(room, 1), r2 = rateOf(room, 2);
-            ok(r1 != null && r2 != null, `${row.key}: 'Your dates' priced with an on-request bucket`);
-            if (r1 == null || r2 == null) continue;
             let wknd = 0;
             for (let n = 0; n < NIGHTS; n++) if (weekend.includes(nightDow(checkIn, n))) wknd++;
-            netRoomTotal = (r1 * (NIGHTS - wknd) + r2 * wknd) * ROOMS;
-            baseRate = Math.min(r1, r2);
+            const wkdy = NIGHTS - wknd;
+            // A 'Your dates' row is legitimate as long as every bucket the stay
+            // OCCUPIES has a printed rate. A column with no nights against it is
+            // not part of this stay, so an absent figure there is irrelevant —
+            // 60 of the 159 weekday/weekend rooms print only one column.
+            if (wkdy > 0) ok(r1 != null, `${row.key}: weekday nights priced off an on-request column 1`);
+            if (wknd > 0) ok(r2 != null, `${row.key}: weekend nights priced off an on-request column 2`);
+            if ((wkdy > 0 && r1 == null) || (wknd > 0 && r2 == null)) continue;
+            const usedWkdy = wkdy > 0 ? (r1 as number) : 0;
+            const usedWknd = wknd > 0 ? (r2 as number) : 0;
+            netRoomTotal = (usedWkdy * wkdy + usedWknd * wknd) * ROOMS;
+            const used = [wkdy > 0 ? usedWkdy : null, wknd > 0 ? usedWknd : null].filter((x): x is number => x != null);
+            baseRate = used.length ? Math.min(...used) : 0;
           } else {
             const col = suffix === 'C1' ? 1 : 2;
             ok(suffix === 'C1' || suffix === 'C2', `${row.key}: unexpected row suffix '${suffix}'`);
@@ -981,6 +990,19 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
   console.log(`  Inland sweep: ${ALL_DATES.length} dates x 4 pax — ${quotableSeen} quotable / ${blockedSeen} blocked rows reconciled`);
 }
 
+// Weekend day-set read independently from the printed labels — deliberately
+// NOT imported from inlandWall.ts, so this test cannot simply agree with the
+// implementation it is checking. 0=Sun .. 6=Sat.
+function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<number> | null {
+  const both = ((room.axisLabels[0] || '') + ' | ' + (room.axisLabels[1] || '')).toLowerCase();
+  if (/same rate/.test(both)) return null;
+  if (/fri[^a-z]*(?:-|–|to)[^a-z]*sun/.test(both)) return new Set([5, 6, 0]);
+  if (/fri[^a-z]*(?:-|–|to)[^a-z]*sat/.test(both)) return new Set([5, 6]);
+  if (/mon\s*to\s*thu/.test(both)) return new Set([5, 6, 0]);
+  if (/sun\s*(?:-|–)\s*thu/.test(both)) return new Set([5, 6]);
+  return null;
+}
+
 // ── no row is ever priced off an on-request cell ──
 {
   for (const checkIn of ['2026-06-15', '2026-11-20']) {
@@ -994,8 +1016,23 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
         if (!room) continue;
         if (suffix === 'C1') ok(!room.onRequest1 && room.rate1 != null, `${row.key}: priced an on-request column 1`);
         else if (suffix === 'C2') ok(!room.onRequest2 && room.rate2 != null, `${row.key}: priced an on-request column 2`);
-        else ok(!room.onRequest1 && room.rate1 != null && !room.onRequest2 && room.rate2 != null,
-          `${row.key}: split row priced with an on-request bucket`);
+        else {
+          // A split row may only be priced when every bucket the stay actually
+          // OCCUPIES has a printed rate. A column the stay never touches is
+          // irrelevant to it — a Tuesday-only stay is quotable at a hotel that
+          // printed no weekend figure. Recompute the split here rather than
+          // trusting the adapter's own note.
+          const we = weekendDaysForTest(room);
+          let weekendNights = 0;
+          for (let n = 0; n < 2; n++) {
+            const [y, mo, d] = checkIn.split('-').map(Number);
+            const dt = new Date(y, mo - 1, d + n);
+            if (we && we.has(dt.getDay())) weekendNights++;
+          }
+          const weekdayNights = 2 - weekendNights;
+          if (weekdayNights > 0) ok(!room.onRequest1 && room.rate1 != null, `${row.key}: split row used weekday nights off an on-request column 1`);
+          if (weekendNights > 0) ok(!room.onRequest2 && room.rate2 != null, `${row.key}: split row used weekend nights off an on-request column 2`);
+        }
       }
     }
   }

@@ -397,19 +397,37 @@ function weekdayWeekendRows(hotel: InlandHotel, room: InlandRoom, ri: number, i:
   const weekdayNights = i.nights - weekendNights;
 
   const base = { key: k('DATES'), roomName: displayRoomName(room), planLabel: 'Your dates' };
-  if (room.onRequest1 || room.rate1 == null || room.onRequest2 || room.rate2 == null) {
-    // Half a split is not a price. If either bucket is on request the stay
-    // cannot be totalled, even when the nights happen to fall entirely in the
-    // priced bucket — the agent still has to call for the other one.
+
+  // Block only when a bucket the stay ACTUALLY occupies has no printed rate.
+  //
+  // This deliberately does NOT block when the unpriced column is one the stay
+  // never touches: a single Tuesday night does not become unquotable because
+  // the hotel never printed a weekend figure — that column is not part of this
+  // stay, and there is nothing for the agent to ring up about. 60 of the 159
+  // weekday/weekend rooms print exactly one of the two columns, MORE than the
+  // 58 that print both, so refusing all of them cost more quotes than it ever
+  // protected.
+  const weekdayOk = !room.onRequest1 && room.rate1 != null;
+  const weekendOk = !room.onRequest2 && room.rate2 != null;
+  if ((weekdayNights > 0 && !weekdayOk) || (weekendNights > 0 && !weekendOk)) {
     return [...rows, { ...base, quotable: false, blockedReason: ON_REQUEST }];
   }
 
-  const netRoomTotal = (room.rate1 * weekdayNights + room.rate2 * weekendNights) * i.rooms;
+  // A bucket with no nights contributes nothing, so its (possibly absent) rate
+  // is never read — guarding here keeps a null out of the arithmetic entirely
+  // rather than relying on a multiply-by-zero.
+  const weekdayRate = weekdayNights > 0 ? (room.rate1 as number) : 0;
+  const weekendRate = weekendNights > 0 ? (room.rate2 as number) : 0;
+  const netRoomTotal = (weekdayRate * weekdayNights + weekendRate * weekendNights) * i.rooms;
   const derivedNote = `${weekdayNights} weekday + ${weekendNights} weekend night(s)`;
 
+  // The supplement is compared against the cheapest rate the stay actually
+  // uses, not against an absent column.
+  const usedRates = [weekdayNights > 0 ? weekdayRate : null, weekendNights > 0 ? weekendRate : null]
+    .filter((r): r is number => r != null);
   const extra = extraPersonTotal(
     room, paxPerRoom, BASE_OCCUPANCY,
-    Math.min(room.rate1, room.rate2), null, i,
+    usedRates.length ? Math.min(...usedRates) : 0, null, i,
   );
   if (isExtraBlocked(extra)) {
     return [...rows, { ...base, derivedNote, quotable: false, blockedReason: extra.reason }];
