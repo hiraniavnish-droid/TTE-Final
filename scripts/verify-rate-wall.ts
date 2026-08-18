@@ -1629,6 +1629,32 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
   if (overflowRow && isBlocked(overflowRow)) {
     ok(/too many extra mattresses/i.test(overflowRow.blockedReason), `Rajarshi: overflow reason should name the mattresses, got "${overflowRow.blockedReason}"`);
   }
+
+  // Multi-room regression: a manually requested mattress count is a TOTAL
+  // across the booking, not a per-room figure. Bug (fixed): extraMattress
+  // was spread via ceil(mattress/rooms) then re-multiplied by rooms, so 1
+  // mattress with 3 rooms silently billed 3 mattresses. The fix must make
+  // adding 1 mattress cost exactly ONE extra bed whether there is 1 room or
+  // 3 — proven against the already-verified single-room path as the oracle.
+  const findRj = (w: WallEntry[]) => w.find(e => e.hotelId === 'time-square-club-resort-spa')?.rows.find(r => r.key.endsWith(`::${rjPlan}`) && r.roomName === 'Deluxe Room (King Bed)');
+  const oneRoomBase = findRj(buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 0, markupMode: 'percent', markupValue: 0 }));
+  const oneRoomPlusMattress = findRj(buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 1, markupMode: 'percent', markupValue: 0 }));
+  const threeRoomBase = findRj(buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 3, pax: 6, extraMattress: 0, markupMode: 'percent', markupValue: 0 }));
+  const threeRoomPlusMattress = findRj(buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 3, pax: 6, extraMattress: 1, markupMode: 'percent', markupValue: 0 }));
+  if (oneRoomBase && oneRoomPlusMattress && threeRoomBase && threeRoomPlusMattress
+      && isQuotable(oneRoomBase) && isQuotable(oneRoomPlusMattress) && isQuotable(threeRoomBase) && isQuotable(threeRoomPlusMattress)) {
+    const oneRoomDelta = oneRoomPlusMattress.sellingTotal - oneRoomBase.sellingTotal;
+    const threeRoomDelta = threeRoomPlusMattress.sellingTotal - threeRoomBase.sellingTotal;
+    ok(oneRoomDelta > 0, 'Rajarshi: sanity — adding 1 mattress in a single room must cost something');
+    ok(threeRoomDelta === oneRoomDelta,
+      `Rajarshi: 1 manual mattress across 3 rooms must cost exactly ONE extra bed (+₹${oneRoomDelta}), not one per room — got +₹${threeRoomDelta}`);
+  } else {
+    ok(false, 'Rajarshi multi-room manual-mattress fixture did not resolve to quotable rows');
+  }
+
+  // 7 mattresses across 3 rooms exceeds the 3 x 2-bed cap (6) and must block.
+  const rjHugeOverflow = findRj(buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 3, pax: 6, extraMattress: 7, markupMode: 'percent', markupValue: 0 }));
+  ok(!!rjHugeOverflow && isBlocked(rjHugeOverflow), 'Rajarshi: 7 manual mattresses across 3 rooms (cap 6) must block');
 }
 
 {
@@ -1679,6 +1705,27 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
   const tooMany = buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 3, extraMattress: 2, markupMode: 'percent', markupValue: 0 });
   const rowTooMany = findRow(tooMany);
   ok(!!rowTooMany && isBlocked(rowTooMany), 'Inland: 1 auto + 2 manual (3 total) extra beds must block, not silently cap');
+
+  // Multi-room regression, same bug as Rajarshi's: 1 manual mattress across 3
+  // rooms must cost exactly ONE extra bed, not one per room.
+  const oneRoomBase = findRow(buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 0, markupMode: 'percent', markupValue: 0 }));
+  const oneRoomPlusMattress = findRow(buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, extraMattress: 1, markupMode: 'percent', markupValue: 0 }));
+  const threeRoomBase = findRow(buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 3, pax: 6, extraMattress: 0, markupMode: 'percent', markupValue: 0 }));
+  const threeRoomPlusMattress = findRow(buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 3, pax: 6, extraMattress: 1, markupMode: 'percent', markupValue: 0 }));
+  if (oneRoomBase && oneRoomPlusMattress && threeRoomBase && threeRoomPlusMattress
+      && isQuotable(oneRoomBase) && isQuotable(oneRoomPlusMattress) && isQuotable(threeRoomBase) && isQuotable(threeRoomPlusMattress)) {
+    const oneRoomDelta = oneRoomPlusMattress.sellingTotal - oneRoomBase.sellingTotal;
+    const threeRoomDelta = threeRoomPlusMattress.sellingTotal - threeRoomBase.sellingTotal;
+    ok(oneRoomDelta > 0, 'Inland: sanity — adding 1 mattress in a single room must cost something');
+    ok(threeRoomDelta === oneRoomDelta,
+      `Inland: 1 manual mattress across 3 rooms must cost exactly ONE extra bed (+₹${oneRoomDelta}), not one per room — got +₹${threeRoomDelta}`);
+  } else {
+    ok(false, 'Inland multi-room manual-mattress fixture did not resolve to quotable rows');
+  }
+
+  // 7 mattresses across 3 rooms exceeds the 3 x 2-bed cap (6) and must block.
+  const inlandHugeOverflow = findRow(buildInlandWall({ city: 'AHMEDABAD', checkIn: '2026-09-02', nights: 1, rooms: 3, pax: 6, extraMattress: 7, markupMode: 'percent', markupValue: 0 }));
+  ok(!!inlandHugeOverflow && isBlocked(inlandHugeOverflow), 'Inland: 7 manual mattresses across 3 rooms (cap 6) must block');
 }
 
 // ── the wall input's extraMattress is optional and 0 is the true default ──

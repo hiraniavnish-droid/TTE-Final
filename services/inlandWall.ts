@@ -162,19 +162,26 @@ function extraPersonTotal(
   explicitSupplement: number | null,
   i: InlandWallInput,
 ): ExtraPlan | ExtraBlocked {
-  // Auto shortfall (pax exceeding the room's base occupancy) plus whatever
-  // extra mattresses were manually requested on top of that — both are the
-  // same physical bed and share the same per-room cap and supplier rate.
-  const manualPerRoom = Math.ceil(Math.max(0, i.extraMattress || 0) / Math.max(1, i.rooms));
+  // Auto shortfall (pax exceeding the room's base occupancy) is uniform per
+  // room since pax splits evenly, so it scales with the room count. Manually
+  // requested mattresses are a TOTAL across the booking, not a per-room
+  // figure — one mattress with three rooms means one room gets a mattress,
+  // not all three, so it must not be spread-then-multiplied by room count.
+  // It is instead capped by whatever room capacity the auto shortfall hasn't
+  // already used, across all rooms.
   const autoShortfall = Math.max(0, paxPerRoom - baseOccupancy);
-  const perRoom = autoShortfall + manualPerRoom;
-  if (perRoom === 0) return { total: 0, uncovered: 0 };
-  // Beyond two extra beds the party needs another room whatever the sheet
-  // says or however many of those beds were manually requested. Pricing a
-  // double rate for six guests — or four mattresses in one room — is not a
-  // caveat, it is a number no hotel would honour, so this stays a hard block.
+  const requestedMattress = Math.max(0, Math.round(i.extraMattress || 0));
+  const mattressCapacity = Math.max(0, MAX_EXTRA_PER_ROOM - autoShortfall) * Math.max(1, i.rooms);
+  const manualMattressUsed = Math.min(requestedMattress, mattressCapacity);
+  const totalExtraBeds = autoShortfall * i.rooms + manualMattressUsed;
+  if (totalExtraBeds === 0) return { total: 0, uncovered: 0 };
+  // Beyond two extra beds per room the party needs another room whatever the
+  // sheet says or however many of those beds were manually requested. Pricing
+  // a double rate for six guests — or more mattresses than the rooms can
+  // physically hold — is not a caveat, it is a number no hotel would honour,
+  // so this stays a hard block.
   const paxOverflow = paxPerRoom - BASE_OCCUPANCY > MAX_EXTRA_PER_ROOM;
-  if (paxOverflow || perRoom > MAX_EXTRA_PER_ROOM) {
+  if (paxOverflow || requestedMattress > mattressCapacity) {
     return { reason: paxOverflow
       ? `Too small for ${paxPerRoom} pax`
       : `Too many extra mattresses requested (max ${MAX_EXTRA_PER_ROOM} extra beds per room)` };
@@ -188,9 +195,9 @@ function extraPersonTotal(
   // does not cover, rather than showing the agent an empty wall. The
   // declaration is not optional — see clientNote in rateWall.ts.
   if (raw == null || !Number.isFinite(raw) || raw <= 0 || raw >= baseRate) {
-    return { total: 0, uncovered: perRoom };
+    return { total: 0, uncovered: totalExtraBeds };
   }
-  return { total: raw * perRoom * i.rooms * i.nights, uncovered: 0 };
+  return { total: raw * totalExtraBeds * i.nights, uncovered: 0 };
 }
 
 // ── room naming ──────────────────────────────────────────────────────────

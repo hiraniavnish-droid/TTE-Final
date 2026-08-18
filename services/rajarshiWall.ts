@@ -73,7 +73,7 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
     ? Object.values(byCity).flat()
     : (byCity[input.city] || []);
   const paxPerRoom = Math.ceil(input.pax / Math.max(1, input.rooms));
-  const manualMattressPerRoom = Math.ceil(Math.max(0, input.extraMattress || 0) / Math.max(1, input.rooms));
+  const requestedMattress = Math.max(0, Math.round(input.extraMattress || 0));
   const lastNight = addDays(input.checkIn, Math.max(0, input.nights - 1));
 
   return hotels.map(hotel => {
@@ -83,12 +83,17 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
 
     const rows: WallRoomRow[] = hotel.rooms.flatMap((room, ri) => {
       const cap = baseCapacity(room);
-      // Auto shortfall (pax exceeding the room's base capacity) plus whatever
-      // extra mattresses the agent asked for on top of that — both are the
-      // same physical thing (an extra bed) and share the same per-room cap
-      // and the same supplier rate.
+      // Auto shortfall (pax exceeding the room's base capacity) is uniform
+      // per room since pax splits evenly, so it scales with the room count.
+      // Manually requested mattresses are a TOTAL across the booking, not a
+      // per-room figure — one mattress with three rooms means one room gets
+      // a mattress, not all three, so it must not be spread-then-multiplied
+      // by room count. It is instead capped by whatever room capacity the
+      // auto shortfall hasn't already used, across all rooms.
       const autoShortfall = Math.max(0, paxPerRoom - cap);
-      const extraPerRoom = autoShortfall + manualMattressPerRoom;
+      const mattressCapacity = Math.max(0, MAX_EXTRA_BEDS_PER_ROOM - autoShortfall) * Math.max(1, input.rooms);
+      const manualMattressUsed = Math.min(requestedMattress, mattressCapacity);
+      const totalExtraBeds = autoShortfall * input.rooms + manualMattressUsed;
       const plans = publishedPlans(room);
 
       const publishedRows: WallRoomRow[] = plans.map((plan): WallRoomRow => {
@@ -97,13 +102,13 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
 
         const blocked = closedReason
           ? closedReason
-          : extraPerRoom > MAX_EXTRA_BEDS_PER_ROOM
-            ? (autoShortfall === 0
-                ? `Too many extra mattresses requested (max ${MAX_EXTRA_BEDS_PER_ROOM} extra beds per room)`
-                : `Too small for ${paxPerRoom} pax`)
-            : extraPerRoom > 0 && !hasExtraRate
-              ? `No extra bed rate for ${paxPerRoom} pax`
-              : undefined;
+          : autoShortfall > MAX_EXTRA_BEDS_PER_ROOM
+            ? `Too small for ${paxPerRoom} pax`
+            : requestedMattress > mattressCapacity
+              ? `Too many extra mattresses requested (max ${MAX_EXTRA_BEDS_PER_ROOM} extra beds per room)`
+              : totalExtraBeds > 0 && !hasExtraRate
+                ? `No extra bed rate for ${paxPerRoom} pax`
+                : undefined;
 
         if (blocked) {
           return { key, roomName: room.name, planLabel: plan, quotable: false, blockedReason: blocked };
@@ -111,7 +116,7 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
 
         const q = quoteStay({
           hotel, room, plan, checkIn: input.checkIn, nights: input.nights,
-          rooms: input.rooms, extraPersons: extraPerRoom * input.rooms,
+          rooms: input.rooms, extraPersons: totalExtraBeds,
           markupMode: input.markupMode, markupValue: input.markupValue,
         });
 
@@ -159,7 +164,7 @@ export function buildRajarshiWall(input: RajarshiWallInput): WallEntry[] {
         } else {
           const q = quoteStay({
             hotel, room, plan: 'CPAI', checkIn: input.checkIn, nights: input.nights,
-            rooms: input.rooms, extraPersons: extraPerRoom * input.rooms,
+            rooms: input.rooms, extraPersons: totalExtraBeds,
             markupMode: input.markupMode, markupValue: input.markupValue,
           });
 
