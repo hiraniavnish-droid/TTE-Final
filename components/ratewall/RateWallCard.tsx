@@ -58,32 +58,35 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
     if (!isQuotable(row)) {
       return (
         <span key={row.key}
-          className={cn('px-2 py-0.5 rounded-lg border border-dashed opacity-60',
-            small ? 'text-[10px]' : 'text-[11px]', cellBorder, getSecondaryTextColor())}>
-          {row.planLabel ? `${row.planLabel} · ` : ''}{row.blockedReason}
+          className={cn('flex items-center gap-1.5 w-full px-2 py-0.5 rounded-lg border border-dashed opacity-60',
+            small ? 'text-[10px]' : 'text-[10.5px]', cellBorder, getSecondaryTextColor())}>
+          {row.planLabel && <span className="truncate">{row.planLabel}</span>}
+          <span className="ml-auto shrink-0 font-semibold">{row.blockedReason}</span>
         </span>
       );
     }
     const on = selectedKeys.has(row.key);
     return (
       <label key={row.key}
-        className={cn('flex flex-col rounded-lg border cursor-pointer select-none transition',
-          small ? 'px-1.5 py-0.5' : 'px-2 py-0.5',
+        className={cn('flex flex-col w-full rounded-lg border cursor-pointer select-none transition',
+          small ? 'px-1.5 py-0.5' : 'px-2 py-1',
           on ? cellSelected : variant === 'primary' ? cellPrimary : cellBorder)}>
-        <span className="flex items-center gap-1.5">
+        {/* Label left, price hard right. In a narrow grid card the two would
+            otherwise collide once a plan label runs long. */}
+        <span className="flex items-center gap-1.5 w-full">
           <input type="checkbox" checked={on} onChange={() => onToggle(row.key)}
             className="w-3 h-3 accent-slate-900 shrink-0" />
           {row.planLabel && (
-            <span className={cn('font-bold', small ? 'text-[10px]' : 'text-[11px]',
+            <span className={cn('font-bold truncate', small ? 'text-[10px]' : 'text-[11px]',
               small ? getSecondaryTextColor() : getTextColor())}>{row.planLabel}</span>
           )}
-          <span className={cn('font-mono font-bold', getTextColor(),
-            variant === 'primary' ? 'text-[14px]' : small ? 'text-[10.5px]' : 'text-[11px]')}>
+          <span className={cn('font-mono font-bold ml-auto shrink-0', getTextColor(),
+            variant === 'primary' ? 'text-[14px]' : small ? 'text-[10.5px]' : 'text-[12px]')}>
             {fmtINR(row.sellingTotal)}
           </span>
-          <span className={cn('font-mono', small ? 'text-[9px]' : 'text-[10px]', getSecondaryTextColor())}>
-            net {fmtINR(row.netTotal)} · +{fmtINR(row.markupAmount)}
-          </span>
+        </span>
+        <span className={cn('font-mono pl-[18px]', small ? 'text-[9px]' : 'text-[9.5px]', getSecondaryTextColor())}>
+          net {fmtINR(row.netTotal)} · +{fmtINR(row.markupAmount)}
         </span>
         {/* Agent-only provenance. formatClientExport never prints it. */}
         {row.derivedNote && (
@@ -110,22 +113,26 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
       theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10',
       bandTone)}>
 
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <span className={cn('text-[13px] font-bold leading-tight', getTextColor())}>{entry.hotelName}</span>
-        {entry.starLabel && <span className={cn('text-[10px] leading-tight', getSecondaryTextColor())}>{entry.starLabel}</span>}
-        <span className="ml-auto flex items-center gap-2 shrink-0">
-          {entry.inclusions && <span className={cn('text-[10px]', getSecondaryTextColor())}>{entry.inclusions}</span>}
-          {entry.festiveFlag ? (
-            <span className={cn('flex items-center gap-1 text-[10px] font-semibold',
-              theme === 'light' ? 'text-amber-700' : 'text-amber-300')}>
-              <AlertTriangle size={10} className="shrink-0" /> {entry.festiveFlag}
-            </span>
-          ) : (
-            <span className={cn('flex items-center gap-1 text-[10px]', entry.resolutionOk ? getSecondaryTextColor() : 'text-amber-500')}>
-              <Wand2 size={10} className="shrink-0" /> {entry.resolutionChip}
-            </span>
-          )}
-        </span>
+      {/* Name on its own line, provenance beneath. At grid width the old
+          right-pushed chip wrapped into the hotel name and read as one string. */}
+      <div className="flex items-baseline gap-1.5">
+        <span className={cn('text-[12.5px] font-bold leading-tight', getTextColor())}>{entry.hotelName}</span>
+        {entry.starLabel && (
+          <span className={cn('text-[9.5px] leading-tight ml-auto shrink-0', getSecondaryTextColor())}>{entry.starLabel}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+        {entry.inclusions && <span className={cn('text-[9.5px]', getSecondaryTextColor())}>{entry.inclusions}</span>}
+        {entry.festiveFlag ? (
+          <span className={cn('flex items-center gap-1 text-[9.5px] font-semibold',
+            theme === 'light' ? 'text-amber-700' : 'text-amber-300')}>
+            <AlertTriangle size={9} className="shrink-0" /> {entry.festiveFlag}
+          </span>
+        ) : (
+          <span className={cn('flex items-center gap-1 text-[9.5px]', entry.resolutionOk ? getSecondaryTextColor() : 'text-amber-500')}>
+            <Wand2 size={9} className="shrink-0" /> {entry.resolutionChip}
+          </span>
+        )}
       </div>
 
       {entry.closedReason && (
@@ -141,26 +148,27 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
         </div>
       ) : null}
 
-      <div className="mt-1.5 space-y-1">
+      {/* The card sits in a multi-column grid, so it is roughly 280-340px wide.
+          Room name and rates therefore STACK rather than sitting on one line
+          pushed to opposite edges — that older full-width layout left a large
+          empty gutter down the middle of every row. */}
+      <div className="mt-1.5 space-y-1.5">
         {groups.map(g => {
           // A 'Your dates' row is the answer; the printed columns beside it are
-          // the basis it was split from. Three equal cells on one line wraps
-          // badly at laptop width and, worse, invites the agent to quote a
-          // weekday rate for a stay that runs over a Saturday — so the basis
-          // moves to its own subordinate line beneath.
+          // the basis it was split from. Keeping the basis visually subordinate
+          // stops the agent quoting a weekday rate for a stay that runs over a
+          // Saturday.
           const primary = g.rows.filter(r => r.planLabel === PRIMARY_PLAN);
           const basis = primary.length ? g.rows.filter(r => r.planLabel !== PRIMARY_PLAN) : [];
           const main = primary.length ? primary : g.rows;
           return (
             <div key={g.roomName}>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={cn('text-[12px] leading-tight', getTextColor())} style={{ flex: '1 1 150px' }}>{g.roomName}</span>
-                <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                  {main.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
-                </div>
+              <div className={cn('text-[11.5px] leading-tight mb-0.5', getTextColor())}>{g.roomName}</div>
+              <div className="space-y-0.5">
+                {main.map(row => renderCell(row, primary.length ? 'primary' : 'normal'))}
               </div>
               {basis.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap justify-end mt-0.5">
+                <div className="mt-1 pl-2 space-y-0.5">
                   <span className={cn('text-[9px] font-bold uppercase tracking-wider', getSecondaryTextColor())}>Printed basis</span>
                   {basis.map(row => renderCell(row, 'basis'))}
                 </div>

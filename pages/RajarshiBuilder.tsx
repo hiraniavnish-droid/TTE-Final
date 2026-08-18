@@ -457,7 +457,7 @@ export const RajarshiBuilder: React.FC = () => {
                   <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
                 </div>
               )}
-              <div className="space-y-1.5">
+              <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(270px,1fr))]">
                 {band.entries.map(entry => (
                   <RateWallCard key={entry.hotelId} entry={entry}
                     bandTone={band.id === 'premium' ? 'border-l-violet-400' : band.id === 'mid' ? 'border-l-sky-400' : band.id === 'similar' ? 'border-l-slate-400' : 'border-l-emerald-400'}
@@ -473,10 +473,12 @@ export const RajarshiBuilder: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">On request</span>
                 <span className={cn('flex-1 h-px', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
               </div>
-              {banded.onRequestOnly.map(entry => (
-                <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400"
-                  selectedKeys={picked} onToggle={togglePick} />
-              ))}
+              <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(270px,1fr))]">
+                {banded.onRequestOnly.map(entry => (
+                  <RateWallCard key={entry.hotelId} entry={entry} bandTone="border-l-amber-400"
+                    selectedKeys={picked} onToggle={togglePick} />
+                ))}
+              </div>
             </div>
           )}
         </div>
