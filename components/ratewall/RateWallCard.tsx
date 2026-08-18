@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils/helpers';
 import { AlertTriangle, Wand2, ChevronDown, Rows3 } from 'lucide-react';
-import { fmtINR, isQuotable, type WallEntry, type WallRoomRow } from '../../services/rateWall';
+import { fmtINR, isQuotable, type WallEntry, type WallRoomRow, type BudgetStatus } from '../../services/rateWall';
 
 interface Props {
   entry: WallEntry;
@@ -21,6 +21,11 @@ interface Props {
   // badge is how the agent still sees which tier a card belongs to.
   bandBadgeLabel?: string;
   bandBadgeClass?: string;       // bg/text classes for the badge, chosen by the page
+  // Computed by the page from entry.cheapestSelling against the agent's
+  // stated per-person budget — never by the card itself, so this stays a
+  // single source of truth shared with the 'hide over budget' filter.
+  // Absent (or null) when no budget is set: the badge simply does not render.
+  budget?: BudgetStatus | null;
 }
 
 // One line per ROOM, with that room's meal plans priced side by side, so an
@@ -70,7 +75,7 @@ function pickDefaultRow(rows: WallRoomRow[], preferredPlan: string | undefined):
   return rows.find(isQuotable) || rows[0];
 }
 
-export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, onToggle, preferredPlan, bandBadgeLabel, bandBadgeClass }) => {
+export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, onToggle, preferredPlan, bandBadgeLabel, bandBadgeClass, budget }) => {
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
   const groups = useMemo(() => groupByRoom(entry.rows), [entry.rows]);
   const [roomIdx, setRoomIdx] = useState(0);
@@ -221,6 +226,21 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
           <span className={cn('text-[9.5px] leading-tight ml-auto shrink-0', getSecondaryTextColor())}>{entry.starLabel}</span>
         )}
       </div>
+
+      {/* Budget fit, computed by the page from the hotel's CHEAPEST quotable
+          option — not whichever room/plan the dropdown happens to show — so
+          this can never disagree with the 'hide over budget' filter. Absent
+          entirely when no budget is set; on-request-only hotels get no badge
+          at all rather than a guessed one, since there is nothing to compare. */}
+      {budget && (
+        <div className={cn('inline-flex items-center gap-1 text-[9.5px] font-bold mt-0.5 px-1.5 py-0.5 rounded-full w-fit',
+          budget.fits
+            ? (theme === 'light' ? 'bg-emerald-50 text-emerald-700' : 'bg-emerald-500/10 text-emerald-300')
+            : (theme === 'light' ? 'bg-rose-50 text-rose-700' : 'bg-rose-500/10 text-rose-300'))}>
+          {budget.delta === 0 ? 'Exactly on budget' : budget.fits ? `${fmtINR(budget.delta)} under budget` : `${fmtINR(budget.delta)} over budget`}
+        </div>
+      )}
+
       {/* GST-included and the per-hotel resolution basis ('standard dates',
           'both meal plans priced'...) are dropped from the collapsed header —
           GST applies to every hotel on both sheets, so repeating it on every

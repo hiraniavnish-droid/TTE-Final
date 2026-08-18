@@ -396,3 +396,25 @@ export function flattenBandedWall(banded: BandedWall): FlatWallEntry[] {
   for (const entry of banded.onRequestOnly) out.push({ entry, bandId: 'onrequest', bandLabel: 'On request' });
   return out;
 }
+
+export interface BudgetStatus {
+  fits: boolean;
+  delta: number;   // always positive — how far under (fits) or over (!fits)
+}
+
+// Total budget = per-person figure x guests, NOT x nights — confirmed with
+// the user rather than assumed: a stated "₹5,000 per person" is read as a
+// figure for the whole stay, not a nightly rate, even though every other
+// price on this wall IS quoted per night. Getting this basis wrong would
+// silently mislabel an affordable hotel as over budget or vice versa.
+//
+// Compared against cheapestSelling — the hotel's cheapest QUOTABLE option —
+// not whichever room/plan happens to be showing in a card's dropdown. "Does
+// this hotel fit the budget" is a property of the hotel, not of whatever the
+// collapsed view defaults to.
+export function budgetStatus(cheapestSelling: number | null, totalBudget: number | undefined): BudgetStatus | null {
+  if (totalBudget == null || !Number.isFinite(totalBudget) || totalBudget <= 0) return null;
+  if (cheapestSelling == null || !Number.isFinite(cheapestSelling)) return null;
+  const delta = cheapestSelling - totalBudget;
+  return { fits: delta <= 0, delta: Math.abs(delta) };
+}

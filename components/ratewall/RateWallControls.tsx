@@ -11,6 +11,11 @@ export interface RateWallControlValues {
   nights: number;
   rooms: number;
   pax: number;
+  // Per person, for the WHOLE stay — not per night, confirmed with the user
+  // rather than assumed. undefined/0 means the feature is off: no field
+  // filled in, no badges anywhere, wall behaves exactly as before.
+  budgetPerPerson?: number;
+  hideOverBudget?: boolean;
 }
 
 export interface JumpChip {
@@ -108,6 +113,25 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
           <label className={labelCls}>Guests</label>
           <Stepper value={values.pax} set={n => onChange({ pax: n })} min={1} max={40} />
         </div>
+        <div>
+          <label className={labelCls}>Budget / person</label>
+          <input type="number" inputMode="decimal" min={0} placeholder="e.g. 5000"
+            value={values.budgetPerPerson ?? ''}
+            onChange={e => onChange({ budgetPerPerson: e.target.value ? Math.max(0, Number(e.target.value)) : undefined })}
+            className={cn(fieldCls, 'font-mono w-[110px]')} />
+        </div>
+        {!!values.budgetPerPerson && (
+          <div>
+            <label className={labelCls}>&nbsp;</label>
+            <button type="button" onClick={() => onChange({ hideOverBudget: !values.hideOverBudget })}
+              className={cn(chipBase, 'py-1.5',
+                values.hideOverBudget
+                  ? 'bg-slate-900 text-white'
+                  : (theme === 'light' ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-white/10 text-white/70 hover:bg-white/20'))}>
+              Hide over budget
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 mt-2">

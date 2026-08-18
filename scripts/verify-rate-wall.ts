@@ -1,7 +1,7 @@
 // Verification for the Rate Wall. Run: npx tsx scripts/verify-rate-wall.ts
 // Covers price banding: strict partition, tie handling, spread collapse, and
 // exclusion of anything that cannot be priced. Later tasks extend this file.
-import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, isQuotable, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
+import { bandHotels, cheapestQuotable, formatClientExport, isBlocked, isQuotable, budgetStatus, type WallEntry, type WallRoomRow, type QuotableRow } from '../services/rateWall';
 import { buildRajarshiWall, RAJARSHI_PLANS } from '../services/rajarshiWall';
 import { RAJARSHI_HOTELS, type RajPlan, type RajRoom } from '../services/rajarshiData';
 import { quoteStay } from '../services/rajarshiRates';
@@ -1544,6 +1544,32 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
   ok(!code.includes('getUTC'), 'services/inlandWall.ts must not read UTC date parts either');
 }
 
+
+// ── budgetStatus() — pure comparison, tested independently of any wall ────
+{
+  ok(budgetStatus(30000, 35000)?.fits === true, 'cheaper than budget must fit');
+  ok(budgetStatus(30000, 35000)?.delta === 5000, 'delta must be the exact rupee gap when under budget');
+  ok(budgetStatus(35000, 35000)?.fits === true, 'exactly on budget must fit — delta 0 is not "over"');
+  ok(budgetStatus(35000, 35000)?.delta === 0, 'on-budget delta must be exactly 0');
+  ok(budgetStatus(40000, 35000)?.fits === false, 'dearer than budget must not fit');
+  ok(budgetStatus(40000, 35000)?.delta === 5000, 'over-budget delta must be the exact rupee gap');
+  ok(budgetStatus(30000, undefined) === null, 'no budget set must return null, not a false "fits"');
+  ok(budgetStatus(30000, 0) === null, 'a zero budget must return null — zero is "unset", not "free"');
+  ok(budgetStatus(30000, -100) === null, 'a negative budget must return null');
+  ok(budgetStatus(null, 35000) === null, 'a hotel with nothing quotable must return null, never a false "fits"');
+  ok(budgetStatus(NaN, 35000) === null, 'a non-finite cheapestSelling must return null');
+  ok(budgetStatus(30000, NaN) === null, 'a non-finite budget must return null');
+}
+
+// ── the budget comparison never reaches the client export ─────────────────
+{
+  const rows: QuotableRow[] = [{ key: 'k', roomName: 'Deluxe', quotable: true, netTotal: 900, markupAmount: 100, sellingTotal: 1000, sellingPerNight: 1000 }];
+  const text = formatClientExport(
+    [{ entry: { hotelId: 'h', hotelName: 'Test Hotel', resolutionChip: '', resolutionOk: true, inclusions: '', rows, cheapestSelling: 1000 }, row: rows[0] }],
+    { supplierName: 'X', cityLabel: 'Bhuj', clientName: '', checkIn: '2026-11-05', checkOut: '2026-11-06', nights: 1, rooms: 1, pax: 2, mealLabel: 'CPAI', inclusions: 'CPAI' }
+  );
+  ok(!/budget/i.test(text), 'export must never mention budget — internal decision support, same class as net cost and margin');
+}
 
 console.log(`\nChecks: ${checks}`);
 if (fail.length) { console.error(`FAILURES: ${fail.length}\n` + fail.map(f => '  - ' + f).join('\n')); process.exit(1); }
