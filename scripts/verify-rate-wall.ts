@@ -866,9 +866,20 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
           let expectedExtra = 0;
           if (extraHeads > 0) {
             const sup = expectedSupplement(room, baseRate, exColRate);
-            ok(sup != null, `${row.key}: priced ${paxPerRoom} pax with no usable extra-person rate`);
-            if (sup == null) continue;
-            expectedExtra = sup * extraHeads * ROOMS * NIGHTS;
+            if (sup == null) {
+              // No usable supplement: the room is quoted at its base occupancy
+              // and MUST say so in the line the customer receives.
+              expectedExtra = 0;
+              ok(row.clientNote === `Rate covers ${baseOcc} guests — extra bed to be confirmed`,
+                `${row.key} pax${pax}: an under-covering rate must carry the coverage caveat, got '${row.clientNote}'`);
+              ok(!!row.derivedNote && row.derivedNote.includes(`${extraHeads} guest`),
+                `${row.key} pax${pax}: the shortfall must be recorded for the agent, got '${row.derivedNote}'`);
+            } else {
+              expectedExtra = sup * extraHeads * ROOMS * NIGHTS;
+              ok(!row.clientNote, `${row.key} pax${pax}: a fully covered party must carry no caveat, got '${row.clientNote}'`);
+            }
+          } else {
+            ok(!row.clientNote, `${row.key} pax${pax}: a party within base occupancy must carry no caveat`);
           }
           ok(paxPerRoom - BASE_OCC <= MAX_EXTRA,
             `${row.key}: priced ${paxPerRoom} pax in one room, over the 2 extra-bed ceiling`);
@@ -885,6 +896,16 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
     }
   }
   ok(quotableSeen > 10000, `expected a large quotable population across the sweep, got ${quotableSeen}`);
+  // and the entry flag can never disagree with the rows it contains
+  for (const checkIn of ['2026-11-16', '2026-06-15']) {
+    for (const pax of [2, 3]) {
+      for (const e of buildInlandWall({ city: 'ALL', checkIn, nights: 2, rooms: 1, pax, markupMode: 'percent', markupValue: 15 })) {
+        if (e.rows.some(r => !!r.clientNote)) {
+          ok(e.resolutionOk === false, `${e.hotelId} pax${pax}: a caveated row must force the entry amber`);
+        }
+      }
+    }
+  }
   ok(blockedSeen > 0, `expected blocked rows across the sweep, got ${blockedSeen}`);
   console.log(`  Inland sweep: ${ALL_DATES.length} dates x 4 pax — ${quotableSeen} quotable / ${blockedSeen} blocked rows reconciled`);
 }
@@ -1081,9 +1102,91 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
     ok(room.rate1 === 2900 && room.childAdult === 4700, `fixture drifted: ${room.rate1}/${room.childAdult}`);
     const e = buildInlandWall({ city: hotel.city, checkIn: '2026-11-16', nights: 1, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 0 })
       .find(x => x.hotelId === hotel.id)!;
-    for (const r of e.rows.filter(r => r.key.startsWith(`${hotel.id}::0::`))) {
-      ok(isBlocked(r), `an implausible extra-person figure must block, not price (got ${isQuotable(r) ? r.netTotal : ''})`);
-      if (isBlocked(r)) ok(/extra person rate/i.test(r.blockedReason), `reason should name the missing extra-person rate, got '${r.blockedReason}'`);
+    const cpai = e.rows.find(r => r.key === `${hotel.id}::0::C1`)!;
+    ok(isQuotable(cpai), 'the CPAI row should still be quotable at 3 pax');
+    if (isQuotable(cpai)) {
+      // The room rate, and ONLY the room rate. 4700 must not appear.
+      ok(cpai.netTotal === 2900, `an implausible extra-person figure must not be charged: net ${cpai.netTotal} != 2900`);
+      ok(cpai.netTotal !== 2900 + 4700, 'the APAI column was charged as an extra bed');
+      ok(cpai.clientNote === 'Rate covers 2 guests — extra bed to be confirmed',
+        `expected the coverage caveat, got '${cpai.clientNote}'`);
+    }
+    ok(e.resolutionOk === false, 'a hotel quoting under-covering rates must render amber');
+  }
+}
+
+// ── a room WITH a usable extra-person rate carries no caveat at 3 pax ──
+{
+  // THE FERN SATTVA RESORT prints childAdult 1500 against a 5800 weekday rate
+  // — a plausible extra bed, so the third guest is priced and nothing is
+  // qualified to the customer.
+  const hotel = INLAND_HOTELS.find(h => h.id === 'ahmedabad-the-fern-sattva-resort')!;
+  ok(!!hotel, 'fixture drifted: THE FERN SATTVA RESORT not found');
+  if (hotel) {
+    const room = hotel.rooms[0];
+    ok(room.rate1 === 5800 && room.childAdult === 1500, `fixture drifted: ${room.rate1}/${room.childAdult}`);
+    const e = buildInlandWall({ city: hotel.city, checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 0 })
+      .find(x => x.hotelId === hotel.id)!;
+    const wd = e.rows.find(r => r.key === `${hotel.id}::0::C1`)!;
+    ok(isQuotable(wd), 'the weekday row must be quotable at 3 pax');
+    if (isQuotable(wd)) {
+      ok(wd.netTotal === 5800 * 2 + 1500 * 1 * 2, `3-pax net ${wd.netTotal} != 5800x2 + 1500x1x2 = ${5800 * 2 + 1500 * 2}`);
+      ok(!wd.clientNote, `a fully covered party must carry no caveat, got '${wd.clientNote}'`);
+    }
+  }
+}
+
+// ── the caveat reaches the customer; the provenance never does ──
+{
+  const hotel = INLAND_HOTELS.find(h => h.name === 'Kings Kraft Tremezzo Somnath')!;
+  const e = buildInlandWall({ city: hotel.city, checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 15 })
+    .find(x => x.hotelId === hotel.id)!;
+  const row = e.rows.find((r): r is QuotableRow => r.quotable && r.key === `${hotel.id}::0::C1`)!;
+  ok(!!row?.clientNote && !!row?.derivedNote, 'sanity: the row under test must carry both notes');
+  const text = formatClientExport([{ entry: e, row }], {
+    supplierName: 'Inland Tourways', cityLabel: 'Somnath', clientName: 'Mr Test',
+    checkIn: '2026-11-16', checkOut: '2026-11-18', nights: 2, rooms: 1, pax: 3,
+    inclusions: 'GST included',
+  });
+  ok(text.includes('Rate covers 2 guests'), 'the export MUST carry the coverage caveat — the header claims 3 guests');
+  ok(text.includes(row.clientNote as string), 'the clientNote must appear verbatim');
+  // It has to sit under the price it qualifies, not adrift at the end.
+  const priceAt = text.indexOf('total');
+  const noteAt = text.indexOf('Rate covers 2 guests');
+  ok(noteAt > priceAt, 'the caveat must follow the figure it qualifies');
+  ok(!text.includes('no extra-person rate printed'), 'the export leaked the internal provenance note');
+  ok(!text.includes(row.derivedNote as string), 'the export leaked derivedNote verbatim');
+}
+
+// ── needsReview reaches the agent and never the customer ──
+{
+  const e = buildInlandWall({ city: 'ALL', checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  const withNotes = e.filter(x => x.reviewNotes && x.reviewNotes.length > 0);
+  const inData = INLAND_HOTELS.filter(h => h.needsReview && h.needsReview.length > 0);
+  ok(withNotes.length === inData.length, `expected ${inData.length} hotels carrying review notes, got ${withNotes.length}`);
+  ok(withNotes.length > 0, 'expected at least one hotel with a parser caveat');
+  for (const x of withNotes) {
+    const hotel = INLAND_HOTELS.find(h => h.id === x.hotelId)!;
+    ok(JSON.stringify(x.reviewNotes) === JSON.stringify(hotel.needsReview), `${x.hotelId}: reviewNotes must be the sheet's own text`);
+  }
+
+  // The two hotels the source printed twice with conflicting rates.
+  const conflicted = withNotes.filter(x => x.reviewNotes!.some(n => /verify with supplier which is current/i.test(n)));
+  ok(conflicted.length === 2, `expected 2 double-printed hotels, got ${conflicted.length}`);
+
+  for (const x of conflicted) {
+    const row = x.rows.find(isQuotable);
+    if (!row) continue;
+    const text = formatClientExport([{ entry: x, row }], {
+      supplierName: 'Inland Tourways', cityLabel: 'Sasangir', clientName: 'Mr Test',
+      checkIn: '2026-11-16', checkOut: '2026-11-18', nights: 2, rooms: 1, pax: 2,
+      inclusions: 'GST included',
+    });
+    for (const note of x.reviewNotes!) {
+      ok(!text.includes(note), `${x.hotelId}: the export leaked a reviewNote verbatim`);
+      for (const frag of ['verify with supplier', 'Block A', 'stray non-room row', 'No room rates were found']) {
+        ok(!text.includes(frag), `${x.hotelId}: the export leaked internal review wording ('${frag}')`);
+      }
     }
   }
 }
@@ -1285,6 +1388,35 @@ function expectedSupplement(room: InlandRoom, baseRate: number, exColRate: numbe
   ok(!text.includes('weekday'), 'export leaked the weekday/weekend derivation');
   ok(!containsAmount(text, row.netTotal), 'export leaked the net cost');
   ok(containsAmount(text, row.sellingTotal), 'export must print the selling total');
+}
+
+// ── the parser's '[Block A]' marker never reaches a room name on screen or in an export ──
+{
+  // The transcription appended [Block A]/[Block B] to tell two conflicting
+  // printed rate sets apart. It is an internal marker, and formatClientExport
+  // prints room names, so it must not survive into a row.
+  const marked = INLAND_HOTELS.filter(h => h.rooms.some(r => /\[Block /i.test(r.name)));
+  ok(marked.length === 2, `expected 2 hotels carrying block markers in the data, got ${marked.length}`);
+
+  const entries = buildInlandWall({ city: 'ALL', checkIn: '2026-11-16', nights: 2, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 15 });
+  for (const e of entries) for (const row of e.rows) {
+    ok(!/\[Block /i.test(row.roomName), `${row.key}: the block marker leaked into the room name`);
+  }
+  for (const h of marked) {
+    const e = entries.find(x => x.hotelId === h.id)!;
+    // The agent still gets to tell them apart — just not through the name.
+    ok(e.rows.every(r => !!r.derivedNote && /Block [AB]/.test(r.derivedNote as string)),
+      `${h.id}: the block identity must survive in derivedNote for the agent`);
+    const row = e.rows.find(isQuotable);
+    if (row) {
+      const text = formatClientExport([{ entry: e, row }], {
+        supplierName: 'Inland Tourways', cityLabel: 'Sasangir', clientName: 'Mr Test',
+        checkIn: '2026-11-16', checkOut: '2026-11-18', nights: 2, rooms: 1, pax: 2,
+        inclusions: 'GST included',
+      });
+      ok(!text.includes('Block'), `${h.id}: the export leaked the block marker`);
+    }
+  }
 }
 
 // ── the banned UTC path is absent from the adapter source ──

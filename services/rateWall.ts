@@ -15,6 +15,19 @@ interface WallRoomBase {
   // supplement) rather than printed by the supplier as its own rate. Internal
   // provenance for the agent only — formatClientExport must never print it.
   derivedNote?: string;
+  // A caveat about what the price does NOT cover, which must travel with the
+  // figure all the way to the customer. The deliberate opposite of
+  // derivedNote: that one is internal and never exported, this one is
+  // exported and would be a mis-sale if dropped.
+  //
+  // The case it exists for: a party of three quoted against a room rate that
+  // covers two, because the supplier printed no extra-person charge. The
+  // export header still reads '3 guest(s) · 1 room(s)', so without this line
+  // the message states a party size the price does not cover.
+  //
+  // Must be caller-constructed text, never raw supplier prose — same contract
+  // as ExportContext.mealLabel and for the same reason.
+  clientNote?: string;
 }
 
 // A room we can actually price. Carries money; carries no reason.
@@ -54,6 +67,11 @@ export interface WallEntry {
   inclusions: string;          // e.g. 'CPAI · GST included'
   festiveFlag?: string;        // supplier's own printed wording
   closedReason?: string;       // outside printed validity
+  // Supplier-data caveats for the AGENT — parser ambiguities, hotels the
+  // source sheet printed twice with conflicting rates. Never exported:
+  // 'verify with supplier which is current' is an internal instruction, and
+  // reading it to a customer says we do not know what we are selling.
+  reviewNotes?: string[];
   rows: WallRoomRow[];
   cheapestSelling: number | null;  // null when nothing on this hotel is quotable
 }
@@ -282,6 +300,15 @@ export function formatClientExport(selections: ExportSelection[], ctx: ExportCon
     L.push(ctx.nights > 1
       ? `${fmtINR(s.row.sellingTotal)} total · ${fmtINR(s.row.sellingPerNight)} avg/night`
       : `${fmtINR(s.row.sellingTotal)} total`);
+    // Directly under the figure it qualifies, because that is the only place
+    // it cannot be read as applying to a different hotel in the list.
+    //
+    // The fallback is deliberately vague rather than a restatement of the
+    // caveat: if a rupee figure ever reaches this field the specific wording
+    // around it can no longer be trusted either, but dropping the line
+    // entirely would leave the price looking unconditional. Saying less is
+    // safe here; saying nothing is not.
+    if (s.row.clientNote) L.push(`_${safeText(s.row.clientNote, 'Please confirm this rate with us')}_`);
     if (s.entry.festiveFlag) L.push(`_${safeText(s.entry.festiveFlag, 'Peak / festive dates')}_`);
     L.push('');
   });

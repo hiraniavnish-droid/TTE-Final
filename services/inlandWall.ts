@@ -130,7 +130,13 @@ function occRole(label: string | undefined): OccRole {
 
 // ── extra-person supplement ──────────────────────────────────────────────
 
-interface ExtraPlan { total: number }
+// Three outcomes, not two:
+//   total    — the party is covered, either because it fits the base occupancy
+//              or because the sheet prints a usable supplement
+//   uncovered— the sheet prints NO usable supplement, so the room is priced at
+//              its base occupancy and the shortfall is declared to the customer
+//   reason   — the party cannot be housed in one room at all
+interface ExtraPlan { total: number; uncovered: number }
 interface ExtraBlocked { reason: string }
 const isExtraBlocked = (e: ExtraPlan | ExtraBlocked): e is ExtraBlocked =>
   (e as ExtraBlocked).reason !== undefined;
@@ -151,7 +157,10 @@ function extraPersonTotal(
   i: InlandWallInput,
 ): ExtraPlan | ExtraBlocked {
   const perRoom = Math.max(0, paxPerRoom - baseOccupancy);
-  if (perRoom === 0) return { total: 0 };
+  if (perRoom === 0) return { total: 0, uncovered: 0 };
+  // Beyond two extra beds the party needs another room whatever the sheet
+  // says. Pricing a double rate for six guests is not a caveat, it is a
+  // number no hotel would honour, so this stays a hard block.
   if (paxPerRoom - BASE_OCCUPANCY > MAX_EXTRA_PER_ROOM) {
     return { reason: `Too small for ${paxPerRoom} pax` };
   }
@@ -160,11 +169,45 @@ function extraPersonTotal(
     ? explicitSupplement
     : (typeof room.childAdult === 'number' ? room.childAdult : null);
 
+  // No usable supplement: quote the base-occupancy rate and declare what it
+  // does not cover, rather than showing the agent an empty wall. The
+  // declaration is not optional — see clientNote in rateWall.ts.
   if (raw == null || !Number.isFinite(raw) || raw <= 0 || raw >= baseRate) {
-    return { reason: `No extra person rate for ${paxPerRoom} pax` };
+    return { total: 0, uncovered: perRoom };
   }
-  return { total: raw * perRoom * i.rooms * i.nights };
+  return { total: raw * perRoom * i.rooms * i.nights, uncovered: 0 };
 }
+
+// ── room naming ──────────────────────────────────────────────────────────
+//
+// Two hotels (Anantam Resort Sasangir, Ambar Sarovar Portico) were printed
+// TWICE in the source sheet with conflicting rates, and the transcription kept
+// both sets apart by appending '[Block A]' / '[Block B]' to the room name.
+// That marker is a parser artefact, not part of any room's name, and
+// formatClientExport prints room names — so left alone it reaches customers as
+// 'Superior Room [Block B]'. Strip it from the name and keep the identity in
+// derivedNote, which is agent-only by contract. The hotel's reviewNotes
+// explain the conflict on the card.
+const BLOCK_MARKER = /\s*\[(Block\s+[A-Z])\]\s*/i;
+
+const displayRoomName = (room: InlandRoom) => room.name.replace(BLOCK_MARKER, ' ').trim();
+const blockOf = (room: InlandRoom): string | undefined => {
+  const m = BLOCK_MARKER.exec(room.name);
+  return m ? `${m[1]} of 2 conflicting printed rate sets` : undefined;
+};
+
+// The caveat wording. Built from the room's own base occupancy, not a
+// hard-coded 2 — a printed triple column covers three.
+const coverageNote = (baseOccupancy: number) =>
+  `Rate covers ${baseOccupancy} guests — extra bed to be confirmed`;
+
+const coverageProvenance = (uncovered: number) =>
+  `no extra-person rate printed; ${uncovered} guest${uncovered === 1 ? '' : 's'} not covered`;
+
+const joinNotes = (...parts: (string | undefined)[]) => {
+  const kept = parts.filter((p): p is string => !!p);
+  return kept.length ? kept.join(' · ') : undefined;
+};
 
 // ── one priced row off a single printed column ───────────────────────────
 
@@ -180,7 +223,10 @@ interface ColumnRowSpec {
 }
 
 function columnRow(s: ColumnRowSpec, i: InlandWallInput, paxPerRoom: number): WallRoomRow {
-  const base = { key: s.key, roomName: s.room.name, planLabel: s.planLabel, derivedNote: s.derivedNote };
+  const base = {
+    key: s.key, roomName: displayRoomName(s.room), planLabel: s.planLabel,
+    derivedNote: joinNotes(s.derivedNote, blockOf(s.room)),
+  };
 
   // extraPersons: 0 — the supplement is added below, because it may come from
   // an 'Ex Person' rate column that quoteInlandStay cannot see. Its markup is
@@ -200,6 +246,13 @@ function columnRow(s: ColumnRowSpec, i: InlandWallInput, paxPerRoom: number): Wa
 
   const m = money(q.netRoomTotal, extra.total, q.markupAmount, i);
   if (!m) return { ...base, quotable: false, blockedReason: ON_REQUEST };
+  if (extra.uncovered > 0) {
+    return {
+      ...base, quotable: true, ...m,
+      clientNote: coverageNote(s.baseOccupancy),
+      derivedNote: joinNotes(s.derivedNote, coverageProvenance(extra.uncovered)),
+    };
+  }
   return { ...base, quotable: true, ...m };
 }
 
@@ -343,7 +396,7 @@ function weekdayWeekendRows(hotel: InlandHotel, room: InlandRoom, ri: number, i:
   for (let n = 0; n < i.nights; n++) if (weekend.has(weekdayOfNight(i.checkIn, n))) weekendNights++;
   const weekdayNights = i.nights - weekendNights;
 
-  const base = { key: k('DATES'), roomName: room.name, planLabel: 'Your dates' };
+  const base = { key: k('DATES'), roomName: displayRoomName(room), planLabel: 'Your dates' };
   if (room.onRequest1 || room.rate1 == null || room.onRequest2 || room.rate2 == null) {
     // Half a split is not a price. If either bucket is on request the stay
     // cannot be totalled, even when the nights happen to fall entirely in the
@@ -364,6 +417,13 @@ function weekdayWeekendRows(hotel: InlandHotel, room: InlandRoom, ri: number, i:
 
   const m = money(netRoomTotal, extra.total, markupFor(netRoomTotal, i), i);
   if (!m) return [...rows, { ...base, derivedNote, quotable: false, blockedReason: ON_REQUEST }];
+  if (extra.uncovered > 0) {
+    return [...rows, {
+      ...base, quotable: true, ...m,
+      clientNote: coverageNote(BASE_OCCUPANCY),
+      derivedNote: joinNotes(derivedNote, coverageProvenance(extra.uncovered)),
+    }];
+  }
   return [...rows, { ...base, derivedNote, quotable: true, ...m }];
 }
 
@@ -536,6 +596,7 @@ export function buildInlandWall(input: InlandWallInput): WallEntry[] {
         resolutionOk: false,
         inclusions: 'GST included',
         festiveFlag,
+        reviewNotes: hotel.needsReview,
         rows: [{ key: `${hotel.id}::oncall`, roomName: 'All rooms', quotable: false, blockedReason: ON_REQUEST }],
         cheapestSelling: null,
       } as WallEntry;
@@ -578,7 +639,7 @@ export function buildInlandWall(input: InlandWallInput): WallEntry[] {
           // Three of these rooms DO carry a printed figure — we still refuse
           // it, because we cannot say what it is the rate for.
           rows.push({
-            key: `${hotel.id}::${ri}::C1`, roomName: room.name,
+            key: `${hotel.id}::${ri}::C1`, roomName: displayRoomName(room),
             quotable: false, blockedReason: ON_REQUEST,
           });
           anyUnresolved = true;
@@ -597,14 +658,22 @@ export function buildInlandWall(input: InlandWallInput): WallEntry[] {
     if (axes.has('season')) chips.push(anyUnresolved ? 'season period unclear — pick a rate' : 'season from check-in month');
     if (axes.has('unknown')) chips.push('no rate basis printed');
 
+    // A price that does not cover the whole party is a resolution failure of
+    // its own kind: the figure is right, the party it is quoted for is not.
+    // Read off the rows rather than tracked separately, so the flag and the
+    // caveat can never disagree.
+    const uncovered = rows.some(r => !!r.clientNote);
+    if (uncovered) chips.push(`extra bed not printed for ${paxPerRoom} pax`);
+
     return {
       hotelId: hotel.id,
       hotelName: hotel.name,
       starLabel: hotel.starRating,
       resolutionChip: chips.length ? chips.join(' · ') : 'no rates printed',
-      resolutionOk: !anyUnresolved && rows.length > 0,
+      resolutionOk: !anyUnresolved && !uncovered && rows.length > 0,
       inclusions: 'GST included',
       festiveFlag,
+      reviewNotes: hotel.needsReview,
       rows,
       // Derived by the shared layer, never re-implemented here, so banding
       // cannot drift from the cheapest figure the card renders.
