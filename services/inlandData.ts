@@ -1097,7 +1097,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-the-postcard-wild-life-santuary",
     name: "The Postcard Wild life Santuary",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "5 Star",
     isOnCallOnly: false,
     rooms: [
@@ -1108,7 +1108,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-gir-serai-sasangir",
     name: "Gir Serai Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "5 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges - \n(Janmashtami) -  \n(Diwali Festival) -",
@@ -1120,7 +1120,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-fern-gir-forest-resort-sasangir",
     name: "Fern Gir Forest Resort Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     headerNote: "03rd September 2026 till 07th September 2026\nDiwali: 05th Nov 2026 to 14th Nov 2026 \nChristmas & New Year: \n23rd December 2026 to 04th January 2027",
@@ -1139,7 +1139,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-the-forest-chapter-by-sayaji-sasangir",
     name: "The Forest Chapter by Sayaji Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     nameNotes: ["Update Till 15 Jun 2026"],
@@ -1152,7 +1152,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-radisson-resorts-spa-gir",
     name: "RADISSON RESORTS & SPA, GIR",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "5 Star",
     isOnCallOnly: false,
     nameNotes: ["Update Till Mar 2027"],
@@ -1165,7 +1165,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-sarovar-portico-sasangir",
     name: "Sarovar Portico Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     remark: "Festival(Diwali,New Year,Christmas) Dates,Season\nDates, Sold Out Dates, Long weekend - these rates will\n\nnot be Applicable",
@@ -1180,7 +1180,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-ananta-jagira-sasangir",
     name: "Ananta Jagira Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:- 3500\n\nIndependenceday - 15 Aug \nJanmashtami - 4 Sep to 12 Sep \n Diwali - 6 Nov to 15 Nov",
@@ -1195,7 +1195,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-kavish-gir-lion-resort-sasan-gir",
     name: "KAVISH GIR LION RESORT - SASAN GIR",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     remark: "Janmashtami - Awaiting \nIndependenceday - 14 Aug to 16 Aug | Diwali Festival Date 6 Nov -15 Nov\nChristmas & New Year Date 23rd dec To 3rd Jan",
@@ -1211,7 +1211,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-asiatic-lion-lodge-gir",
     name: "Asiatic Lion Lodge Gir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     nameNotes: ["Soil to Soul Team"],
@@ -1222,7 +1222,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-kings-kraft-river-side-resort",
     name: "King’s Kraft River Side Resort",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     headerNote: "Independenceday - 14 Aug to 16 Aug 2026 - Janmastami - 2 Sep to 7 Sep 2026 👉\nHoli 19 March 2027 to 23 March 2027 👉",
@@ -1236,7 +1236,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-aranya-villa-resort",
     name: "Aranya Villa Resort",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "3 Star",
     isOnCallOnly: false,
     remark: "Blackout Dates:\n- Janmashtami – 24th Aug to 28th Aug 2024.\n- Diwali – 29th Oct to 09th Nov 2024.\n- Christmas – 23rd Dec to 04th Jan 2025.\n- Holi & Dhuleti – 14th March To 16th March 2025.",
@@ -1251,7 +1251,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-gir-vanvaso-sasangir",
     name: "Gir Vanvaso Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "3 Star Deluxe",
     isOnCallOnly: false,
     remark: "Supplement Charges:- 8000 DBL APAI PRPN \nJanmashtami – 15 Aug  To 18 Aug 2025 \n Diwali – 20 Oct To 27 Oct 2025.\nChristmas – 24  Dec To 01 Jan 2026,\nHoli & Dhuleti – 03 March To 06 March 2026",
@@ -1265,7 +1265,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-vanam-resort-at-sasangir",
     name: "Vanam Resort at Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "3 Star Deluxe",
     isOnCallOnly: false,
     headerNote: "Blackout Dates:",
@@ -1281,7 +1281,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-anantam-resort-sasangir",
     name: "Anantam Resort Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "3 Star Deluxe",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:- 2300 PRPN \nFestivals / Season Rates \nJanmashtami – 02 Sep to 5 Sep 2026\nDiwali – 07 Nov to 14 Nov 2026\nChristmas – 23rd DEC To 03th JAN 2026.\nHoli & Dhuleti – .............",
@@ -1301,7 +1301,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-daksh-resort-sasangir",
     name: "Daksh Resort Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "3 Star Deluxe",
     isOnCallOnly: false,
     remark: "Supplement Charges:-  2200\n\"JANAMASHTAMI - 2 Sep to 6 Sep 2026\n# Diwali - 06 Nov to 14 Nov 2026\n# Christmas and New Year - 23 Dec to 2 Jan 2027\n# Holi -",
@@ -1316,7 +1316,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-daksh-eden-greenz-resort",
     name: "Daksh Eden Greenz Resort",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "4 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:-  2200\n\"JANAMASHTAMI - 2 Sep to 6 Sep 2026\n# Diwali - 06 Nov to 14 Nov 2026\n# Christmas and New Year - 23 Dec to 2 Jan 2027\n# Holi -",
@@ -1330,7 +1330,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-anil-farm-house-sasangir",
     name: "Anil Farm House Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "3 Star Deluxe",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:-  2200\n\"JANAMASHTAMI - 2 Sep to 6 Sep 2026\n# Diwali - 06 Nov to 14 Nov 2026\n# Christmas and New Year - 23 Dec to 2 Jan 2027\n# Holi -",
@@ -1346,7 +1346,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "diu-gir-jungle-lodge-sasangir",
     name: "Gir Jungle Lodge , Sasangir",
-    city: "DIU",
+    city: "SASANGIR",
     starRating: "3 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:-  2200\n\"JANAMASHTAMI - 2 Sep to 6 Sep 2026\n# Diwali - 06 Nov to 14 Nov 2026\n# Christmas and New Year - 23 Dec to 2 Jan 2027\n# Holi -",
@@ -1830,7 +1830,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-statue-of-unity-tent-city-01",
     name: "Statue of Unity Tent City 01",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "5 Star",
     isOnCallOnly: true,
     needsReview: ["Skipped a stray non-room row in source: \"Email us for full B2B package: info@inlandtourways.com (+91 9726467345)\"", "No room rates were found for this hotel in the source sheet — verify with the supplier."],
@@ -1839,7 +1839,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-tent-city-narmada-2",
     name: "Tent City Narmada 2",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "4 Star",
     isOnCallOnly: false,
     rooms: [
@@ -1850,7 +1850,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-the-fern-sardar-sarovar-resort",
     name: "The Fern Sardar Sarovar resort",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "4 Star",
     isOnCallOnly: false,
     remark: "# Diwali  period - 18 Oct to 25 October 2025 \n# Christmas period - 21 Dec to 31 Dec \n23rd Jan till 26th Jan-2026 - Republic Day Weekend. \n# New year period - 21 December to 05 January 26 \n# Holi period - 01 March to 04 March 26",
@@ -1863,7 +1863,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-soil-to-soul-resort-ekta-nagar",
     name: "Soil to Soul Resort Ekta Nagar",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "4 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:- 2000  DBL CPAI\n\"Janmastami - 4 Sep to 7 Sep 2026\nDiwali - 08 Nov to 15 Nov 2026\nChristmas & New year period - 24 Dec to 03 Jan 2027",
@@ -1877,7 +1877,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-enrise-by-sayaji-kevadia",
     name: "Enrise by Sayaji Kevadia",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "4 Star",
     isOnCallOnly: false,
     remark: "\"Back Out Dates - Supplement Charges 1200/-\nJanmasthmi - 4 Sep 2026\nIndependence Day - 15 August 2026",
@@ -1893,7 +1893,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-fortune-statue-of-unity-kevadia",
     name: "Fortune Statue Of Unity Kevadia",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "4 Star",
     isOnCallOnly: false,
     remark: "Supplement Charges (Festive Periods)\n14 Aug to 16 Aug Independenceday & 28 Aug to 30 Aug Raksha Bandhan \n4 Sep to 6 Sep Janmastami\n4 Nov to 15 Nov Diwali\nChristmas 24 Dec to 31 Dec \n1 Jan to 5 Jan New year \n19 Mar - 24 March Holi | Supplement Charges (Festive Periods)\n14 Aug to 16 Aug Independenceday & 28 Aug to 30 Aug Raksha Bandhan \n4 Sep to 6 Sep Janmastami\n4 Nov to 15 Nov Diwali\nChristmas 24 Dec to 31 Dec \n1 Jan to 5 Jan New year \n19 Mar - 24 March Holi",
@@ -1913,7 +1913,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-regenta-resort-vindhyachal",
     name: "Regenta Resort Vindhyachal",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "4 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:-@ 2000 DBL CPAI",
@@ -1929,7 +1929,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-lavender-hotels-with-swimming",
     name: "Lavender Hotels with Swimming",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "3 Star",
     isOnCallOnly: false,
     nameNotes: ["Pool Update Till Mar 2027"],
@@ -1941,7 +1941,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-hotel-sai-inn-statue-of-unity",
     name: "Hotel Sai Inn , Statue Of Unity",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "3 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:-@ 1300 DBL CPAI",
@@ -1956,7 +1956,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "vadodara-villa-euphoria-resort",
     name: "Villa Euphoria Resort",
-    city: "Vadodara",
+    city: "KEVADIYA (Ekta Nagar)",
     starRating: "3 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:-@ 1500 DBL CPAI",
@@ -2285,7 +2285,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-gateway-to-rann-resort-dhordo",
     name: "GATEWAY To Rann Resort, Dhordo",
-    city: "BHUJ",
+    city: "DHORDO",
     starRating: "3 Star",
     isOnCallOnly: false,
     rooms: [
@@ -2296,7 +2296,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-desert-castle-resort-spa-dholavira",
     name: "Desert Castle Resort & Spa Dholavira",
-    city: "BHUJ",
+    city: "DHORDO",
     starRating: "3 Star",
     isOnCallOnly: false,
     headerNote: "Special dates \nDiwali  5th nov to 11th nov \nChristmas Weeek  21st dec to 31st dec\nFULL MOON DATES - Oct-24,25,26,   Nov 23,24,25   Dec 23,24,25   Jan 21,22,23   Feb 19,20,21",
@@ -2311,7 +2311,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-rann-resort-dholavira",
     name: "Rann Resort  Dholavira",
-    city: "BHUJ",
+    city: "DHORDO",
     starRating: "3 Star",
     isOnCallOnly: false,
     headerNote: "Special dates \nDiwali  5th nov to 11th nov \nChristmas Weeek  21st dec to 31st dec\nFULL MOON DATES - Oct-24,25,26,   Nov 23,24,25   Dec 23,24,25   Jan 21,22,23   Feb 19,20,21",
@@ -2326,7 +2326,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-the-grand-reveta",
     name: "The Grand Reveta",
-    city: "BHUJ",
+    city: "DHORDO",
     starRating: "Patan",
     isOnCallOnly: false,
     rooms: [
@@ -2340,7 +2340,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-vikrama-sarovar-portico",
     name: "Vikrama Sarovar Portico,",
-    city: "BHUJ",
+    city: "DHORDO",
     isOnCallOnly: false,
     nameNotes: ["Pavagadh"],
     rooms: [
@@ -2351,7 +2351,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-daksh-the-nirvana-retreat-pavagadh",
     name: "DAKSH THE NIRVANA RETREAT Pavagadh",
-    city: "BHUJ",
+    city: "DHORDO",
     starRating: "3 Star",
     isOnCallOnly: false,
     headerNote: "Supplement Charges:-  2000",
@@ -2365,7 +2365,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-desert-king-resort",
     name: "Desert King Resort",
-    city: "BHUJ",
+    city: "DHORDO",
     isOnCallOnly: false,
     headerNote: "Pick date rates : - 800 Per room per Night MAPAI\nBlack-Out Date\n29-Oct To 10 Nov - 14 Nov To 17 Nov\n14-Dec To 2 Jan 25 - 11 Jan To 15 Jan -25 jan To 27 Jan",
     rooms: [
@@ -2376,7 +2376,7 @@ export const INLAND_HOTELS: InlandHotel[] = [
   {
     id: "bhuj-royal-king-resort",
     name: "Royal King Resort",
-    city: "BHUJ",
+    city: "DHORDO",
     isOnCallOnly: false,
     headerNote: "Pick date rates : - 800 Per room per Night MAPAI\nBlack-Out Date\n29-Oct To 10 Nov - 14 Nov To 17 Nov\n14-Dec To 2 Jan 25 - 11 Jan To 15 Jan -25 jan To 27 Jan",
     rooms: [

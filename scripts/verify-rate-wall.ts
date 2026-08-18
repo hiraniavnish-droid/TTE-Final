@@ -1393,7 +1393,15 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
 // ── row keys are unique across the whole wall, in every city mode ──
 {
   const cities = inlandCities();
-  ok(cities.length === 20, `expected 20 Inland cities, got ${cities.length}`);
+  // 23, not 20: SASANGIR, KEVADIYA (Ekta Nagar) and DHORDO are printed as
+  // destinations in the sheet but each carries a note or locality banner in
+  // column B, so an earlier city rule that required column B to be empty missed
+  // them and filed 36 hotels under a neighbouring city — Sasan Gir's lion
+  // lodges under Diu, a beach roughly 100km away.
+  ok(cities.length === 23, `expected 23 Inland cities, got ${cities.length}`);
+  for (const must of ['SASANGIR', 'KEVADIYA (Ekta Nagar)', 'DHORDO']) {
+    ok(cities.includes(must), `${must} must be its own destination, not folded into a neighbour`);
+  }
   ok(cities.every((c, i) => i === 0 || cities[i - 1].localeCompare(c) <= 0), 'inlandCities() must be sorted');
 
   for (const city of ['ALL', ...cities]) {

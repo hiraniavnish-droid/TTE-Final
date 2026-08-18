@@ -18,7 +18,9 @@ it does NOT import or reuse the original parser (parse_inland.py): re-running
 the same block-state logic would only prove the parser agrees with itself. The
 Excel-side extraction below is written from scratch, using different rules:
 
-  * city   = column A populated while B and C are empty
+  * city   = a short label in column A with no room in column C. Column B may
+             carry a locality banner or a note — an earlier rule required B to
+             be empty and so missed three destinations entirely.
   * hotel  = column B populated and not the literal 'HOTEL' header
   * room   = column C populated and not the 'ROOM CATEGORY' sub-header
 
@@ -50,6 +52,10 @@ TS_JSON = os.environ.get('INLAND_TS_JSON', os.path.join(HERE, '..', 'inland_from
 
 N = lambda s: re.sub(r'\s+', ' ', str(s).strip()).lower()
 
+# Text in column A that is a star rating, a footer line or a table header —
+# never a destination.
+DEST_NOISE = re.compile(r'star|hotel|destination|gst included|booking|email|web:|^\d', re.I)
+
 def hotel_key(name: str) -> str:
     """Normalise a hotel name for comparison across the two sources."""
     n = N(name)
@@ -75,7 +81,14 @@ def read_excel():
     out, city, hotel = {}, None, None
     for r in range(1, ws.max_row + 1):
         a, b, c, d, e = (ws.cell(r, i).value for i in (1, 2, 3, 4, 5))
-        if isinstance(a, str) and a.strip() and b is None and c is None:
+        # A destination marker is a short label in column A with no room in C.
+        # Column B MAY carry a locality banner or a note — requiring it empty
+        # silently missed SASANGIR ('Note :- For Jungle Safari Booking…'),
+        # KEVADIYA ('STATUE OF UNITY') and DHORDO ('Kutch Hotels (Closed Now…'),
+        # filing 36 hotels under a neighbouring city. Sasan Gir's lion-safari
+        # lodges were sitting under Diu, a beach ~100km away.
+        if isinstance(a, str) and a.strip() and c is None and not DEST_NOISE.search(a) \
+                and len(a.split()) <= 4:
             city = N(a); continue
         if isinstance(b, str) and b.strip() and b.strip().upper() != 'HOTEL':
             hotel = hotel_key(b.split('\n')[0])
