@@ -1968,11 +1968,11 @@ export const INLAND_HOTELS: InlandHotel[] = [
     headerNote: "Supplement Charges:-@ 1500 DBL CPAI",
     remark: "2 Oct Gandhi jayanti \n9 Oct to 19 Oct \n6 Nov to 15 Nov - Diwali\n26 & 27 Jan",
     rooms: [
-      { name: "Euphoria Premium ( DBL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3500, onRequest1: false, rate2: 4500, onRequest2: false, mealPlan: "CPAI", childAdult: "1000 CPAI\n\n\nMAPAI  1500", lunchDinner: 500.0, season: "H1" },
+      { name: "Euphoria Premium ( DBL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3500, onRequest1: false, rate2: 4500, onRequest2: false, mealPlan: "CPAI", childAdult: "1000 CPAI\n\n\nMAPAI  1500", childAdultByPlan: { CPAI: 1000, MAPAI: 1500 }, lunchDinner: 500.0, season: "H1" },
       { name: "Euphoria Suite  (Quad)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 5800, onRequest1: false, rate2: 7800, onRequest2: false, season: "H1" },
       { name: "Mountian View  (DBL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3500, onRequest1: false, rate2: 4500, onRequest2: false, season: "H1" },
       { name: "Mountian View  Suite  (Quad)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 5800, onRequest1: false, rate2: 7800, onRequest2: false, season: "H1" },
-      { name: "Euphoria Premium ( DBL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4800, onRequest1: false, rate2: 5800, onRequest2: false, mealPlan: "CPAI", childAdult: "1500 CPAI\n\n\nMAPAI  2000", lunchDinner: 500.0, season: "H2" },
+      { name: "Euphoria Premium ( DBL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4800, onRequest1: false, rate2: 5800, onRequest2: false, mealPlan: "CPAI", childAdult: "1500 CPAI\n\n\nMAPAI  2000", childAdultByPlan: { CPAI: 1500, MAPAI: 2000 }, lunchDinner: 500.0, season: "H2" },
       { name: "Euphoria Suite  (Quad)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 7800, onRequest1: false, rate2: 9800, onRequest2: false, season: "H2" },
       { name: "Mountian View  (DBL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4800, onRequest1: false, rate2: 5800, onRequest2: false, season: "H2" },
       { name: "Mountian View  Suite  (Quad)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 7800, onRequest1: false, rate2: 9800, onRequest2: false, season: "H2" },

@@ -1757,6 +1757,45 @@ function weekendDaysForTest(room: { axisLabels: (string | undefined)[] }): Set<n
   }
 }
 
+// Villa Euphoria Resort's 'Euphoria Premium ( DBL)' prints the same per-plan
+// pattern as text ('1000 CPAI / MAPAI 1500' for H1) — pinning both seasons
+// since the room appears twice with different figures.
+{
+  const wH1 = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-06-20', nights: 1, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 0 });
+  const hotelH1 = wH1.find(e => e.hotelId === 'vadodara-villa-euphoria-resort');
+  const cpaiH1 = hotelH1?.rows.find(r => r.key.endsWith('::C1') && r.roomName === 'Euphoria Premium ( DBL)');
+  const mapaiH1 = hotelH1?.rows.find(r => r.key.endsWith('::C2') && r.roomName === 'Euphoria Premium ( DBL)');
+  if (cpaiH1 && isQuotable(cpaiH1)) {
+    ok(!cpaiH1.clientNote, `Villa Euphoria CPAI H1: 3rd guest covered by the printed 1000 supplement, got caveat '${cpaiH1.clientNote}'`);
+    ok(cpaiH1.netTotal === 3500 + 1000, `Villa Euphoria CPAI H1 pax3: net must be 3500 + 1000 = 4500, got ${cpaiH1.netTotal}`);
+  } else {
+    ok(false, 'Villa Euphoria CPAI H1 row did not resolve to quotable');
+  }
+  if (mapaiH1 && isQuotable(mapaiH1)) {
+    ok(!mapaiH1.clientNote, `Villa Euphoria MAPAI H1: 3rd guest covered by the printed 1500 supplement, got caveat '${mapaiH1.clientNote}'`);
+    ok(mapaiH1.netTotal === 4500 + 1500, `Villa Euphoria MAPAI H1 pax3: net must be 4500 + 1500 = 6000, got ${mapaiH1.netTotal}`);
+  } else {
+    ok(false, 'Villa Euphoria MAPAI H1 row did not resolve to quotable');
+  }
+
+  const wH2 = buildInlandWall({ city: 'KEVADIYA (Ekta Nagar)', checkIn: '2026-11-20', nights: 1, rooms: 1, pax: 3, markupMode: 'percent', markupValue: 0 });
+  const hotelH2 = wH2.find(e => e.hotelId === 'vadodara-villa-euphoria-resort');
+  const cpaiH2 = hotelH2?.rows.find(r => r.key.endsWith('::C1') && r.roomName === 'Euphoria Premium ( DBL)');
+  const mapaiH2 = hotelH2?.rows.find(r => r.key.endsWith('::C2') && r.roomName === 'Euphoria Premium ( DBL)');
+  if (cpaiH2 && isQuotable(cpaiH2)) {
+    ok(!cpaiH2.clientNote, `Villa Euphoria CPAI H2: 3rd guest covered by the printed 1500 supplement, got caveat '${cpaiH2.clientNote}'`);
+    ok(cpaiH2.netTotal === 4800 + 1500, `Villa Euphoria CPAI H2 pax3: net must be 4800 + 1500 = 6300, got ${cpaiH2.netTotal}`);
+  } else {
+    ok(false, 'Villa Euphoria CPAI H2 row did not resolve to quotable');
+  }
+  if (mapaiH2 && isQuotable(mapaiH2)) {
+    ok(!mapaiH2.clientNote, `Villa Euphoria MAPAI H2: 3rd guest covered by the printed 2000 supplement, got caveat '${mapaiH2.clientNote}'`);
+    ok(mapaiH2.netTotal === 5800 + 2000, `Villa Euphoria MAPAI H2 pax3: net must be 5800 + 2000 = 7800, got ${mapaiH2.netTotal}`);
+  } else {
+    ok(false, 'Villa Euphoria MAPAI H2 row did not resolve to quotable');
+  }
+}
+
 // ── the wall input's extraMattress is optional and 0 is the true default ──
 {
   const withUndefined = buildRajarshiWall({ city: 'Bhuj', checkIn: '2026-09-02', nights: 1, rooms: 1, pax: 2, markupMode: 'percent', markupValue: 0 });
