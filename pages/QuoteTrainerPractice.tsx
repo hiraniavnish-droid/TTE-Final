@@ -15,13 +15,16 @@
 // ============================================================
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { cn, generateId } from '../utils/helpers';
-import { Timer, Play, ChevronRight, Check, X, RotateCcw, Trophy, Clock, Target } from 'lucide-react';
+import { Timer, Play, ChevronRight, Check, X, RotateCcw, Trophy, Clock, Target, History } from 'lucide-react';
 import {
   generateQuestion, gradeAnswer, MEAL_PLAN_LABEL,
   type TrainerQuestion, type GradeResult, type SubmittedAnswer, type MealPlan,
 } from '../services/quoteTrainerEngine';
+import { saveSessionResult, fetchMyStats, type CumulativeStats } from '../services/quoteTrainerResults';
 
 type Mode = '10min' | '15min' | '10q' | '15q' | '20q' | 'untimed';
 type Phase = 'setup' | 'active' | 'ended';
@@ -52,6 +55,7 @@ const EMPTY_FORM = { hotelName: '', mealPlan: '' as MealPlan | '', sellingPerPer
 
 export const QuoteTrainerPractice: React.FC = () => {
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
+  const { user } = useAuth();
   const light = theme === 'light';
 
   const [phase, setPhase] = useState<Phase>('setup');
@@ -63,13 +67,26 @@ export const QuoteTrainerPractice: React.FC = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [grade, setGrade] = useState<GradeResult | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+  const [myStats, setMyStats] = useState<CumulativeStats | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // setInterval captures whatever `history` closure existed when start()
+  // ran; a ref kept in sync on every update lets endSession read the true
+  // latest count instead of whatever it was at session start.
+  const historyRef = useRef<HistoryItem[]>([]);
+  useEffect(() => { historyRef.current = history; }, [history]);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   }, []);
 
   useEffect(() => stopTimer, [stopTimer]);
+
+  const loadStats = useCallback(() => {
+    if (!user) return;
+    fetchMyStats(user.id).then(setMyStats).catch(() => { /* non-critical — setup/summary just shows nothing */ });
+  }, [user]);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
 
   const nextQuestion = useCallback(() => {
     try {
@@ -87,7 +104,19 @@ export const QuoteTrainerPractice: React.FC = () => {
   const endSession = useCallback(() => {
     stopTimer();
     setPhase('ended');
-  }, [stopTimer]);
+    const finished = historyRef.current;
+    if (user && finished.length > 0) {
+      saveSessionResult({
+        userId: user.id, userName: user.name, mode,
+        outcomes: finished.map(h => ({ correct: h.grade.allCorrect, timeTakenSec: h.timeTakenSec })),
+      })
+        .then(loadStats)
+        .catch(err => {
+          console.error('quote trainer: failed to save session', err);
+          toast.error('Could not save this session — your results were not recorded.');
+        });
+    }
+  }, [stopTimer, mode, user, loadStats]);
 
   const start = () => {
     setHistory([]);
@@ -98,7 +127,7 @@ export const QuoteTrainerPractice: React.FC = () => {
     if (isTimeMode(mode)) {
       timerRef.current = setInterval(() => {
         setTimeLeft(t => {
-          if (t <= 1) { stopTimer(); setPhase('ended'); return 0; }
+          if (t <= 1) { endSession(); return 0; }
           return t - 1;
         });
       }, 1000);
@@ -133,7 +162,11 @@ export const QuoteTrainerPractice: React.FC = () => {
   const isLastQuestion = questionTarget > 0 && attempted >= questionTarget;
   const correct = history.filter(h => h.grade.allCorrect).length;
   const accuracy = attempted ? Math.round((correct / attempted) * 100) : 0;
-  const avgTime = attempted ? Math.round(history.reduce((s, h) => s + h.timeTakenSec, 0) / attempted) : 0;
+  // Only correct answers count toward the average — a wrong answer means
+  // the trainee never actually reached a real number, so timing it would
+  // reward fast guessing rather than fast, accurate quoting.
+  const correctTimes = history.filter(h => h.grade.allCorrect).map(h => h.timeTakenSec);
+  const avgTime = correctTimes.length ? Math.round(correctTimes.reduce((s, t) => s + t, 0) / correctTimes.length) : 0;
 
   const cardCls = cn('rounded-2xl border p-4 md:p-5',
     light ? 'bg-white border-slate-200' : 'bg-white/[0.04] border-white/10');
@@ -153,6 +186,17 @@ export const QuoteTrainerPractice: React.FC = () => {
             enter the numbers below. Graded against the real Kevadiya rate engine, ±₹10 / ±0.1% tolerance.
           </p>
         </div>
+        {myStats && (
+          <div className={cardCls}>
+            <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> Your training history</div>
+            <div className="grid grid-cols-4 gap-3 mt-1">
+              <Stat label="Sessions" value={String(myStats.sessions)} light={light} />
+              <Stat label="Quotations" value={String(myStats.attempted)} light={light} />
+              <Stat label="Accuracy" value={`${myStats.accuracy}%`} light={light} />
+              <Stat label="Avg time" value={myStats.avgTimeCorrectSec != null ? `${myStats.avgTimeCorrectSec}s` : '—'} light={light} />
+            </div>
+          </div>
+        )}
         <div className={cardCls}>
           <div className={labelCls}>Choose a challenge</div>
           <div className="space-y-3">
@@ -185,15 +229,18 @@ export const QuoteTrainerPractice: React.FC = () => {
   // ── ended ──
   if (phase === 'ended') {
     return (
-      <div className={cn(pageCls, 'max-w-5xl mx-auto space-y-5')}>
+      <div className={cn(pageCls, 'max-w-2xl mx-auto space-y-5')}>
         <div className={cn(cardCls, 'text-center')}>
           <Trophy size={28} className="mx-auto mb-2 text-amber-500" />
           <h1 className={cn('text-xl font-bold', getTextColor())}>Session complete</h1>
+          <p className={cn('text-xs mt-1', getSecondaryTextColor())}>
+            {attempted > 0 ? 'Saved to your training history.' : 'Nothing submitted — nothing to save.'}
+          </p>
           <div className="grid grid-cols-4 gap-3 mt-4">
-            <Stat label="Attempted" value={String(attempted)} light={light} />
-            <Stat label="Correct" value={String(correct)} light={light} />
+            <Stat label="Quotations sent" value={String(attempted)} light={light} />
+            <Stat label="Qualified" value={String(correct)} light={light} />
             <Stat label="Accuracy" value={`${accuracy}%`} light={light} />
-            <Stat label="Avg time" value={`${avgTime}s`} light={light} />
+            <Stat label="Avg time (correct)" value={correctTimes.length ? `${avgTime}s` : '—'} light={light} />
           </div>
           <button type="button" onClick={() => setPhase('setup')}
             className="mt-5 inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:opacity-80">
@@ -201,31 +248,17 @@ export const QuoteTrainerPractice: React.FC = () => {
           </button>
         </div>
 
-        <div className={cardCls}>
-          <div className={labelCls}>Review ({attempted} question{attempted === 1 ? '' : 's'})</div>
-          <div className="space-y-2 mt-2">
-            {history.map((h, idx) => (
-              <div key={h.question.id} className={cn('rounded-xl border p-3 text-xs',
-                h.grade.allCorrect
-                  ? (light ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-400/30 bg-emerald-500/5')
-                  : (light ? 'border-rose-200 bg-rose-50' : 'border-rose-400/30 bg-rose-500/5'))}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className={cn('font-bold', getTextColor())}>
-                    Q{idx + 1} · {h.question.pax} pax · {h.question.nights}N · {h.timeTakenSec}s
-                  </span>
-                  {h.grade.allCorrect
-                    ? <Check size={14} className="text-emerald-600" />
-                    : <X size={14} className="text-rose-600" />}
-                </div>
-                <FieldRow label="Hotel" fr={h.grade.hotel} />
-                <FieldRow label="Meal plan" fr={h.grade.mealPlan} />
-                <FieldRow label="Price/person" fr={h.grade.perPerson} money />
-                <FieldRow label="Total margin" fr={h.grade.margin} money />
-              </div>
-            ))}
-            {attempted === 0 && <div className={cn('text-sm', getSecondaryTextColor())}>No questions attempted.</div>}
+        {myStats && (
+          <div className={cardCls}>
+            <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> Your lifetime training history</div>
+            <div className="grid grid-cols-4 gap-3 mt-1">
+              <Stat label="Sessions" value={String(myStats.sessions)} light={light} />
+              <Stat label="Quotations" value={String(myStats.attempted)} light={light} />
+              <Stat label="Accuracy" value={`${myStats.accuracy}%`} light={light} />
+              <Stat label="Avg time" value={myStats.avgTimeCorrectSec != null ? `${myStats.avgTimeCorrectSec}s` : '—'} light={light} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -279,6 +312,7 @@ export const QuoteTrainerPractice: React.FC = () => {
               {question.discountPercent > 0
                 ? <> Client has separately asked for a further <b>{question.discountPercent}% discount</b> off the quoted price.</>
                 : <> No discount requested this round.</>}
+              {' '}Assume max 2 guests share a room — this party needs <b>{question.rooms} room{question.rooms === 1 ? '' : 's'}</b>.
             </div>
           </div>
 
@@ -306,9 +340,11 @@ export const QuoteTrainerPractice: React.FC = () => {
                   ))}
                 </select>
               </div>
-              <NumField label="Package price / person (₹)" value={form.sellingPerPerson} disabled={!!grade}
+              <NumField label="Package price / person (₹)" hint="Total selling price for the whole booking ÷ number of people"
+                value={form.sellingPerPerson} disabled={!!grade}
                 onChange={v => setForm(f => ({ ...f, sellingPerPerson: v }))} inputCls={inputCls} labelCls={labelCls} />
-              <NumField label="Total margin earned (₹)" value={form.totalMargin} disabled={!!grade}
+              <NumField label="Total margin earned (₹)" hint="Total markup for the whole booking, minus any discount — not per person"
+                value={form.totalMargin} disabled={!!grade}
                 onChange={v => setForm(f => ({ ...f, totalMargin: v }))} inputCls={inputCls} labelCls={labelCls} />
             </div>
 
@@ -393,13 +429,14 @@ const ScoreChip: React.FC<{ icon: React.ReactNode; label: string; value: string 
 );
 
 const NumField: React.FC<{
-  label: string; value: string; disabled: boolean; onChange: (v: string) => void;
+  label: string; hint?: string; value: string; disabled: boolean; onChange: (v: string) => void;
   inputCls: string; labelCls: string;
-}> = ({ label, value, disabled, onChange, inputCls, labelCls }) => (
+}> = ({ label, hint, value, disabled, onChange, inputCls, labelCls }) => (
   <div>
     <span className={labelCls}>{label}</span>
     <input type="number" inputMode="decimal" value={value} disabled={disabled}
       onChange={e => onChange(e.target.value)} placeholder="0" className={inputCls} />
+    {hint && <span className="block text-[10px] opacity-60 mt-0.5">{hint}</span>}
   </div>
 );
 
