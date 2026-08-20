@@ -7,14 +7,15 @@
 // resolver the main Rate Wall uses — so no room/plan pricing logic is
 // duplicated or able to drift from the real engine.
 //
-// Grid granularity is per HOTEL, not per room/plan: buildInlandWall() already
-// picks the cheapest quotable row per hotel via cheapestSelling, which is the
-// right level for a quick multi-hotel comparison to share with a client. The
-// hotel's own Rate Wall card is still there for a room-by-room look.
+// Grid granularity is per HOTEL, not per room/plan, but WHICH plan a cell
+// resolves to is steered by `preferredPlan` (mirrors RateWallCard's global
+// CPAI/MAPAI quick-pick) rather than always taking the cheapest row —
+// otherwise adjacent cells could silently mix CP and MAP pricing, which is
+// not a comparison an agent can read at a glance.
 // ============================================================
 
 import { buildInlandWall } from './inlandWall';
-import { isQuotable, type WallEntry, type QuotableRow } from './rateWall';
+import { isQuotable, type WallEntry, type WallRoomRow, type QuotableRow } from './rateWall';
 import type { MarkupMode } from './inlandRates';
 
 export const SOU_CITY = 'KEVADIYA (Ekta Nagar)';
@@ -27,8 +28,13 @@ export interface SouHotelOptionsInput {
   durations: SouOptionNights[];
   rooms: number;
   pax: number;
+  extraMattress?: number;
   markupMode: MarkupMode;
   markupValue: number;
+  /** e.g. 'CPAI' / 'MAPAI' — same loose-match + MAP-ness fallback as
+   *  RateWallCard's pickDefaultRow, so it also reaches hotels whose MAP row
+   *  is a derived label ('WEEKDAYS (MAP)') rather than the literal text. */
+  preferredPlan?: string;
 }
 
 export interface SouOptionCell {
@@ -57,6 +63,31 @@ const uniq = <T,>(xs: T[]): T[] => {
   return out;
 };
 
+// Loose match so 'CPAI', 'CP', 'cpai (breakfast)' etc. all count as the same
+// preference — identical normalisation to RateWallCard.tsx's `norm`.
+const norm = (s: string | undefined | null) => (s || '').toLowerCase().replace(/[^a-z]/g, '');
+
+/** Same selection order as RateWallCard.tsx's pickDefaultRow: exact plan
+ *  match, then a loose prefix match, then MAP-ness alone (for derived MAP
+ *  rows whose label never contains 'mapai' literally), then just the
+ *  cheapest quotable row. Kept in sync deliberately — a change to one should
+ *  usually be mirrored in the other. */
+function pickRow(rows: WallRoomRow[], preferredPlan: string | undefined): QuotableRow | null {
+  const quotable = rows.filter(isQuotable);
+  if (quotable.length === 0) return null;
+  if (preferredPlan) {
+    const pref = norm(preferredPlan);
+    const exact = quotable.find(r => norm(r.planLabel) === pref);
+    if (exact) return exact;
+    const starts = quotable.find(r => norm(r.planLabel).startsWith(pref) || pref.startsWith(norm(r.planLabel)));
+    if (starts) return starts;
+    const prefersMap = /map/.test(pref);
+    const byMapness = quotable.find(r => /\(map\)$/i.test(r.planLabel || '') === prefersMap);
+    if (byMapness) return byMapness;
+  }
+  return quotable.reduce((min, r) => (r.sellingTotal < min.sellingTotal ? r : min));
+}
+
 export function buildSouHotelOptions(input: SouHotelOptionsInput): SouHotelOptionsResult {
   const hotelIds = uniq(input.hotelIds);
   const durations = uniq(input.durations);
@@ -66,7 +97,7 @@ export function buildSouHotelOptions(input: SouHotelOptionsInput): SouHotelOptio
   for (const nights of durations) {
     const entries: WallEntry[] = buildInlandWall({
       city: SOU_CITY, checkIn: input.checkIn, nights,
-      rooms: input.rooms, pax: input.pax,
+      rooms: input.rooms, pax: input.pax, extraMattress: input.extraMattress,
       markupMode: input.markupMode, markupValue: input.markupValue,
     });
     const byId = new Map(entries.map(e => [e.hotelId, e]));
@@ -74,9 +105,7 @@ export function buildSouHotelOptions(input: SouHotelOptionsInput): SouHotelOptio
     for (const hotelId of hotelIds) {
       const entry = byId.get(hotelId);
       if (!entry) continue;
-      const best = entry.rows.filter(isQuotable).reduce<QuotableRow | null>(
-        (min, r) => (!min || r.sellingTotal < min.sellingTotal ? r : min), null,
-      );
+      const best = pickRow(entry.rows, input.preferredPlan);
       if (!best) {
         const blocked = entry.rows.find(r => !isQuotable(r));
         unquotable.set(hotelId, entry.closedReason || (blocked && !isQuotable(blocked) ? blocked.blockedReason : undefined) || 'On request for these dates');
