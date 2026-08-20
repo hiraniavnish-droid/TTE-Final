@@ -1916,11 +1916,19 @@ export const INLAND_HOTELS: InlandHotel[] = [
       { name: "Premium River View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3650, onRequest1: false, rate2: 3950, onRequest2: false, season: "H1" },
       { name: "Club Room Statue View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3950, onRequest1: false, rate2: 4300, onRequest2: false, season: "H1" },
       { name: "Family Rooms ( TPL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4600, onRequest1: false, rate2: 5550, onRequest2: false, season: "H1" },
-      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: null, onRequest1: true, raw1: "4500 & 5550", note1: "Rate text could not be parsed automatically — see raw value", rate2: null, onRequest2: true, raw2: "5655 & 7125", note2: "Rate text could not be parsed automatically — see raw value", mealPlan: "-", childAdult: "-", lunchDinner: "-", season: "H2" },
-      { name: "Premium Garden View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: null, onRequest1: true, raw1: "4920 & 5970", note1: "Rate text could not be parsed automatically — see raw value", rate2: null, onRequest2: true, raw2: "6075 & 7550", note2: "Rate text could not be parsed automatically — see raw value", season: "H2" },
-      { name: "Premium River View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: null, onRequest1: true, raw1: "5350 & 6400", note1: "Rate text could not be parsed automatically — see raw value", rate2: null, onRequest2: true, raw2: "6500 & 7965", note2: "Rate text could not be parsed automatically — see raw value", season: "H2" },
-      { name: "Club Room Statue View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: null, onRequest1: true, raw1: "5760 & 6800", note1: "Rate text could not be parsed automatically — see raw value", rate2: null, onRequest2: true, raw2: "6915 & 9400", note2: "Rate text could not be parsed automatically — see raw value", season: "H2" },
-      { name: "Family Rooms ( TPL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: null, onRequest1: true, raw1: "6820 & 8175", note1: "Rate text could not be parsed automatically — see raw value", rate2: null, onRequest2: true, raw2: "7965 & 10950", note2: "Rate text could not be parsed automatically — see raw value", season: "H2" },
+      // Printed as "Double - CPAI & MAPAI" / "Triple Occ - CPAI & MAPAI"
+      // columns, each cell itself "CPAI & MAPAI" (e.g. "4500 & 5550"). Using
+      // the Double (base occupancy) column only, split into rate1=CPAI /
+      // rate2=MAPAI, matching the H1 block's shape above exactly — this
+      // hotel's data model prices extra guests via the childAdult supplement
+      // rather than a distinct Triple room row, same as every other
+      // meal_plan room on this sheet. Child/Adult is printed "-" for this
+      // block (none), unlike H1's 700/1000.
+      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4500, onRequest1: false, rate2: 5550, onRequest2: false, mealPlan: "CPAI", season: "H2" },
+      { name: "Premium Garden View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4920, onRequest1: false, rate2: 5970, onRequest2: false, season: "H2" },
+      { name: "Premium River View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 5350, onRequest1: false, rate2: 6400, onRequest2: false, season: "H2" },
+      { name: "Club Room Statue View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 5760, onRequest1: false, rate2: 6800, onRequest2: false, season: "H2" },
+      { name: "Family Rooms ( TPL)", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 6820, onRequest1: false, rate2: 8175, onRequest2: false, season: "H2" },
     ],
   },
   {
@@ -1947,8 +1955,13 @@ export const INLAND_HOTELS: InlandHotel[] = [
     isOnCallOnly: false,
     nameNotes: ["Pool Update Till Mar 2027"],
     rooms: [
-      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 2500, onRequest1: false, rate2: 3200, onRequest2: false, mealPlan: "CPAI", childAdult: 1000.0, lunchDinner: 350.0 },
-      { name: "Premium rooms with Bathtub", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3000, onRequest1: false, rate2: 3700, onRequest2: false },
+      // Sheet header reads "Child/Adult / CPAI | Adult / MAPAI" — two
+      // per-plan extra-adult figures, not a genuine lunch/dinner supplement
+      // on a MAPAI row (which already includes dinner in its own rate).
+      // childAdultByPlan is the correct home for this, matching Fortune SOU
+      // / Villa Euphoria's identical column shape elsewhere on this sheet.
+      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 2500, onRequest1: false, rate2: 3200, onRequest2: false, mealPlan: "CPAI", childAdultByPlan: { CPAI: 1000, MAPAI: 350 } },
+      { name: "Premium rooms with Bathtub", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 3000, onRequest1: false, rate2: 3700, onRequest2: false, childAdultByPlan: { CPAI: 1000, MAPAI: 350 } },
     ],
   },
   {
@@ -1961,9 +1974,12 @@ export const INLAND_HOTELS: InlandHotel[] = [
     remark: "20 Oct to 25 Oct \n24 Dec to 31 Dec",
     nameNotes: ["Update Till March to 30th Sep 2026"],
     rooms: [
-      { name: "Deluxe Room (36 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 2800, onRequest1: false, rate2: 3400, onRequest2: false, mealPlan: "CPAI", childAdult: 1000.0, lunchDinner: 1300.0 },
-      { name: "Premium Triple Bed (12 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 3800, onRequest1: false, rate2: 4700, onRequest2: false, childAdult: 1000.0, lunchDinner: 1300.0 },
-      { name: "Suite Quad (2 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 5300, onRequest1: false, rate2: 6500, onRequest2: false, childAdult: 1000.0, lunchDinner: 1300.0 },
+      // Same "Child/Adult / CPAI | Adult / MAPAI" column shape as Lavender
+      // Hotels above — two per-plan extra-adult figures, not a lunch/dinner
+      // supplement. Printed once per room, applying to all three.
+      { name: "Deluxe Room (36 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 2800, onRequest1: false, rate2: 3400, onRequest2: false, mealPlan: "CPAI", childAdultByPlan: { CPAI: 1000, MAPAI: 1300 } },
+      { name: "Premium Triple Bed (12 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 3800, onRequest1: false, rate2: 4700, onRequest2: false, childAdultByPlan: { CPAI: 1000, MAPAI: 1300 } },
+      { name: "Suite Quad (2 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 5300, onRequest1: false, rate2: 6500, onRequest2: false, childAdultByPlan: { CPAI: 1000, MAPAI: 1300 } },
     ],
   },
   {
