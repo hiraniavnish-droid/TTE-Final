@@ -17,10 +17,15 @@
 // per explicit instruction that these must never be part of a fixed package
 // or per-person calculation, only mentioned for the client's own knowledge.
 //
-// Checkout time (11:00 AM) and check-in time (2:00 PM) are the standard
-// convention used across Indian hotels generally — no per-hotel checkout
-// time is printed anywhere in the supplier sheets, so this is stated as a
-// general convention, not attributed to a specific hotel's own policy.
+// Check-in date and duration (and checkout date, when every ticked option
+// shares one night count) are printed ONCE in the header rather than
+// repeated per option — with several hotels ticked at the same duration,
+// repeating "1N/2D, check-in X, check-out Y" under every single one added
+// nothing but noise. Only the price varies per option, so only the price is
+// repeated. Time-of-day qualifiers ("after 2 PM" / "by 11 AM") are dropped
+// entirely per explicit instruction — no per-hotel checkout time is printed
+// anywhere in the supplier sheets, so stating one read as an invented
+// hotel-specific policy rather than a useful detail.
 // ============================================================
 
 import type { SouOptionNights } from './souHotelOptions';
@@ -131,11 +136,24 @@ export function buildSouCompareMessage(i: SouCompareMessageInput): string {
   const groups = groupCompareHotelRates(i.rates, itineraryTotal);
   if (groups.length === 0) return '';
 
+  // Every ticked option shares this booking's check-in date; duration (and
+  // therefore checkout) is only shareable in the header when every ticked
+  // option ALSO shares the same night count — a mixed comparison (e.g. one
+  // hotel at 1N, another at 2N) has no single checkout date to hoist, so
+  // that case falls back to stating duration per option instead.
+  const uniqueNights = Array.from(new Set(i.rates.map(r => r.nights))).sort((a, b) => a - b);
+  const singleDuration = uniqueNights.length === 1 ? uniqueNights[0] : null;
+
   const L: string[] = [];
   L.push('🌟 *THE TOURISM EXPERTS* 🌟');
   L.push('🏛️ *Statue of Unity — Kevadiya*');
   L.push('');
   L.push(`👥 ${i.pax} guest(s)  ·  🛏️ ${i.rooms} room(s)`);
+  L.push(`📅 Check-in: ${fmtCompareDate(i.checkIn)}`);
+  if (singleDuration != null) {
+    L.push(`🌙 *${singleDuration}N / ${singleDuration + 1}D*${i.itinerary ? ' — Statue of Unity KV Package' : ''}`);
+    L.push(`📅 Check-out: ${fmtCompareDate(addDaysISO(i.checkIn, singleDuration))}`);
+  }
 
   groups.forEach((g, gi) => {
     L.push('');
@@ -143,13 +161,11 @@ export function buildSouCompareMessage(i: SouCompareMessageInput): string {
     L.push(`🏨 *Option ${gi + 1}: ${g.hotelName}* ${starEmoji(g.starLabel)}`.trim());
     L.push(DIVIDER);
     g.rates.forEach(r => {
-      const checkOutIso = addDaysISO(i.checkIn, r.nights);
       const combined = r.sellingTotal + itineraryTotal;
       const perPerson = Math.round(combined / i.pax);
-      L.push('');
-      L.push(`🌙 *${r.nights}N / ${r.nights + 1}D*${i.itinerary ? ' — Statue of Unity KV Package' : ''}`);
-      L.push(`📅 Check-in: ${fmtCompareDate(i.checkIn)} (after 2:00 PM)`);
-      L.push(`📅 Check-out: ${fmtCompareDate(checkOutIso)} (by 11:00 AM)`);
+      if (singleDuration == null) {
+        L.push(`🌙 ${r.nights}N / ${r.nights + 1}D — Check-out ${fmtCompareDate(addDaysISO(i.checkIn, r.nights))}`);
+      }
       L.push(`💰 *${fmtINR(combined)}* total  (₹${fmtINR(perPerson).slice(1)}/person)`);
       if (r.clientNote) L.push(`⚠️ ${r.clientNote}`);
     });

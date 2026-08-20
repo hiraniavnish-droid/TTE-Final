@@ -180,9 +180,20 @@ export const SouHotelsBuilder: React.FC = () => {
       doc.setFontSize(12);
       doc.text('Statue of Unity — Kevadiya Hotels', W / 2, y, { align: 'center' }); y += 10;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-      doc.text(`${pax} guest(s)  ·  ${rooms} room(s)`, 14, y); y += 8;
+      doc.text(`${pax} guest(s)  ·  ${rooms} room(s)`, 14, y); y += 6;
+      doc.text(`Check-in: ${fmtCompareDate(checkInStr)}`, 14, y); y += 6;
 
       const itineraryTotal = itineraryPrice?.sellingTotal ?? 0;
+      const uniqueNights = Array.from(new Set(selectedRates.map(r => r.nights))).sort((a, b) => a - b);
+      const singleDuration = uniqueNights.length === 1 ? uniqueNights[0] : null;
+      if (singleDuration != null) {
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${singleDuration}N/${singleDuration + 1}D${itineraryPrice ? ' — SOU KV Package' : ''}`, 14, y); y += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Check-out: ${fmtCompareDate(addDaysISO(checkInStr, singleDuration))}`, 14, y); y += 6;
+      }
+      y += 2;
+
       compareGroups.forEach((g, gi) => {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
         doc.text(`Option ${gi + 1}: ${g.hotelName}${g.starLabel ? ` (${g.starLabel})` : ''}`, 14, y); y += 6;
@@ -190,9 +201,11 @@ export const SouHotelsBuilder: React.FC = () => {
         g.rates.forEach(r => {
           const combined = r.sellingTotal + itineraryTotal;
           const perPerson = Math.round(combined / pax);
-          const checkOut = fmtCompareDate(addDaysISO(checkInStr, r.nights));
-          const label = `${r.nights}N/${r.nights + 1}D${itineraryPrice ? ' — SOU KV Package' : ''}`;
-          doc.text(`${label}: ${fmtCompareDate(checkInStr)} to ${checkOut}  —  ${fmtINR(combined)} (${fmtINR(perPerson)}/person)`, 14, y);
+          if (singleDuration == null) {
+            const checkOut = fmtCompareDate(addDaysISO(checkInStr, r.nights));
+            doc.text(`${r.nights}N/${r.nights + 1}D — Check-out ${checkOut}`, 14, y); y += 5;
+          }
+          doc.text(`${fmtINR(combined)} (${fmtINR(perPerson)}/person)`, 14, y);
           y += 5;
           if (r.clientNote) {
             doc.setFont('helvetica', 'italic');
