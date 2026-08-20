@@ -9,6 +9,13 @@
 // here to be graded. So the ANSWER KEY has to come from the same resolver
 // the real app uses — buildInlandWall() — never a hand-typed number, or a
 // bug in this file could silently teach the wrong price.
+//
+// The trainee only ever picks a HOTEL and a MEAL PLAN (breakfast, or
+// breakfast + dinner) — never a room. A hotel can print half a dozen room
+// types; asking the trainee to also identify the exact room name would be
+// testing sheet-reading trivia, not quotation judgement. Internally, each
+// (hotel, plan) is priced off whichever of that hotel's rooms is cheapest
+// for that plan — the trainee is never shown or asked about the room.
 // ============================================================
 
 import { buildInlandWall } from './inlandWall';
@@ -69,22 +76,40 @@ function starOf(label: string | undefined): number {
   return m ? Number(m[1]) : 0;
 }
 
-export interface TrainerOption {
-  label: string;   // shown in the dropdown, e.g. 'Villa Euphoria Resort — Euphoria Premium ( DBL) · CPAI'
+export type MealPlan = 'breakfast' | 'breakfast_dinner';
+
+// Every planLabel this city's rooms carry either names the plan directly
+// (CPAI/CAPI, MAPAI) or is an axis label (WEEKDAYS, 'Your dates', a season
+// range) that inlandWall.ts only ever attaches a '(MAP)' suffix to when the
+// derived dinner supplement applies — so 'contains MAP' cleanly separates
+// the two without needing to see the printed label's exact vocabulary.
+// Kevadiya prints no all-inclusive (APAI) rooms, so these are the only two.
+function mealPlanOf(planLabel: string | undefined): MealPlan {
+  return /map/i.test(planLabel || '') ? 'breakfast_dinner' : 'breakfast';
+}
+
+export const MEAL_PLAN_LABEL: Record<MealPlan, string> = {
+  breakfast: 'Breakfast only',
+  breakfast_dinner: 'Breakfast + Dinner',
+};
+
+// One (hotel, meal plan) combination — priced off whichever ROOM of that
+// hotel is cheapest for that plan. The room itself is resolved internally
+// and never surfaced; the trainee only ever sees the hotel and the plan.
+export interface HotelPlanOption {
   hotelName: string;
-  roomName: string;
-  planLabel?: string;
+  mealPlan: MealPlan;
   sellingTotal: number;
+  sellingPerPerson: number;
+  netTotal: number;
+  markupAmount: number;
 }
 
 export interface TrainerAnswer {
   hotelName: string;
-  roomName: string;
-  planLabel?: string;
-  netTotal: number;
-  markupAmount: number;
-  discountAmount: number;
-  sellingTotal: number;
+  mealPlan: MealPlan;
+  sellingPerPerson: number;
+  totalMargin: number;   // markupAmount minus any requested discount — the actual profit earned
 }
 
 export interface TrainerQuestion {
@@ -98,12 +123,13 @@ export interface TrainerQuestion {
   discountPercent: number;
   minStarRating: number;   // 0 = no preference stated
   sightseeing: string[];
-  options: TrainerOption[];   // every genuinely quotable choice for this scenario — the dropdown's contents
-  answer: TrainerAnswer;      // the cheapest of `options`, fully priced — the answer key
+  hotelOptions: string[];              // distinct hotel names on offer — the hotel dropdown's contents
+  plansByHotel: Record<string, HotelPlanOption[]>;  // filled in once a hotel is picked, for the plan dropdown
+  answer: TrainerAnswer;
 }
 
-// A tie at the top makes "the" correct hotel ambiguous, which would grade a
-// perfectly reasonable second-cheapest pick as wrong. Re-roll rather than
+// A tie at the top makes "the" correct combination ambiguous, which would
+// grade a perfectly reasonable runner-up as wrong. Re-roll rather than
 // accept a question with no single right answer.
 const TIE_GUARD_RUPEES = 50;
 const MAX_ATTEMPTS = 30;
@@ -122,42 +148,65 @@ function tryGenerate(id: string): TrainerQuestion | null {
     markupMode: 'percent', markupValue: markupPercent,
   });
 
-  const options: TrainerOption[] = [];
+  // (hotelName, mealPlan) -> cheapest room's priced row for that combination.
+  const combos = new Map<string, HotelPlanOption>();
   for (const e of entries) {
     if (minStarRating > 0 && starOf(e.starLabel) < minStarRating) continue;
     for (const row of e.rows) {
       if (!isQuotable(row)) continue;
-      options.push({
-        label: `${e.hotelName} — ${row.roomName}${row.planLabel ? ` · ${row.planLabel}` : ''}`,
-        hotelName: e.hotelName, roomName: row.roomName, planLabel: row.planLabel,
-        sellingTotal: row.sellingTotal,
-      });
+      const mealPlan = mealPlanOf(row.planLabel);
+      const key = `${e.hotelName}::${mealPlan}`;
+      const existing = combos.get(key);
+      if (!existing || row.sellingTotal < existing.sellingTotal) {
+        combos.set(key, {
+          hotelName: e.hotelName, mealPlan, sellingTotal: row.sellingTotal,
+          sellingPerPerson: row.sellingTotal / pax,
+          netTotal: 0, markupAmount: 0, // filled in below once markup% recompute is known — see note
+        });
+      }
     }
   }
-  if (options.length < 2) return null;
+  const allCombos = Array.from(combos.values());
+  if (allCombos.length < 2) return null;
 
-  options.sort((a, b) => a.sellingTotal - b.sellingTotal);
-  const cheapest = options[0];
-  const runnerUp = options[1];
+  allCombos.sort((a, b) => a.sellingTotal - b.sellingTotal);
+  const cheapest = allCombos[0];
+  const runnerUp = allCombos[1];
   if (runnerUp.sellingTotal - cheapest.sellingTotal < TIE_GUARD_RUPEES) return null;
 
-  // Sit the stated budget just above the true cheapest option, so there is
-  // exactly one defensible recommendation — not "any hotel under budget".
-  const perPersonRaw = cheapest.sellingTotal / pax;
-  const budgetPerPerson = Math.ceil((perPersonRaw * 1.05) / 100) * 100;
+  // Sit the stated budget just above the true cheapest combination, so
+  // there is exactly one defensible recommendation — not "anything under
+  // budget qualifies".
+  const budgetPerPerson = Math.ceil((cheapest.sellingPerPerson * 1.05) / 100) * 100;
 
   const netTotal = Math.round(cheapest.sellingTotal / (1 + markupPercent / 100));
   const markupAmount = cheapest.sellingTotal - netTotal;
   const discountAmount = Math.round(cheapest.sellingTotal * discountPercent / 100);
-  const sellingTotal = cheapest.sellingTotal - discountAmount;
+  const sellingTotalAfterDiscount = cheapest.sellingTotal - discountAmount;
+
+  // Fill in every combo's own net/markup split (needed for the plan dropdown
+  // once the trainee has picked a hotel, so switching plans shows honest
+  // numbers rather than staying pinned to the answer key's).
+  for (const c of allCombos) {
+    const net = Math.round(c.sellingTotal / (1 + markupPercent / 100));
+    c.netTotal = net;
+    c.markupAmount = c.sellingTotal - net;
+  }
+
+  const hotelOptions = Array.from(new Set(allCombos.map(c => c.hotelName)));
+  const plansByHotel: Record<string, HotelPlanOption[]> = {};
+  for (const c of allCombos) {
+    (plansByHotel[c.hotelName] ||= []).push(c);
+  }
 
   return {
     id, checkIn, nights, pax, rooms, budgetPerPerson, markupPercent, discountPercent, minStarRating,
     sightseeing: sampleSpots(3 + Math.floor(Math.random() * 3)),
-    options,
+    hotelOptions, plansByHotel,
     answer: {
-      hotelName: cheapest.hotelName, roomName: cheapest.roomName, planLabel: cheapest.planLabel,
-      netTotal, markupAmount, discountAmount, sellingTotal,
+      hotelName: cheapest.hotelName, mealPlan: cheapest.mealPlan,
+      sellingPerPerson: Math.round(sellingTotalAfterDiscount / pax),
+      totalMargin: markupAmount - discountAmount,
     },
   };
 }
@@ -176,11 +225,10 @@ export function generateQuestion(id: string): TrainerQuestion {
 // ── grading ──────────────────────────────────────────────────────────────
 
 export interface SubmittedAnswer {
-  hotelChoiceLabel: string;   // the option.label the trainee picked
-  netTotal: number;
-  markupAmount: number;
-  discountAmount: number;
-  sellingTotal: number;
+  hotelName: string;
+  mealPlan: MealPlan | '';
+  sellingPerPerson: number;
+  totalMargin: number;
 }
 
 export interface FieldResult { correct: boolean; expected: number | string; got: number | string }
@@ -188,10 +236,9 @@ export interface FieldResult { correct: boolean; expected: number | string; got:
 export interface GradeResult {
   allCorrect: boolean;
   hotel: FieldResult;
-  net: FieldResult;
-  markup: FieldResult;
-  discount: FieldResult;
-  total: FieldResult;
+  mealPlan: FieldResult;
+  perPerson: FieldResult;
+  margin: FieldResult;
 }
 
 // ±₹10 or ±0.1%, whichever is more forgiving — a flat ₹10 band would be
@@ -208,17 +255,19 @@ function numField(expected: number, got: number): FieldResult {
 }
 
 export function gradeAnswer(q: TrainerQuestion, submitted: SubmittedAnswer): GradeResult {
-  const cheapestLabel = q.options.slice().sort((a, b) => a.sellingTotal - b.sellingTotal)[0].label;
   const hotel: FieldResult = {
-    correct: submitted.hotelChoiceLabel === cheapestLabel,
-    expected: cheapestLabel, got: submitted.hotelChoiceLabel || '(none selected)',
+    correct: submitted.hotelName === q.answer.hotelName,
+    expected: q.answer.hotelName, got: submitted.hotelName || '(none selected)',
   };
-  const net = numField(q.answer.netTotal, submitted.netTotal);
-  const markup = numField(q.answer.markupAmount, submitted.markupAmount);
-  const discount = numField(q.answer.discountAmount, submitted.discountAmount);
-  const total = numField(q.answer.sellingTotal, submitted.sellingTotal);
+  const mealPlan: FieldResult = {
+    correct: submitted.mealPlan === q.answer.mealPlan,
+    expected: MEAL_PLAN_LABEL[q.answer.mealPlan],
+    got: submitted.mealPlan ? MEAL_PLAN_LABEL[submitted.mealPlan] : '(none selected)',
+  };
+  const perPerson = numField(q.answer.sellingPerPerson, submitted.sellingPerPerson);
+  const margin = numField(q.answer.totalMargin, submitted.totalMargin);
   return {
-    allCorrect: hotel.correct && net.correct && markup.correct && discount.correct && total.correct,
-    hotel, net, markup, discount, total,
+    allCorrect: hotel.correct && mealPlan.correct && perPerson.correct && margin.correct,
+    hotel, mealPlan, perPerson, margin,
   };
 }

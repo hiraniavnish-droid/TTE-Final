@@ -49,6 +49,11 @@ export const Layout = () => {
   // large dead margins either side. These two routes get the full viewport
   // width instead, same as the Kanban board does.
   const isWide = location.pathname === '/rajarshi-builder' || location.pathname === '/inland-builder';
+  // The quote trainer manages its own spacing (a quiz screen, not a form
+  // stack) — Layout's default padding + max-w-7xl cap just wasted the sides
+  // of any screen wider than ~1280px. No padding here at all; the page
+  // itself adds its own internal padding so content still clears the edges.
+  const isFullBleed = location.pathname === '/quote-trainer';
   const mainRef = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -386,6 +391,7 @@ export const Layout = () => {
         <div className={cn(
           'text-sm md:text-base',
           isBoard ? 'p-3 md:px-6 md:py-5 md:h-full'
+            : isFullBleed ? ''
             : isWide ? 'p-3 md:px-6 md:py-5 space-y-6 md:space-y-8'
             : 'p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8'
         )}>

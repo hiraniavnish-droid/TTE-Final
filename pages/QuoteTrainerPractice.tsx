@@ -6,17 +6,21 @@
 // The trainee gets a bare customer enquiry (dates, party size, budget,
 // sightseeing wishlist) — no hotel name, no rate. They go find the right
 // hotel themselves (real Rate Wall, the rate sheet, wherever they'd
-// normally look), price it by hand, and type the numbers in here. Every
-// answer is graded against buildInlandWall() — the same resolver the real
-// app quotes off — never a hand-typed "correct" number.
+// normally look), price it by hand, and pick just a hotel + meal plan (never
+// a room — a hotel can print half a dozen room types, and asking for the
+// exact one would test sheet-reading trivia, not quotation judgement) plus
+// two numbers: the per-person package price and the total margin earned.
+// Every answer is graded against buildInlandWall() — the same resolver the
+// real app quotes off — never a hand-typed "correct" number.
 // ============================================================
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn, generateId } from '../utils/helpers';
 import { Timer, Play, ChevronRight, Check, X, RotateCcw, Trophy, Clock, Target } from 'lucide-react';
 import {
-  generateQuestion, gradeAnswer, type TrainerQuestion, type GradeResult, type SubmittedAnswer,
+  generateQuestion, gradeAnswer, MEAL_PLAN_LABEL,
+  type TrainerQuestion, type GradeResult, type SubmittedAnswer, type MealPlan,
 } from '../services/quoteTrainerEngine';
 
 type Mode = '10min' | '15min' | 'untimed';
@@ -32,7 +36,7 @@ interface HistoryItem {
 const fmtINR = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 const fmtClock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
-const EMPTY_FORM = { hotelChoiceLabel: '', netTotal: '', markupAmount: '', discountAmount: '', sellingTotal: '' };
+const EMPTY_FORM = { hotelName: '', mealPlan: '' as MealPlan | '', sellingPerPerson: '', totalMargin: '' };
 
 export const QuoteTrainerPractice: React.FC = () => {
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
@@ -92,11 +96,10 @@ export const QuoteTrainerPractice: React.FC = () => {
   const submit = () => {
     if (!question) return;
     const submitted: SubmittedAnswer = {
-      hotelChoiceLabel: form.hotelChoiceLabel,
-      netTotal: parseFloat(form.netTotal),
-      markupAmount: parseFloat(form.markupAmount),
-      discountAmount: parseFloat(form.discountAmount),
-      sellingTotal: parseFloat(form.sellingTotal),
+      hotelName: form.hotelName,
+      mealPlan: form.mealPlan,
+      sellingPerPerson: parseFloat(form.sellingPerPerson),
+      totalMargin: parseFloat(form.totalMargin),
     };
     const g = gradeAnswer(question, submitted);
     setGrade(g);
@@ -105,6 +108,13 @@ export const QuoteTrainerPractice: React.FC = () => {
       timeTakenSec: Math.round((Date.now() - questionStartedAt) / 1000),
     }]);
   };
+
+  // Plan choices depend on which hotel is picked — a hotel that never
+  // prints a dinner supplement should not offer 'Breakfast + Dinner' at all.
+  const planChoices = useMemo(
+    () => (question && form.hotelName ? question.plansByHotel[form.hotelName] || [] : []),
+    [question, form.hotelName],
+  );
 
   const attempted = history.length;
   const correct = history.filter(h => h.grade.allCorrect).length;
@@ -115,11 +125,12 @@ export const QuoteTrainerPractice: React.FC = () => {
     light ? 'bg-white border-slate-200' : 'bg-white/[0.04] border-white/10');
   const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-1 block', getSecondaryTextColor());
   const inputCls = cn('w-full text-sm rounded-lg border px-3 py-2 outline-none transition-colors', getInputClass());
+  const pageCls = 'p-3 md:p-6';
 
   // ── setup ──
   if (phase === 'setup') {
     return (
-      <div className="max-w-2xl mx-auto space-y-5">
+      <div className={cn(pageCls, 'max-w-2xl mx-auto space-y-5')}>
         <div>
           <h1 className={cn('text-xl font-bold', getTextColor())}>Quotation Trainer — Statue of Unity</h1>
           <p className={cn('text-sm mt-1', getSecondaryTextColor())}>
@@ -153,7 +164,7 @@ export const QuoteTrainerPractice: React.FC = () => {
   // ── ended ──
   if (phase === 'ended') {
     return (
-      <div className="max-w-3xl mx-auto space-y-5">
+      <div className={cn(pageCls, 'max-w-5xl mx-auto space-y-5')}>
         <div className={cn(cardCls, 'text-center')}>
           <Trophy size={28} className="mx-auto mb-2 text-amber-500" />
           <h1 className={cn('text-xl font-bold', getTextColor())}>Session complete</h1>
@@ -185,11 +196,10 @@ export const QuoteTrainerPractice: React.FC = () => {
                     ? <Check size={14} className="text-emerald-600" />
                     : <X size={14} className="text-rose-600" />}
                 </div>
-                <FieldRow label="Hotel/room" fr={h.grade.hotel} />
-                <FieldRow label="Net" fr={h.grade.net} money />
-                <FieldRow label="Margin" fr={h.grade.markup} money />
-                <FieldRow label="Discount" fr={h.grade.discount} money />
-                <FieldRow label="Total" fr={h.grade.total} money />
+                <FieldRow label="Hotel" fr={h.grade.hotel} />
+                <FieldRow label="Meal plan" fr={h.grade.mealPlan} />
+                <FieldRow label="Price/person" fr={h.grade.perPerson} money />
+                <FieldRow label="Total margin" fr={h.grade.margin} money />
               </div>
             ))}
             {attempted === 0 && <div className={cn('text-sm', getSecondaryTextColor())}>No questions attempted.</div>}
@@ -201,7 +211,7 @@ export const QuoteTrainerPractice: React.FC = () => {
 
   // ── active ──
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className={cn(pageCls, 'space-y-4')}>
       {/* scoreboard */}
       <div className={cn('sticky top-0 z-10 flex items-center gap-4 rounded-xl border px-4 py-2.5 backdrop-blur',
         light ? 'bg-white/90 border-slate-200' : 'bg-slate-900/90 border-white/10')}>
@@ -211,10 +221,10 @@ export const QuoteTrainerPractice: React.FC = () => {
             <Timer size={14} /> {fmtClock(timeLeft)}
           </div>
         )}
-        <ScoreChip icon={<Target size={12} />} label="Attempted" value={String(attempted)} light={light} />
-        <ScoreChip icon={<Check size={12} />} label="Correct" value={String(correct)} light={light} />
-        <ScoreChip icon={<Trophy size={12} />} label="Accuracy" value={`${accuracy}%`} light={light} />
-        <ScoreChip icon={<Clock size={12} />} label="Avg" value={`${avgTime}s`} light={light} />
+        <ScoreChip icon={<Target size={12} />} label="Attempted" value={String(attempted)} />
+        <ScoreChip icon={<Check size={12} />} label="Correct" value={String(correct)} />
+        <ScoreChip icon={<Trophy size={12} />} label="Accuracy" value={`${accuracy}%`} />
+        <ScoreChip icon={<Clock size={12} />} label="Avg" value={`${avgTime}s`} />
         <button type="button" onClick={endSession}
           className={cn('ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-lg transition', getInputClass(), getSecondaryTextColor())}>
           End session
@@ -227,6 +237,8 @@ export const QuoteTrainerPractice: React.FC = () => {
         </div>
       )}
 
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
+      <div className="max-w-2xl space-y-4">
       {question && (
         <>
           {/* the enquiry */}
@@ -251,26 +263,31 @@ export const QuoteTrainerPractice: React.FC = () => {
           {/* answer form */}
           <div className={cardCls}>
             <div className={labelCls}>Your quotation</div>
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <span className={labelCls}>Recommended hotel &amp; room</span>
-                <select value={form.hotelChoiceLabel} disabled={!!grade}
-                  onChange={e => setForm(f => ({ ...f, hotelChoiceLabel: e.target.value }))}
+                <span className={labelCls}>Recommended hotel</span>
+                <select value={form.hotelName} disabled={!!grade}
+                  onChange={e => setForm(f => ({ ...f, hotelName: e.target.value, mealPlan: '' }))}
                   className={inputCls}>
                   <option value="">Select…</option>
-                  {question.options.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}
+                  {question.hotelOptions.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <NumField label="Net rate (₹)" value={form.netTotal} disabled={!!grade}
-                  onChange={v => setForm(f => ({ ...f, netTotal: v }))} inputCls={inputCls} labelCls={labelCls} />
-                <NumField label="Margin amount (₹)" value={form.markupAmount} disabled={!!grade}
-                  onChange={v => setForm(f => ({ ...f, markupAmount: v }))} inputCls={inputCls} labelCls={labelCls} />
-                <NumField label="Discount amount (₹)" value={form.discountAmount} disabled={!!grade}
-                  onChange={v => setForm(f => ({ ...f, discountAmount: v }))} inputCls={inputCls} labelCls={labelCls} />
-                <NumField label="Final total (₹)" value={form.sellingTotal} disabled={!!grade}
-                  onChange={v => setForm(f => ({ ...f, sellingTotal: v }))} inputCls={inputCls} labelCls={labelCls} />
+              <div>
+                <span className={labelCls}>Meal plan</span>
+                <select value={form.mealPlan} disabled={!!grade || !form.hotelName}
+                  onChange={e => setForm(f => ({ ...f, mealPlan: e.target.value as MealPlan }))}
+                  className={inputCls}>
+                  <option value="">Select…</option>
+                  {planChoices.map(p => (
+                    <option key={p.mealPlan} value={p.mealPlan}>{MEAL_PLAN_LABEL[p.mealPlan]}</option>
+                  ))}
+                </select>
               </div>
+              <NumField label="Package price / person (₹)" value={form.sellingPerPerson} disabled={!!grade}
+                onChange={v => setForm(f => ({ ...f, sellingPerPerson: v }))} inputCls={inputCls} labelCls={labelCls} />
+              <NumField label="Total margin earned (₹)" value={form.totalMargin} disabled={!!grade}
+                onChange={v => setForm(f => ({ ...f, totalMargin: v }))} inputCls={inputCls} labelCls={labelCls} />
             </div>
 
             {!grade ? (
@@ -289,11 +306,10 @@ export const QuoteTrainerPractice: React.FC = () => {
                       ? <><Check size={14} className="text-emerald-600" /> <span className="text-emerald-700">All correct</span></>
                       : <><X size={14} className="text-rose-600" /> <span className="text-rose-700">Some fields off</span></>}
                   </div>
-                  <FieldRow label="Hotel/room" fr={grade.hotel} />
-                  <FieldRow label="Net" fr={grade.net} money />
-                  <FieldRow label="Margin" fr={grade.markup} money />
-                  <FieldRow label="Discount" fr={grade.discount} money />
-                  <FieldRow label="Total" fr={grade.total} money />
+                  <FieldRow label="Hotel" fr={grade.hotel} />
+                  <FieldRow label="Meal plan" fr={grade.mealPlan} />
+                  <FieldRow label="Price/person" fr={grade.perPerson} money />
+                  <FieldRow label="Total margin" fr={grade.margin} money />
                 </div>
                 <button type="button" onClick={nextQuestion}
                   className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 transition">
@@ -304,6 +320,31 @@ export const QuoteTrainerPractice: React.FC = () => {
           </div>
         </>
       )}
+      </div>
+
+      {/* session log — fills the extra width on wide screens with something
+          actually useful, rather than just stretching the form card. */}
+      <div className={cardCls}>
+        <div className={labelCls}>This session ({attempted})</div>
+        <div className="space-y-1.5 mt-2 max-h-[70vh] overflow-y-auto">
+          {history.slice().reverse().map((h, idx) => (
+            <div key={h.question.id} className={cn('rounded-lg border px-2.5 py-1.5 text-[11px]',
+              h.grade.allCorrect
+                ? (light ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-400/30 bg-emerald-500/5')
+                : (light ? 'border-rose-200 bg-rose-50' : 'border-rose-400/30 bg-rose-500/5'))}>
+              <div className="flex items-center justify-between">
+                <span className={cn('font-bold', getTextColor())}>Q{attempted - idx} · {h.timeTakenSec}s</span>
+                {h.grade.allCorrect
+                  ? <Check size={12} className="text-emerald-600 shrink-0" />
+                  : <X size={12} className="text-rose-600 shrink-0" />}
+              </div>
+              <div className={cn('truncate mt-0.5', getSecondaryTextColor())}>{h.question.answer.hotelName}</div>
+            </div>
+          ))}
+          {attempted === 0 && <div className={cn('text-xs', getSecondaryTextColor())}>Nothing submitted yet.</div>}
+        </div>
+      </div>
+      </div>
     </div>
   );
 };
@@ -315,7 +356,7 @@ const Stat: React.FC<{ label: string; value: string; light: boolean }> = ({ labe
   </div>
 );
 
-const ScoreChip: React.FC<{ icon: React.ReactNode; label: string; value: string; light: boolean }> = ({ icon, label, value }) => (
+const ScoreChip: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
   <div className="hidden sm:flex items-center gap-1 text-xs font-semibold">
     {icon}<span className="font-mono">{value}</span>
     <span className="text-[10px] uppercase tracking-wider opacity-60">{label}</span>
@@ -338,7 +379,7 @@ const FieldRow: React.FC<{ label: string; fr: { correct: boolean; expected: numb
   return (
     <div className="flex items-center gap-2 text-[11px] py-0.5">
       {fr.correct ? <Check size={11} className="text-emerald-600 shrink-0" /> : <X size={11} className="text-rose-600 shrink-0" />}
-      <span className="font-semibold w-16 shrink-0">{label}</span>
+      <span className="font-semibold w-24 shrink-0">{label}</span>
       <span className="opacity-70">you: {fmt(fr.got)}</span>
       {!fr.correct && <span className="opacity-70">· correct: {fmt(fr.expected)}</span>}
     </div>
