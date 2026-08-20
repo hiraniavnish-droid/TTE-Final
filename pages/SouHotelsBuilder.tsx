@@ -502,15 +502,14 @@ export const SouHotelsBuilder: React.FC = () => {
                               {cell.planLabel && (
                                 <span className={cn('text-[8.5px] font-sans font-semibold normal-case truncate max-w-full', on ? 'text-white/70' : 'opacity-50')}>{cell.planLabel}</span>
                               )}
-                              {budget && (
-                                <span title={budget.bucket === 'best-fit' ? 'Best fit' : budget.bucket === 'under' ? 'Under budget' : 'Over budget'}
-                                  className={cn('text-[8.5px] font-sans font-bold normal-case',
-                                    budget.bucket === 'best-fit' ? (on ? 'text-emerald-300' : 'text-emerald-600')
-                                      : budget.bucket === 'under' ? (on ? 'text-sky-300' : 'text-sky-600')
-                                      : (on ? 'text-rose-300' : 'text-rose-600'))}>
-                                  {fmtINR(Math.round((cell.sellingTotal + (itineraryPrice?.sellingTotal ?? 0)) / pax))}/pp
-                                </span>
-                              )}
+                              <span title={budget ? (budget.bucket === 'best-fit' ? 'Best fit' : budget.bucket === 'under' ? 'Under budget' : 'Over budget') : undefined}
+                                className={cn('text-[8.5px] font-sans font-bold normal-case',
+                                  !budget ? (on ? 'text-white/60' : 'opacity-50')
+                                    : budget.bucket === 'best-fit' ? (on ? 'text-emerald-300' : 'text-emerald-600')
+                                    : budget.bucket === 'under' ? (on ? 'text-sky-300' : 'text-sky-600')
+                                    : (on ? 'text-rose-300' : 'text-rose-600'))}>
+                                {fmtINR(Math.round((cell.sellingTotal + (itineraryPrice?.sellingTotal ?? 0)) / pax))}/pp
+                              </span>
                             </>
                           ) : (
                             <span className="text-[10.5px] font-sans normal-case opacity-50">{hiddenByBudget ? 'Over budget' : 'On request'}</span>
