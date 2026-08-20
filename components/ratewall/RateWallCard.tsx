@@ -76,6 +76,17 @@ function pickDefaultRow(rows: WallRoomRow[], preferredPlan: string | undefined):
     if (exact) return exact;
     const starts = rows.find(r => norm(r.planLabel).startsWith(pref) || pref.startsWith(norm(r.planLabel)));
     if (starts) return starts;
+    // A derived MAP row carries the axis text baked into its label ('Rate
+    // till Sep 2026 (MAP)', 'WEEKDAYS (MAP)') — never a bare 'CPAI'/'MAPAI',
+    // so it can never text-match a global preference above, and the
+    // 'Default rate' quick-pick would silently do nothing on these hotels.
+    // Falling back to matching on MAP-ness alone (does the label end in
+    // '(MAP)'?) instead of exact text lets a 'MAPAI'-ish global preference
+    // still pick this room's MAP row, and anything else still pick its
+    // non-MAP row.
+    const prefersMap = /map/.test(pref);
+    const byMapness = rows.find(r => /\(map\)$/i.test(r.planLabel || '') === prefersMap);
+    if (byMapness) return byMapness;
   }
   // No preference, or nothing matched it: prefer a quotable row over a blocked
   // one so the default view is never a dead end when a choice exists.
