@@ -34,7 +34,7 @@ import {
   type CompareHotelRate,
 } from '../services/souHotelCompareMessage';
 
-const DURATIONS: SouOptionNights[] = [1, 2, 3];
+const ALL_DURATIONS: SouOptionNights[] = [1, 2, 3];
 const cellKey = (hotelId: string, n: number) => `${hotelId}::${n}`;
 
 // The two plan buckets Kevadiya's sheets actually print (CPAI/CP-only rooms,
@@ -56,6 +56,14 @@ export const SouHotelsBuilder: React.FC = () => {
   const [plan, setPlan] = useState<PlanChoice>('cp');
   const [budgetPerPerson, setBudgetPerPerson] = useState<number | undefined>(undefined);
   const [hideOverBudget, setHideOverBudget] = useState(false);
+  const [selectedNights, setSelectedNights] = useState<SouOptionNights[]>(ALL_DURATIONS);
+  const toggleNights = (n: SouOptionNights) =>
+    setSelectedNights(prev => {
+      // At least one duration must stay selected — an empty grid isn't a
+      // useful state and there is no way back into it without a page reload.
+      if (prev.includes(n)) return prev.length > 1 ? prev.filter(x => x !== n) : prev;
+      return [...prev, n].sort((a, b) => a - b);
+    });
 
   // Rooms auto-suggests ceil(guests/2) as guests changes, but only while the
   // agent hasn't diverged from the last suggestion — same behaviour as the
@@ -94,9 +102,9 @@ export const SouHotelsBuilder: React.FC = () => {
   const selectNoHotels = () => setSelectedHotelIds([]);
 
   const options = useMemo(() => buildSouHotelOptions({
-    checkIn: checkInStr, hotelIds: selectedHotelIds, durations: DURATIONS,
+    checkIn: checkInStr, hotelIds: selectedHotelIds, durations: selectedNights,
     rooms, pax, extraMattress, markupMode, markupValue, preferredPlan: PLAN_PREFERENCE[plan],
-  }), [checkInStr, selectedHotelIds, rooms, pax, extraMattress, markupMode, markupValue, plan]);
+  }), [checkInStr, selectedHotelIds, selectedNights, rooms, pax, extraMattress, markupMode, markupValue, plan]);
 
   const itineraryPrice = useMemo(
     () => includeItinerary ? priceSouItinerary({ nights: itineraryNights, pax, includeRailwayTransfer: includeTransfer }) : null,
@@ -303,6 +311,17 @@ export const SouHotelsBuilder: React.FC = () => {
                 <label className={labelCls}>Mattress</label>
                 <Stepper value={extraMattress} set={setExtraMattress} min={0} max={10} />
               </div>
+              <div className="w-[112px]">
+                <label className={labelCls}>Nights</label>
+                <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+                  {ALL_DURATIONS.map(n => (
+                    <button key={n} onClick={() => toggleNights(n)}
+                      className={cn('flex-1 py-1.5 text-[11.5px] font-bold transition', selectedNights.includes(n) ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                      {n}N
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="w-[76px]">
                 <label className={labelCls}>Plan</label>
                 <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
@@ -456,8 +475,8 @@ export const SouHotelsBuilder: React.FC = () => {
                     <span className={cn('text-[12.5px] font-bold', getTextColor())}>{h.hotelName}</span>
                     {h.starLabel && <span className={cn('ml-1.5 text-[10px]', getSecondaryTextColor())}>{h.starLabel}</span>}
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {DURATIONS.map(n => {
+                  <div className={cn('grid gap-1.5', selectedNights.length === 1 ? 'grid-cols-1' : selectedNights.length === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
+                    {selectedNights.map(n => {
                       const cell = cellFor(h.hotelId, n);
                       const on = ticks[cellKey(h.hotelId, n)] === true;
                       const budget = cell ? cellBudget(cell.sellingTotal) : null;
