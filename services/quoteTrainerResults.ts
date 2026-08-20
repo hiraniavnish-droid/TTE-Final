@@ -124,3 +124,49 @@ export async function fetchAllUsersStats(): Promise<UserStats[]> {
     .map(([userId, { userName, rows }]) => ({ userId, userName, ...aggregate(rows) }))
     .sort((a, b) => b.attempted - a.attempted);
 }
+
+export interface SessionRecord {
+  id: string;
+  mode: string;
+  attempted: number;
+  correct: number;
+  accuracy: number;
+  avgTimeCorrectSec: number | null;
+  // Sum of every question's own timeTakenSec in this session (right and
+  // wrong both count here, unlike avg_time_correct_sec) — the closest
+  // proxy to "how long was this training session" without a dedicated
+  // start/end timestamp column. Derived from `detail`, not stored.
+  totalTimeSec: number;
+  createdAt: string;
+}
+
+// Admin drill-down: every individual session for one trainee, most recent
+// first, so a bad run (test data, a data-entry slip) can be found and
+// removed with deleteSession() without a schema change.
+export async function fetchUserSessions(userId: string): Promise<SessionRecord[]> {
+  const { data, error } = await supabase
+    .from('quote_trainer_results')
+    .select('id, mode, attempted, correct, accuracy, avg_time_correct_sec, detail, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(r => ({
+    id: r.id, mode: r.mode, attempted: r.attempted, correct: r.correct, accuracy: r.accuracy,
+    avgTimeCorrectSec: r.avg_time_correct_sec,
+    totalTimeSec: Array.isArray(r.detail)
+      ? r.detail.reduce((sum: number, d: QuestionOutcome) => sum + (d.timeTakenSec || 0), 0)
+      : 0,
+    createdAt: r.created_at,
+  }));
+}
+
+// RLS with no matching policy silently filters the delete to zero rows
+// rather than erroring — e.g. before 009_quote_trainer_results_delete.sql
+// is applied. Requesting the deleted row back and checking it's actually
+// there catches that case; without it the UI would remove the row locally
+// and claim success while the real data survives untouched on the server.
+export async function deleteSession(sessionId: string): Promise<void> {
+  const { data, error } = await supabase.from('quote_trainer_results').delete().eq('id', sessionId).select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error('Delete had no effect — check the delete policy has been applied (009_quote_trainer_results_delete.sql).');
+}

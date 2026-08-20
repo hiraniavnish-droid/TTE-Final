@@ -19,14 +19,14 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cn, generateId } from '../utils/helpers';
-import { Timer, Play, ChevronRight, Check, X, RotateCcw, Trophy, Clock, Target, History, Users } from 'lucide-react';
+import { Timer, Play, ChevronRight, Check, X, RotateCcw, Trophy, Clock, Target, History, Users, ArrowLeft, Trash2 } from 'lucide-react';
 import {
   generateQuestion, gradeAnswer,
   type TrainerQuestion, type GradeResult, type SubmittedLine,
 } from '../services/quoteTrainerEngine';
 import {
-  saveSessionResult, fetchMyStats, fetchAllUsersStats,
-  type CumulativeStats, type UserStats,
+  saveSessionResult, fetchMyStats, fetchAllUsersStats, fetchUserSessions, deleteSession,
+  type CumulativeStats, type UserStats, type SessionRecord,
 } from '../services/quoteTrainerResults';
 
 type Mode = '10min' | '15min' | '10q' | '15q' | '20q' | 'untimed';
@@ -43,6 +43,7 @@ const CHALLENGES: { id: Mode; label: string; group: string }[] = [
 
 const isTimeMode = (m: Mode) => m === '10min' || m === '15min';
 const questionTargetOf = (m: Mode): number => (m === '10q' ? 10 : m === '15q' ? 15 : m === '20q' ? 20 : 0);
+const CHALLENGE_LABEL: Record<string, string> = Object.fromEntries(CHALLENGES.map(c => [c.id, c.label]));
 
 interface HistoryItem {
   question: TrainerQuestion;
@@ -54,6 +55,11 @@ type LineForm = Record<string, { sellingPerPerson: string; totalMargin: string }
 
 const fmtINR = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 const fmtClock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+const fmtDuration = (sec: number): string => {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return s ? `${m}m ${s}s` : `${m}m`;
+};
 
 const emptyLineForm = (q: TrainerQuestion): LineForm => {
   const f: LineForm = {};
@@ -78,6 +84,9 @@ export const QuoteTrainerPractice: React.FC = () => {
   const [genError, setGenError] = useState<string | null>(null);
   const [myStats, setMyStats] = useState<CumulativeStats | null>(null);
   const [teamStats, setTeamStats] = useState<UserStats[] | null>(null);
+  const [viewingUser, setViewingUser] = useState<{ id: string; name: string } | null>(null);
+  const [viewingSessions, setViewingSessions] = useState<SessionRecord[] | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // setInterval captures whatever `history` closure existed when start()
   // ran; a ref kept in sync on every update lets endSession read the true
@@ -100,6 +109,27 @@ export const QuoteTrainerPractice: React.FC = () => {
   }, [user]);
 
   useEffect(() => { loadStats(); }, [loadStats]);
+
+  const openUserSessions = useCallback((u: { id: string; name: string }) => {
+    setViewingUser(u);
+    setViewingSessions(null);
+    fetchUserSessions(u.id).then(setViewingSessions).catch(() => setViewingSessions([]));
+  }, []);
+
+  const removeSession = useCallback((sessionId: string) => {
+    if (!window.confirm('Delete this session? This removes it from that person\'s accuracy and average-time stats permanently.')) return;
+    setDeletingId(sessionId);
+    deleteSession(sessionId)
+      .then(() => {
+        setViewingSessions(prev => prev ? prev.filter(s => s.id !== sessionId) : prev);
+        loadStats(); // the team table and (if it's the same person) 'your stats' both need the new totals
+      })
+      .catch(err => {
+        console.error('quote trainer: failed to delete session', err);
+        toast.error('Could not delete this session.');
+      })
+      .finally(() => setDeletingId(null));
+  }, [loadStats]);
 
   const nextQuestion = useCallback(() => {
     try {
@@ -178,50 +208,100 @@ export const QuoteTrainerPractice: React.FC = () => {
   const inputCls = cn('w-full text-sm rounded-lg border px-3 py-2 outline-none transition-colors', getInputClass());
   const pageCls = 'p-3 md:p-6';
 
-  const StatsPanel: React.FC = () => (
-    <>
-      {myStats && (
+  const StatsPanel: React.FC = () => {
+    if (isAdmin && viewingUser) {
+      const totalTimeAll = (viewingSessions || []).reduce((s, r) => s + r.totalTimeSec, 0);
+      return (
         <div className={cardCls}>
-          <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> Your training history</div>
-          <div className="grid grid-cols-4 gap-3 mt-1">
-            <Stat label="Sessions" value={String(myStats.sessions)} light={light} />
-            <Stat label="Quotations" value={String(myStats.attempted)} light={light} />
-            <Stat label="Accuracy" value={`${myStats.accuracy}%`} light={light} />
-            <Stat label="Avg time" value={myStats.avgTimeCorrectSec != null ? `${myStats.avgTimeCorrectSec}s` : '—'} light={light} />
-          </div>
-        </div>
-      )}
-      {isAdmin && teamStats && teamStats.length > 0 && (
-        <div className={cardCls}>
-          <div className={cn('flex items-center gap-1.5', labelCls)}><Users size={12} /> Team training history (admin)</div>
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className={cn('text-left border-b', light ? 'border-slate-200' : 'border-white/10')}>
-                  <th className={cn('py-1.5 pr-3 font-semibold', getSecondaryTextColor())}>Agent</th>
-                  <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Sessions</th>
-                  <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Quotations</th>
-                  <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Accuracy</th>
-                  <th className={cn('py-1.5 pl-3 font-semibold text-right', getSecondaryTextColor())}>Avg time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teamStats.map(u => (
-                  <tr key={u.userId} className={cn('border-b last:border-0', light ? 'border-slate-100' : 'border-white/5')}>
-                    <td className={cn('py-1.5 pr-3 font-semibold', getTextColor())}>{u.userName}{u.userId === user?.id ? ' (you)' : ''}</td>
-                    <td className="py-1.5 px-3 text-right font-mono">{u.sessions}</td>
-                    <td className="py-1.5 px-3 text-right font-mono">{u.attempted}</td>
-                    <td className="py-1.5 px-3 text-right font-mono">{u.accuracy}%</td>
-                    <td className="py-1.5 pl-3 text-right font-mono">{u.avgTimeCorrectSec != null ? `${u.avgTimeCorrectSec}s` : '—'}</td>
-                  </tr>
+          <button type="button" onClick={() => { setViewingUser(null); setViewingSessions(null); }}
+            className={cn('flex items-center gap-1.5 text-xs font-semibold mb-2 transition hover:opacity-70', getSecondaryTextColor())}>
+            <ArrowLeft size={12} /> Back to team
+          </button>
+          <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> {viewingUser.name}'s sessions</div>
+          {viewingSessions === null ? (
+            <div className={cn('text-xs mt-2', getSecondaryTextColor())}>Loading…</div>
+          ) : viewingSessions.length === 0 ? (
+            <div className={cn('text-xs mt-2', getSecondaryTextColor())}>No sessions recorded.</div>
+          ) : (
+            <>
+              <div className={cn('text-xs mt-1', getSecondaryTextColor())}>
+                Total time trained across all sessions: <b>{fmtDuration(totalTimeAll)}</b>
+              </div>
+              <div className="space-y-1.5 mt-2">
+                {viewingSessions.map(s => (
+                  <div key={s.id} className={cn('flex items-center gap-3 rounded-lg border px-3 py-2 text-xs',
+                    light ? 'border-slate-200' : 'border-white/10')}>
+                    <div className="flex-1 min-w-0">
+                      <div className={cn('font-semibold', getTextColor())}>
+                        {new Date(s.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                        <span className={cn('font-normal ml-1.5', getSecondaryTextColor())}>· {CHALLENGE_LABEL[s.mode] || s.mode}</span>
+                      </div>
+                      <div className={getSecondaryTextColor()}>
+                        {s.attempted} quotations · {s.accuracy}% accuracy ·{' '}
+                        avg {s.avgTimeCorrectSec != null ? `${s.avgTimeCorrectSec}s` : '—'} ·{' '}
+                        trained {fmtDuration(s.totalTimeSec)}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => removeSession(s.id)} disabled={deletingId === s.id}
+                      className="shrink-0 p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition disabled:opacity-40"
+                      title="Delete this session">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          )}
         </div>
-      )}
-    </>
-  );
+      );
+    }
+    return (
+      <>
+        {myStats && (
+          <div className={cardCls}>
+            <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> Your training history</div>
+            <div className="grid grid-cols-4 gap-3 mt-1">
+              <Stat label="Sessions" value={String(myStats.sessions)} light={light} />
+              <Stat label="Quotations" value={String(myStats.attempted)} light={light} />
+              <Stat label="Accuracy" value={`${myStats.accuracy}%`} light={light} />
+              <Stat label="Avg time" value={myStats.avgTimeCorrectSec != null ? `${myStats.avgTimeCorrectSec}s` : '—'} light={light} />
+            </div>
+          </div>
+        )}
+        {isAdmin && teamStats && teamStats.length > 0 && (
+          <div className={cardCls}>
+            <div className={cn('flex items-center gap-1.5', labelCls)}><Users size={12} /> Team training history (admin) — click a row for their sessions</div>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className={cn('text-left border-b', light ? 'border-slate-200' : 'border-white/10')}>
+                    <th className={cn('py-1.5 pr-3 font-semibold', getSecondaryTextColor())}>Agent</th>
+                    <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Sessions</th>
+                    <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Quotations</th>
+                    <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Accuracy</th>
+                    <th className={cn('py-1.5 pl-3 font-semibold text-right', getSecondaryTextColor())}>Avg time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamStats.map(u => (
+                    <tr key={u.userId} onClick={() => openUserSessions({ id: u.userId, name: u.userName })}
+                      className={cn('border-b last:border-0 cursor-pointer transition',
+                        light ? 'border-slate-100 hover:bg-slate-50' : 'border-white/5 hover:bg-white/5')}>
+                      <td className={cn('py-1.5 pr-3 font-semibold', getTextColor())}>{u.userName}{u.userId === user?.id ? ' (you)' : ''}</td>
+                      <td className="py-1.5 px-3 text-right font-mono">{u.sessions}</td>
+                      <td className="py-1.5 px-3 text-right font-mono">{u.attempted}</td>
+                      <td className="py-1.5 px-3 text-right font-mono">{u.accuracy}%</td>
+                      <td className="py-1.5 pl-3 text-right font-mono">{u.avgTimeCorrectSec != null ? `${u.avgTimeCorrectSec}s` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
 
   // ── setup ──
   if (phase === 'setup') {
