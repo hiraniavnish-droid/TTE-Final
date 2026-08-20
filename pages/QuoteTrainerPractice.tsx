@@ -1,7 +1,6 @@
 // ============================================================
-// Quotation Trainer — internal practice tool, NOT linked in the sidebar yet.
-// Reachable at /quote-trainer while it's being tried out; add a nav entry
-// in Layout.tsx to roll it out once it's proven.
+// Quotation Trainer — internal practice tool, linked in the sidebar
+// (components/Layout.tsx) as 'Quote Trainer' for the whole team.
 //
 // The trainee gets a bare customer enquiry (dates, party size, budget,
 // sightseeing wishlist) — no hotel name, no rate. They go find the right

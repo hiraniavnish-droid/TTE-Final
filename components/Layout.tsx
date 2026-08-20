@@ -21,6 +21,7 @@ import {
   Command,
   ChevronLeft,
   ChevronRight,
+  GraduationCap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
@@ -106,6 +107,7 @@ export const Layout = () => {
       { path: '/payments',      label: 'Payments',     icon: CreditCard },
       { path: '/suppliers',     label: 'Suppliers',    icon: Handshake },
       { path: '/customers',     label: 'Customers',    icon: BookUser },
+      { path: '/quote-trainer', label: 'Quote Trainer',icon: GraduationCap },
     ];
     if (user?.role === 'admin') items.push({ path: '/team-settings', label: 'Team Settings', icon: ShieldCheck });
     return items;
@@ -273,7 +275,12 @@ export const Layout = () => {
         )}
 
         {/* Nav items */}
-        <nav className="flex-1 px-3 space-y-0.5 overflow-hidden">
+        {/* overflow-y-auto, not hidden: 9 items (10 for admins, with Team
+            Settings) is taller than the sidebar's available flex space on
+            common laptop screens, and a clipped item is worse than a
+            scrollbar — Quote Trainer was silently unreachable here before
+            this changed. */}
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
           {navItems.map((item) => {
             const isActive = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
             return (
