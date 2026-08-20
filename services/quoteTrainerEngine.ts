@@ -2,23 +2,30 @@
 // Quotation Trainer — question generation and grading.
 //
 // The whole point is that the trainee never sees a hotel name or a rate: a
-// question is a customer enquiry (dates, party size, budget, wishlist of
-// sightseeing spots), exactly what a real lead looks like. The trainee has
-// to go find the right hotel themselves (in the real Rate Wall, the rate
-// sheet, wherever they'd normally look), price it, and type the numbers in
-// here to be graded. So the ANSWER KEY has to come from the same resolver
-// the real app uses — buildInlandWall() — never a hand-typed number, or a
-// bug in this file could silently teach the wrong price.
+// question is a customer enquiry (dates, party size, budget, sightseeing
+// wishlist), exactly what a real lead looks like. The trainee has to go
+// find the right hotels themselves (the real Rate Wall, the rate sheet,
+// wherever they'd normally look), price them by hand, and type the numbers
+// in here to be graded. So the ANSWER KEY has to come from the same
+// resolver the real app uses — buildInlandWall() — never a hand-typed
+// number, or a bug in this file could silently teach the wrong price.
 //
-// The stated budget is a STARTING POINT, not a cutoff — a real agent quotes
-// a spread of 3-4 hotels around it, some pricier, some cheaper, and lets the
-// client choose. So there is no single "correct" hotel or meal plan here:
-// the trainee picks whichever they'd actually suggest, and grading checks
-// only whether the price they typed is right FOR THE COMBINATION THEY
-// PICKED — priced off whichever of that hotel's rooms is cheapest for that
-// plan (the room itself is resolved internally and never shown; asking the
-// trainee to also identify the exact room name would be testing
-// sheet-reading trivia, not quotation judgement).
+// A real agent shortlists 3-4 hotels for a client rather than picking one —
+// "here's a cheaper one, here's a nicer one" — so each question PRE-NAMES
+// 3-4 hotels (the system's choice, not the trainee's) and states the plan
+// to quote for each. Every line is priced at MAP (breakfast + dinner) —
+// the standard package this agency actually sells — off whichever room at
+// that hotel is cheapest for MAP (the room itself is resolved internally
+// and never shown; asking the trainee to also identify the exact room name
+// would be testing sheet-reading trivia, not quotation judgement).
+//
+// No discount round: stacking 'apply X% markup, THEN take off a further Y%'
+// turned out to be the single biggest source of near-miss errors in
+// practice — trainees would price correctly against a DIFFERENT markup %
+// than the one actually stated, or forget the second step entirely. One
+// clean number per hotel (net -> standard markup -> done) tests the same
+// skill without the extra arithmetic step that was producing errors that
+// had nothing to do with hotel-pricing knowledge.
 // ============================================================
 
 import { buildInlandWall } from './inlandWall';
@@ -43,10 +50,10 @@ const SIGHTSEEING_SPOTS = [
 const NIGHTS_OPTIONS = [1, 2, 3];
 const PAX_OPTIONS = [2, 3, 4, 5, 6];
 const MARKUP_OPTIONS = [12, 15, 18, 20];
-const DISCOUNT_OPTIONS = [0, 0, 0, 5, 10]; // ~40% of questions carry a discount round
 // A star-rating floor, when stated, is a real constraint a customer states —
 // not a trick — that narrows which hotels are even worth shortlisting.
 const MIN_STAR_OPTIONS = [0, 0, 3, 4, 4, 4];
+const LINE_ITEM_COUNTS = [3, 3, 4]; // "3 to 4 hotels" per question
 
 function addDays(iso: string, n: number): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -67,6 +74,15 @@ function sampleSpots(n: number): string[] {
   return out;
 }
 
+function shuffled<T>(arr: T[]): T[] {
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 // 'starLabel' is free text off the sheet ('4 Star', '4 Star – New Property').
 // Only the leading number is a star rating; anything unparsed is treated as
 // unrated, which fails any stated minimum rather than guessing it qualifies.
@@ -75,31 +91,20 @@ function starOf(label: string | undefined): number {
   return m ? Number(m[1]) : 0;
 }
 
-export type MealPlan = 'breakfast' | 'breakfast_dinner';
-
 // Every planLabel this city's rooms carry either names the plan directly
 // (CPAI/CAPI, MAPAI) or is an axis label (WEEKDAYS, 'Your dates', a season
 // range) that inlandWall.ts only ever attaches a '(MAP)' suffix to when the
-// derived dinner supplement applies — so 'contains MAP' cleanly separates
-// the two without needing to see the printed label's exact vocabulary.
-// Kevadiya prints no all-inclusive (APAI) rooms, so these are the only two.
-function mealPlanOf(planLabel: string | undefined): MealPlan {
-  return /map/i.test(planLabel || '') ? 'breakfast_dinner' : 'breakfast';
-}
+// derived dinner supplement applies — so 'contains MAP' cleanly identifies
+// a MAP-plan row without needing to see the printed label's exact
+// vocabulary. Kevadiya prints no all-inclusive (APAI) rooms.
+const isMapPlanLabel = (planLabel: string | undefined): boolean => /map/i.test(planLabel || '');
 
-export const MEAL_PLAN_LABEL: Record<MealPlan, string> = {
-  breakfast: 'Breakfast only',
-  breakfast_dinner: 'Breakfast + Dinner',
-};
-
-// One (hotel, meal plan) combination — priced off whichever ROOM of that
-// hotel is cheapest for that plan, BEFORE any discount. The room itself is
-// resolved internally and never surfaced; the trainee only ever sees the
-// hotel and the plan.
-export interface HotelPlanOption {
+// One hotel's MAP-plan quote — priced off whichever room of that hotel is
+// cheapest for MAP. The room itself is resolved internally and never
+// surfaced to the trainee.
+export interface LineItem {
   hotelName: string;
-  mealPlan: MealPlan;
-  sellingTotal: number;    // net + markup, pre-discount
+  sellingTotal: number;
   netTotal: number;
   markupAmount: number;
 }
@@ -110,16 +115,13 @@ export interface TrainerQuestion {
   nights: number;
   pax: number;
   rooms: number;
-  budgetPerPerson: number;   // a STARTING POINT the client quoted, not a cutoff — real options run both above and below it
+  budgetPerPerson: number;   // a STARTING POINT the client quoted, not a cutoff — the shortlist runs both above and below it
   markupPercent: number;
-  discountPercent: number;
   minStarRating: number;   // 0 = no preference stated
   sightseeing: string[];
-  hotelOptions: string[];              // distinct hotel names on offer — the hotel dropdown's contents
-  plansByHotel: Record<string, HotelPlanOption[]>;  // filled in once a hotel is picked, for the plan dropdown
+  lineItems: LineItem[];   // 3-4 pre-named hotels, each already assigned MAP — the trainee prices every one
 }
 
-const MIN_COMBOS = 3; // need a genuine shortlist to pick from, not just one hotel
 const MAX_ATTEMPTS = 20;
 
 function tryGenerate(id: string): TrainerQuestion | null {
@@ -128,7 +130,6 @@ function tryGenerate(id: string): TrainerQuestion | null {
   const pax = pick(PAX_OPTIONS);
   const rooms = Math.max(1, Math.ceil(pax / 2));
   const markupPercent = pick(MARKUP_OPTIONS);
-  const discountPercent = pick(DISCOUNT_OPTIONS);
   const minStarRating = pick(MIN_STAR_OPTIONS);
 
   const entries: WallEntry[] = buildInlandWall({
@@ -136,44 +137,37 @@ function tryGenerate(id: string): TrainerQuestion | null {
     markupMode: 'percent', markupValue: markupPercent,
   });
 
-  // (hotelName, mealPlan) -> cheapest room's priced row for that combination.
-  const combos = new Map<string, HotelPlanOption>();
+  // hotelName -> its cheapest quotable MAP-plan row.
+  const mapByHotel = new Map<string, LineItem>();
   for (const e of entries) {
     if (minStarRating > 0 && starOf(e.starLabel) < minStarRating) continue;
     for (const row of e.rows) {
-      if (!isQuotable(row)) continue;
-      const mealPlan = mealPlanOf(row.planLabel);
-      const key = `${e.hotelName}::${mealPlan}`;
-      const existing = combos.get(key);
+      if (!isQuotable(row) || !isMapPlanLabel(row.planLabel)) continue;
+      const existing = mapByHotel.get(e.hotelName);
       if (!existing || row.sellingTotal < existing.sellingTotal) {
         const netTotal = Math.round(row.sellingTotal / (1 + markupPercent / 100));
-        combos.set(key, {
-          hotelName: e.hotelName, mealPlan, sellingTotal: row.sellingTotal,
+        mapByHotel.set(e.hotelName, {
+          hotelName: e.hotelName, sellingTotal: row.sellingTotal,
           netTotal, markupAmount: row.sellingTotal - netTotal,
         });
       }
     }
   }
-  const allCombos = Array.from(combos.values());
-  if (allCombos.length < MIN_COMBOS) return null;
+  const allMap = Array.from(mapByHotel.values());
+  const wantCount = pick(LINE_ITEM_COUNTS);
+  if (allMap.length < wantCount) return null;
 
-  // A tentative anchor for the brief — roughly the middle of what's on
-  // offer, so a sensible shortlist genuinely runs both above and below it.
-  // No property is required to sit at or under this figure.
-  const sorted = allCombos.slice().sort((a, b) => a.sellingTotal - b.sellingTotal);
-  const median = sorted[Math.floor(sorted.length / 2)];
+  const lineItems = shuffled(allMap).slice(0, wantCount).sort((a, b) => a.sellingTotal - b.sellingTotal);
+
+  // A tentative anchor for the brief — roughly the middle of this specific
+  // shortlist, so it genuinely runs both above and below the stated figure.
+  const median = lineItems[Math.floor(lineItems.length / 2)];
   const budgetPerPerson = Math.round(median.sellingTotal / pax / 100) * 100;
 
-  const hotelOptions = Array.from(new Set(allCombos.map(c => c.hotelName)));
-  const plansByHotel: Record<string, HotelPlanOption[]> = {};
-  for (const c of allCombos) {
-    (plansByHotel[c.hotelName] ||= []).push(c);
-  }
-
   return {
-    id, checkIn, nights, pax, rooms, budgetPerPerson, markupPercent, discountPercent, minStarRating,
+    id, checkIn, nights, pax, rooms, budgetPerPerson, markupPercent, minStarRating,
     sightseeing: sampleSpots(3 + Math.floor(Math.random() * 3)),
-    hotelOptions, plansByHotel,
+    lineItems,
   };
 }
 
@@ -182,36 +176,36 @@ export function generateQuestion(id: string): TrainerQuestion {
     const q = tryGenerate(id);
     if (q) return q;
   }
-  // Every attempt landed on a scenario with fewer than 3 quotable
-  // combinations (astronomically unlikely with 10 hotels and this pax/date
-  // spread) — surface it rather than loop forever or hand back a broken
-  // question.
+  // Every attempt landed on a scenario with fewer than 3 hotels quotable at
+  // MAP (astronomically unlikely with 10 hotels and this pax/date spread) —
+  // surface it rather than loop forever or hand back a broken question.
   throw new Error('Could not generate a well-posed question after ' + MAX_ATTEMPTS + ' attempts');
 }
 
 // ── grading ──────────────────────────────────────────────────────────────
 //
-// Hotel and meal plan are the trainee's own call — any real, on-offer
-// combination is a valid recommendation, so those two fields only check
-// that a genuine (hotel, plan) pair was picked at all, not that it matches
-// some single "right" answer. The two money fields are graded against
-// whatever THAT combination actually prices to, discount included.
+// The hotel and its plan are given by the question, not the trainee's
+// choice — every line is graded purely on whether the two money fields
+// match what that specific hotel actually prices to.
 
-export interface SubmittedAnswer {
+export interface SubmittedLine {
   hotelName: string;
-  mealPlan: MealPlan | '';
   sellingPerPerson: number;
   totalMargin: number;
 }
 
 export interface FieldResult { correct: boolean; expected: number | string; got: number | string }
 
-export interface GradeResult {
-  allCorrect: boolean;
-  hotel: FieldResult;
-  mealPlan: FieldResult;
+export interface LineGrade {
+  hotelName: string;
   perPerson: FieldResult;
   margin: FieldResult;
+  allCorrect: boolean;
+}
+
+export interface GradeResult {
+  allCorrect: boolean;
+  lines: LineGrade[];
 }
 
 // ±₹10 or ±0.1%, whichever is more forgiving — a flat ₹10 band would be
@@ -227,36 +221,13 @@ function numField(expected: number, got: number): FieldResult {
   return { correct: withinTolerance(expected, got), expected, got };
 }
 
-export function gradeAnswer(q: TrainerQuestion, submitted: SubmittedAnswer): GradeResult {
-  const hotelValid = !!submitted.hotelName && q.hotelOptions.includes(submitted.hotelName);
-  const hotel: FieldResult = {
-    correct: hotelValid,
-    expected: '(any hotel you can justify)',
-    got: submitted.hotelName || '(none selected)',
-  };
-
-  const combo = hotelValid
-    ? (q.plansByHotel[submitted.hotelName] || []).find(p => p.mealPlan === submitted.mealPlan)
-    : undefined;
-  const mealPlan: FieldResult = {
-    correct: !!combo,
-    expected: hotelValid ? '(any plan that hotel offers)' : '(pick a hotel first)',
-    got: submitted.mealPlan ? MEAL_PLAN_LABEL[submitted.mealPlan] : '(none selected)',
-  };
-
-  if (!combo) {
-    const blocked: FieldResult = { correct: false, expected: '(pick a valid hotel + plan first)', got: submitted.sellingPerPerson };
-    return { allCorrect: false, hotel, mealPlan, perPerson: blocked, margin: { ...blocked, got: submitted.totalMargin } };
-  }
-
-  const discountAmount = Math.round(combo.sellingTotal * q.discountPercent / 100);
-  const expectedPerPerson = Math.round((combo.sellingTotal - discountAmount) / q.pax);
-  const expectedMargin = combo.markupAmount - discountAmount;
-
-  const perPerson = numField(expectedPerPerson, submitted.sellingPerPerson);
-  const margin = numField(expectedMargin, submitted.totalMargin);
-  return {
-    allCorrect: hotel.correct && mealPlan.correct && perPerson.correct && margin.correct,
-    hotel, mealPlan, perPerson, margin,
-  };
+export function gradeAnswer(q: TrainerQuestion, submitted: SubmittedLine[]): GradeResult {
+  const lines: LineGrade[] = q.lineItems.map(li => {
+    const sub = submitted.find(s => s.hotelName === li.hotelName);
+    const expectedPerPerson = Math.round(li.sellingTotal / q.pax);
+    const perPerson = numField(expectedPerPerson, sub ? sub.sellingPerPerson : NaN);
+    const margin = numField(li.markupAmount, sub ? sub.totalMargin : NaN);
+    return { hotelName: li.hotelName, perPerson, margin, allCorrect: perPerson.correct && margin.correct };
+  });
+  return { allCorrect: lines.every(l => l.allCorrect), lines };
 }

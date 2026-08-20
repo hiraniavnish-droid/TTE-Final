@@ -64,32 +64,63 @@ export interface CumulativeStats {
   avgTimeCorrectSec: number | null;
 }
 
+interface ResultRow { attempted: number; correct: number; avg_time_correct_sec: number | null }
+
+// Each session's own avg time is itself an average over that session's
+// correct answers, so combining sessions needs a weighted mean (by each
+// session's correct count) — a plain average of averages would let a
+// 1-correct-answer session count as much as a 20-correct-answer one.
+function aggregate(rows: ResultRow[]): CumulativeStats {
+  const attempted = rows.reduce((sum, r) => sum + r.attempted, 0);
+  const correct = rows.reduce((sum, r) => sum + r.correct, 0);
+  let weightedTimeSum = 0, weightTotal = 0;
+  for (const r of rows) {
+    if (r.avg_time_correct_sec != null && r.correct > 0) {
+      weightedTimeSum += r.avg_time_correct_sec * r.correct;
+      weightTotal += r.correct;
+    }
+  }
+  return {
+    sessions: rows.length,
+    attempted, correct,
+    accuracy: attempted ? Math.round((correct / attempted) * 1000) / 10 : 0,
+    avgTimeCorrectSec: weightTotal ? Math.round(weightedTimeSum / weightTotal) : null,
+  };
+}
+
 export async function fetchMyStats(userId: string): Promise<CumulativeStats | null> {
   const { data, error } = await supabase
     .from('quote_trainer_results')
     .select('attempted, correct, avg_time_correct_sec')
     .eq('user_id', userId);
   if (error || !data || data.length === 0) return null;
+  return aggregate(data);
+}
 
-  const attempted = data.reduce((sum, r) => sum + r.attempted, 0);
-  const correct = data.reduce((sum, r) => sum + r.correct, 0);
+export interface UserStats extends CumulativeStats {
+  userId: string;
+  userName: string;
+}
 
-  // Each session's own avg time is itself an average over that session's
-  // correct answers, so combining sessions needs a weighted mean (by each
-  // session's correct count) — a plain average of averages would let a
-  // 1-correct-answer session count as much as a 20-correct-answer one.
-  let weightedTimeSum = 0, weightTotal = 0;
+// Admin-only view (RLS lets any authenticated row-read through — the row
+// count itself isn't sensitive, it's internal training data — but the page
+// only calls this when user.role === 'admin'). One row per trainee, most
+// quotations attempted first, so the busiest trainees surface immediately.
+export async function fetchAllUsersStats(): Promise<UserStats[]> {
+  const { data, error } = await supabase
+    .from('quote_trainer_results')
+    .select('user_id, user_name, attempted, correct, avg_time_correct_sec');
+  if (error || !data || data.length === 0) return [];
+
+  const byUser = new Map<string, { userName: string; rows: ResultRow[] }>();
   for (const r of data) {
-    if (r.avg_time_correct_sec != null && r.correct > 0) {
-      weightedTimeSum += r.avg_time_correct_sec * r.correct;
-      weightTotal += r.correct;
-    }
+    const entry = byUser.get(r.user_id) || { userName: r.user_name, rows: [] };
+    entry.userName = r.user_name; // last-seen name wins if it was ever changed
+    entry.rows.push(r);
+    byUser.set(r.user_id, entry);
   }
 
-  return {
-    sessions: data.length,
-    attempted, correct,
-    accuracy: attempted ? Math.round((correct / attempted) * 1000) / 10 : 0,
-    avgTimeCorrectSec: weightTotal ? Math.round(weightedTimeSum / weightTotal) : null,
-  };
+  return Array.from(byUser.entries())
+    .map(([userId, { userName, rows }]) => ({ userId, userName, ...aggregate(rows) }))
+    .sort((a, b) => b.attempted - a.attempted);
 }

@@ -3,27 +3,31 @@
 // (components/Layout.tsx) as 'Quote Trainer' for the whole team.
 //
 // The trainee gets a bare customer enquiry (dates, party size, budget,
-// sightseeing wishlist) — no hotel name, no rate. They go find the right
-// hotel themselves (real Rate Wall, the rate sheet, wherever they'd
-// normally look), price it by hand, and pick just a hotel + meal plan (never
-// a room — a hotel can print half a dozen room types, and asking for the
-// exact one would test sheet-reading trivia, not quotation judgement) plus
-// two numbers: the per-person package price and the total margin earned.
+// sightseeing wishlist) — no hotel name, no rate. Each question PRE-NAMES
+// 3-4 hotels (the shortlist a real agent would send a client), every one
+// priced at MAP (breakfast + dinner). The trainee's job is just the two
+// numbers per hotel: package price per person, and total margin earned.
+// No discount round — one clean markup step per hotel, since stacking a
+// second 'take X% off the quoted price' step was the single biggest
+// source of near-miss errors that had nothing to do with pricing skill.
 // Every answer is graded against buildInlandWall() — the same resolver the
 // real app quotes off — never a hand-typed "correct" number.
 // ============================================================
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cn, generateId } from '../utils/helpers';
-import { Timer, Play, ChevronRight, Check, X, RotateCcw, Trophy, Clock, Target, History } from 'lucide-react';
+import { Timer, Play, ChevronRight, Check, X, RotateCcw, Trophy, Clock, Target, History, Users } from 'lucide-react';
 import {
-  generateQuestion, gradeAnswer, MEAL_PLAN_LABEL,
-  type TrainerQuestion, type GradeResult, type SubmittedAnswer, type MealPlan,
+  generateQuestion, gradeAnswer,
+  type TrainerQuestion, type GradeResult, type SubmittedLine,
 } from '../services/quoteTrainerEngine';
-import { saveSessionResult, fetchMyStats, type CumulativeStats } from '../services/quoteTrainerResults';
+import {
+  saveSessionResult, fetchMyStats, fetchAllUsersStats,
+  type CumulativeStats, type UserStats,
+} from '../services/quoteTrainerResults';
 
 type Mode = '10min' | '15min' | '10q' | '15q' | '20q' | 'untimed';
 type Phase = 'setup' | 'active' | 'ended';
@@ -42,20 +46,26 @@ const questionTargetOf = (m: Mode): number => (m === '10q' ? 10 : m === '15q' ? 
 
 interface HistoryItem {
   question: TrainerQuestion;
-  submitted: SubmittedAnswer;
   grade: GradeResult;
   timeTakenSec: number;
 }
 
+type LineForm = Record<string, { sellingPerPerson: string; totalMargin: string }>;
+
 const fmtINR = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 const fmtClock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
-const EMPTY_FORM = { hotelName: '', mealPlan: '' as MealPlan | '', sellingPerPerson: '', totalMargin: '' };
+const emptyLineForm = (q: TrainerQuestion): LineForm => {
+  const f: LineForm = {};
+  for (const li of q.lineItems) f[li.hotelName] = { sellingPerPerson: '', totalMargin: '' };
+  return f;
+};
 
 export const QuoteTrainerPractice: React.FC = () => {
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
   const { user } = useAuth();
   const light = theme === 'light';
+  const isAdmin = user?.role === 'admin';
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [mode, setMode] = useState<Mode>('10min');
@@ -63,10 +73,11 @@ export const QuoteTrainerPractice: React.FC = () => {
   const [question, setQuestion] = useState<TrainerQuestion | null>(null);
   const [questionStartedAt, setQuestionStartedAt] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState<LineForm>({});
   const [grade, setGrade] = useState<GradeResult | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
   const [myStats, setMyStats] = useState<CumulativeStats | null>(null);
+  const [teamStats, setTeamStats] = useState<UserStats[] | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // setInterval captures whatever `history` closure existed when start()
   // ran; a ref kept in sync on every update lets endSession read the true
@@ -82,21 +93,26 @@ export const QuoteTrainerPractice: React.FC = () => {
 
   const loadStats = useCallback(() => {
     if (!user) return;
-    fetchMyStats(user.id).then(setMyStats).catch(() => { /* non-critical — setup/summary just shows nothing */ });
+    fetchMyStats(user.id).then(setMyStats).catch(() => { /* non-critical — panel just shows nothing */ });
+    if (user.role === 'admin') {
+      fetchAllUsersStats().then(setTeamStats).catch(() => { /* non-critical */ });
+    }
   }, [user]);
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
   const nextQuestion = useCallback(() => {
     try {
-      setQuestion(generateQuestion(generateId()));
+      const q = generateQuestion(generateId());
+      setQuestion(q);
+      setForm(emptyLineForm(q));
       setGenError(null);
     } catch (e) {
       setGenError(e instanceof Error ? e.message : 'Could not generate a question');
       setQuestion(null);
+      setForm({});
     }
     setQuestionStartedAt(Date.now());
-    setForm(EMPTY_FORM);
     setGrade(null);
   }, []);
 
@@ -135,26 +151,15 @@ export const QuoteTrainerPractice: React.FC = () => {
 
   const submit = () => {
     if (!question) return;
-    const submitted: SubmittedAnswer = {
-      hotelName: form.hotelName,
-      mealPlan: form.mealPlan,
-      sellingPerPerson: parseFloat(form.sellingPerPerson),
-      totalMargin: parseFloat(form.totalMargin),
-    };
+    const submitted: SubmittedLine[] = question.lineItems.map(li => ({
+      hotelName: li.hotelName,
+      sellingPerPerson: parseFloat(form[li.hotelName]?.sellingPerPerson ?? ''),
+      totalMargin: parseFloat(form[li.hotelName]?.totalMargin ?? ''),
+    }));
     const g = gradeAnswer(question, submitted);
     setGrade(g);
-    setHistory(h => [...h, {
-      question, submitted, grade: g,
-      timeTakenSec: Math.round((Date.now() - questionStartedAt) / 1000),
-    }]);
+    setHistory(h => [...h, { question, grade: g, timeTakenSec: Math.round((Date.now() - questionStartedAt) / 1000) }]);
   };
-
-  // Plan choices depend on which hotel is picked — a hotel that never
-  // prints a dinner supplement should not offer 'Breakfast + Dinner' at all.
-  const planChoices = useMemo(
-    () => (question && form.hotelName ? question.plansByHotel[form.hotelName] || [] : []),
-    [question, form.hotelName],
-  );
 
   const attempted = history.length;
   const questionTarget = questionTargetOf(mode);
@@ -173,29 +178,65 @@ export const QuoteTrainerPractice: React.FC = () => {
   const inputCls = cn('w-full text-sm rounded-lg border px-3 py-2 outline-none transition-colors', getInputClass());
   const pageCls = 'p-3 md:p-6';
 
+  const StatsPanel: React.FC = () => (
+    <>
+      {myStats && (
+        <div className={cardCls}>
+          <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> Your training history</div>
+          <div className="grid grid-cols-4 gap-3 mt-1">
+            <Stat label="Sessions" value={String(myStats.sessions)} light={light} />
+            <Stat label="Quotations" value={String(myStats.attempted)} light={light} />
+            <Stat label="Accuracy" value={`${myStats.accuracy}%`} light={light} />
+            <Stat label="Avg time" value={myStats.avgTimeCorrectSec != null ? `${myStats.avgTimeCorrectSec}s` : '—'} light={light} />
+          </div>
+        </div>
+      )}
+      {isAdmin && teamStats && teamStats.length > 0 && (
+        <div className={cardCls}>
+          <div className={cn('flex items-center gap-1.5', labelCls)}><Users size={12} /> Team training history (admin)</div>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className={cn('text-left border-b', light ? 'border-slate-200' : 'border-white/10')}>
+                  <th className={cn('py-1.5 pr-3 font-semibold', getSecondaryTextColor())}>Agent</th>
+                  <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Sessions</th>
+                  <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Quotations</th>
+                  <th className={cn('py-1.5 px-3 font-semibold text-right', getSecondaryTextColor())}>Accuracy</th>
+                  <th className={cn('py-1.5 pl-3 font-semibold text-right', getSecondaryTextColor())}>Avg time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamStats.map(u => (
+                  <tr key={u.userId} className={cn('border-b last:border-0', light ? 'border-slate-100' : 'border-white/5')}>
+                    <td className={cn('py-1.5 pr-3 font-semibold', getTextColor())}>{u.userName}{u.userId === user?.id ? ' (you)' : ''}</td>
+                    <td className="py-1.5 px-3 text-right font-mono">{u.sessions}</td>
+                    <td className="py-1.5 px-3 text-right font-mono">{u.attempted}</td>
+                    <td className="py-1.5 px-3 text-right font-mono">{u.accuracy}%</td>
+                    <td className="py-1.5 pl-3 text-right font-mono">{u.avgTimeCorrectSec != null ? `${u.avgTimeCorrectSec}s` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // ── setup ──
   if (phase === 'setup') {
     return (
-      <div className={cn(pageCls, 'max-w-2xl mx-auto space-y-5')}>
+      <div className={cn(pageCls, 'max-w-3xl mx-auto space-y-5')}>
         <div>
           <h1 className={cn('text-xl font-bold', getTextColor())}>Quotation Trainer — Statue of Unity</h1>
           <p className={cn('text-sm mt-1', getSecondaryTextColor())}>
             Practice tool. Each round gives you a bare customer enquiry — dates, party size, budget,
-            sightseeing wishlist — no hotel, no rate. Find the right hotel yourself, price it, and
-            enter the numbers below. Graded against the real Kevadiya rate engine, ±₹10 / ±0.1% tolerance.
+            sightseeing wishlist — and 3-4 named hotels to price, all at MAP (breakfast + dinner). Find
+            the rates yourself and enter the numbers below. Graded against the real Kevadiya rate engine,
+            ±₹10 / ±0.1% tolerance.
           </p>
         </div>
-        {myStats && (
-          <div className={cardCls}>
-            <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> Your training history</div>
-            <div className="grid grid-cols-4 gap-3 mt-1">
-              <Stat label="Sessions" value={String(myStats.sessions)} light={light} />
-              <Stat label="Quotations" value={String(myStats.attempted)} light={light} />
-              <Stat label="Accuracy" value={`${myStats.accuracy}%`} light={light} />
-              <Stat label="Avg time" value={myStats.avgTimeCorrectSec != null ? `${myStats.avgTimeCorrectSec}s` : '—'} light={light} />
-            </div>
-          </div>
-        )}
+        <StatsPanel />
         <div className={cardCls}>
           <div className={labelCls}>Choose a challenge</div>
           <div className="space-y-3">
@@ -228,7 +269,7 @@ export const QuoteTrainerPractice: React.FC = () => {
   // ── ended ──
   if (phase === 'ended') {
     return (
-      <div className={cn(pageCls, 'max-w-2xl mx-auto space-y-5')}>
+      <div className={cn(pageCls, 'max-w-3xl mx-auto space-y-5')}>
         <div className={cn(cardCls, 'text-center')}>
           <Trophy size={28} className="mx-auto mb-2 text-amber-500" />
           <h1 className={cn('text-xl font-bold', getTextColor())}>Session complete</h1>
@@ -246,18 +287,7 @@ export const QuoteTrainerPractice: React.FC = () => {
             <RotateCcw size={14} /> Start again
           </button>
         </div>
-
-        {myStats && (
-          <div className={cardCls}>
-            <div className={cn('flex items-center gap-1.5', labelCls)}><History size={12} /> Your lifetime training history</div>
-            <div className="grid grid-cols-4 gap-3 mt-1">
-              <Stat label="Sessions" value={String(myStats.sessions)} light={light} />
-              <Stat label="Quotations" value={String(myStats.attempted)} light={light} />
-              <Stat label="Accuracy" value={`${myStats.accuracy}%`} light={light} />
-              <Stat label="Avg time" value={myStats.avgTimeCorrectSec != null ? `${myStats.avgTimeCorrectSec}s` : '—'} light={light} />
-            </div>
-          </div>
-        )}
+        <StatsPanel />
       </div>
     );
   }
@@ -307,44 +337,40 @@ export const QuoteTrainerPractice: React.FC = () => {
               We'd like to cover: {question.sightseeing.join(', ')}."
             </p>
             <div className={cn('mt-2 text-xs', getSecondaryTextColor())}>
-              Standard markup for this quote: <b>{question.markupPercent}%</b>.
-              {question.discountPercent > 0
-                ? <> Client has separately asked for a further <b>{question.discountPercent}% discount</b> off the quoted price.</>
-                : <> No discount requested this round.</>}
-              {' '}Assume max 2 guests share a room — this party needs <b>{question.rooms} room{question.rooms === 1 ? '' : 's'}</b>.
+              Standard markup for this quote: <b>{question.markupPercent}%</b>. All prices below at{' '}
+              <b>MAP (breakfast + dinner)</b>. Assume max 2 guests share a room — this party needs{' '}
+              <b>{question.rooms} room{question.rooms === 1 ? '' : 's'}</b>.
             </div>
           </div>
 
-          {/* answer form */}
+          {/* answer form — one row per pre-named hotel */}
           <div className={cardCls}>
-            <div className={labelCls}>Your quotation</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <span className={labelCls}>Recommended hotel</span>
-                <select value={form.hotelName} disabled={!!grade}
-                  onChange={e => setForm(f => ({ ...f, hotelName: e.target.value, mealPlan: '' }))}
-                  className={inputCls}>
-                  <option value="">Select…</option>
-                  {question.hotelOptions.map(h => <option key={h} value={h}>{h}</option>)}
-                </select>
-              </div>
-              <div>
-                <span className={labelCls}>Meal plan</span>
-                <select value={form.mealPlan} disabled={!!grade || !form.hotelName}
-                  onChange={e => setForm(f => ({ ...f, mealPlan: e.target.value as MealPlan }))}
-                  className={inputCls}>
-                  <option value="">Select…</option>
-                  {planChoices.map(p => (
-                    <option key={p.mealPlan} value={p.mealPlan}>{MEAL_PLAN_LABEL[p.mealPlan]}</option>
-                  ))}
-                </select>
-              </div>
-              <NumField label="Package price / person (₹)" hint="Total selling price for the whole booking ÷ number of people"
-                value={form.sellingPerPerson} disabled={!!grade}
-                onChange={v => setForm(f => ({ ...f, sellingPerPerson: v }))} inputCls={inputCls} labelCls={labelCls} />
-              <NumField label="Total margin earned (₹)" hint="Total markup for the whole booking, minus any discount — not per person"
-                value={form.totalMargin} disabled={!!grade}
-                onChange={v => setForm(f => ({ ...f, totalMargin: v }))} inputCls={inputCls} labelCls={labelCls} />
+            <div className={labelCls}>Price each of these {question.lineItems.length} hotels (MAP)</div>
+            <div className="space-y-3 mt-2">
+              {question.lineItems.map(li => (
+                <div key={li.hotelName} className={cn('rounded-xl border p-3', light ? 'border-slate-200' : 'border-white/10')}>
+                  <div className={cn('text-sm font-bold mb-2', getTextColor())}>{li.hotelName}</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <NumField label="Package price / person (₹)" hint="Total selling price ÷ number of people"
+                      value={form[li.hotelName]?.sellingPerPerson ?? ''} disabled={!!grade}
+                      onChange={v => setForm(f => ({ ...f, [li.hotelName]: { ...f[li.hotelName], sellingPerPerson: v } }))}
+                      inputCls={inputCls} labelCls={labelCls} />
+                    <NumField label="Total margin earned (₹)" hint="Total markup for the whole booking — not per person"
+                      value={form[li.hotelName]?.totalMargin ?? ''} disabled={!!grade}
+                      onChange={v => setForm(f => ({ ...f, [li.hotelName]: { ...f[li.hotelName], totalMargin: v } }))}
+                      inputCls={inputCls} labelCls={labelCls} />
+                  </div>
+                  {grade && (() => {
+                    const lg = grade.lines.find(l => l.hotelName === li.hotelName)!;
+                    return (
+                      <div className={cn('mt-2 pt-2 border-t space-y-0.5', light ? 'border-slate-100' : 'border-white/10')}>
+                        <FieldRow label="Price/person" fr={lg.perPerson} money />
+                        <FieldRow label="Total margin" fr={lg.margin} money />
+                      </div>
+                    );
+                  })()}
+                </div>
+              ))}
             </div>
 
             {!grade ? (
@@ -354,19 +380,15 @@ export const QuoteTrainerPractice: React.FC = () => {
               </button>
             ) : (
               <div className="mt-4 space-y-2">
-                <div className={cn('rounded-xl border p-3',
+                <div className={cn('rounded-xl border p-3 flex items-center gap-1.5 font-bold text-sm',
                   grade.allCorrect
                     ? (light ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-400/30 bg-emerald-500/5')
                     : (light ? 'border-rose-200 bg-rose-50' : 'border-rose-400/30 bg-rose-500/5'))}>
-                  <div className="flex items-center gap-1.5 font-bold text-sm mb-2">
-                    {grade.allCorrect
-                      ? <><Check size={14} className="text-emerald-600" /> <span className="text-emerald-700">All correct</span></>
-                      : <><X size={14} className="text-rose-600" /> <span className="text-rose-700">Some fields off</span></>}
-                  </div>
-                  <FieldRow label="Hotel" fr={grade.hotel} />
-                  <FieldRow label="Meal plan" fr={grade.mealPlan} />
-                  <FieldRow label="Price/person" fr={grade.perPerson} money />
-                  <FieldRow label="Total margin" fr={grade.margin} money />
+                  {grade.allCorrect
+                    ? <><Check size={14} className="text-emerald-600" /> <span className="text-emerald-700">All {question.lineItems.length} hotels correct</span></>
+                    : <><X size={14} className="text-rose-600" /> <span className="text-rose-700">
+                        {grade.lines.filter(l => l.allCorrect).length}/{question.lineItems.length} hotels correct
+                      </span></>}
                 </div>
                 {isLastQuestion ? (
                   <button type="button" onClick={endSession}
@@ -402,7 +424,9 @@ export const QuoteTrainerPractice: React.FC = () => {
                   ? <Check size={12} className="text-emerald-600 shrink-0" />
                   : <X size={12} className="text-rose-600 shrink-0" />}
               </div>
-              <div className={cn('truncate mt-0.5', getSecondaryTextColor())}>{h.submitted.hotelName || '—'}</div>
+              <div className={cn('truncate mt-0.5', getSecondaryTextColor())}>
+                {h.grade.lines.filter(l => l.allCorrect).length}/{h.grade.lines.length} hotels correct
+              </div>
             </div>
           ))}
           {attempted === 0 && <div className={cn('text-xs', getSecondaryTextColor())}>Nothing submitted yet.</div>}
