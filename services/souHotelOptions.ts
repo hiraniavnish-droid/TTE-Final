@@ -48,6 +48,14 @@ export interface SouOptionCell {
   roomName: string;
   planLabel?: string;
   resolutionOk: boolean;
+  // A caveat about what sellingTotal does NOT cover — e.g. the sheet prints
+  // no usable extra-bed/mattress supplement for this room, so an extra
+  // mattress requested on the shared controls adds ₹0 here rather than a
+  // guessed figure. Must travel with the price all the way to the customer
+  // (see rateWall.ts's WallRoomBase.clientNote) — dropping it silently would
+  // let a party this room doesn't actually fit look identically priced to
+  // one it does.
+  clientNote?: string;
 }
 
 export interface SouHotelOptionsResult {
@@ -115,7 +123,7 @@ export function buildSouHotelOptions(input: SouHotelOptionsInput): SouHotelOptio
         hotelId, hotelName: entry.hotelName, starLabel: entry.starLabel, nights,
         sellingTotal: best.sellingTotal, netTotal: best.netTotal, markupAmount: best.markupAmount,
         roomName: best.roomName, planLabel: best.planLabel,
-        resolutionOk: entry.resolutionOk,
+        resolutionOk: entry.resolutionOk, clientNote: best.clientNote,
       });
     }
   }

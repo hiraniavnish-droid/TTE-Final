@@ -32,6 +32,11 @@ export interface CompareHotelRate {
   starLabel?: string;
   nights: SouOptionNights;
   sellingTotal: number;
+  // A caveat about what sellingTotal does NOT cover (e.g. no usable extra-bed
+  // supplement is printed for this room, so a requested mattress adds ₹0
+  // here). Exported to the client deliberately — the opposite of an internal
+  // note — because a mis-priced party size is a mis-sale if silently dropped.
+  clientNote?: string;
 }
 
 export interface SouCompareMessageInput {
@@ -146,6 +151,7 @@ export function buildSouCompareMessage(i: SouCompareMessageInput): string {
       L.push(`📅 Check-in: ${fmtCompareDate(i.checkIn)} (after 2:00 PM)`);
       L.push(`📅 Check-out: ${fmtCompareDate(checkOutIso)} (by 11:00 AM)`);
       L.push(`💰 *${fmtINR(combined)}* total  (₹${fmtINR(perPerson).slice(1)}/person)`);
+      if (r.clientNote) L.push(`⚠️ ${r.clientNote}`);
     });
   });
 

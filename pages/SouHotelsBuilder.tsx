@@ -20,7 +20,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import {
-  Landmark, ArrowLeft, Minus, Plus, Check, Download, Copy, Loader2, ListChecks,
+  Landmark, ArrowLeft, Minus, Plus, Check, Download, Copy, Loader2, ListChecks, AlertTriangle,
 } from 'lucide-react';
 import { buildSouHotelOptions, listSouHotels, type SouOptionNights } from '../services/souHotelOptions';
 import { budgetStatus, type BudgetStatus } from '../services/rateWall';
@@ -123,7 +123,7 @@ export const SouHotelsBuilder: React.FC = () => {
   const selectedRates: CompareHotelRate[] = useMemo(
     () => selectedCells.map(c => ({
       hotelId: c.hotelId, hotelName: c.hotelName, starLabel: c.starLabel,
-      nights: c.nights, sellingTotal: c.sellingTotal,
+      nights: c.nights, sellingTotal: c.sellingTotal, clientNote: c.clientNote,
     })), [selectedCells]);
 
   // Internal-only margin strip.
@@ -186,6 +186,12 @@ export const SouHotelsBuilder: React.FC = () => {
           const label = `${r.nights}N/${r.nights + 1}D${itineraryPrice ? ' — SOU KV Package' : ''}`;
           doc.text(`${label}: ${fmtCompareDate(checkInStr)} to ${checkOut}  —  ${fmtINR(combined)} (${fmtINR(perPerson)}/person)`, 14, y);
           y += 5;
+          if (r.clientNote) {
+            doc.setFont('helvetica', 'italic');
+            doc.text(`   ⚠ ${r.clientNote}`, 14, y);
+            doc.setFont('helvetica', 'normal');
+            y += 5;
+          }
         });
         y += 3;
       });
@@ -458,9 +464,10 @@ export const SouHotelsBuilder: React.FC = () => {
                       const hiddenByBudget = !!(cell && hideOverBudget && budget && !budget.fits);
                       return (
                         <button key={n} onClick={() => cell && !hiddenByBudget && toggleCell(h.hotelId, n)} disabled={!cell || hiddenByBudget}
-                          title={!cell && reason ? reason : hiddenByBudget ? 'Over the stated budget' : undefined}
+                          title={!cell && reason ? reason : hiddenByBudget ? 'Over the stated budget' : cell?.clientNote}
                           className={cn('flex flex-col items-center justify-center gap-0 px-1 py-1.5 rounded-lg border text-[12px] font-mono font-bold transition active:scale-[0.97] disabled:opacity-50',
                             on ? 'bg-slate-900 border-slate-900 text-white'
+                               : cell?.clientNote ? cn(theme === 'light' ? 'bg-amber-50 border-amber-300 text-slate-700' : 'bg-amber-500/10 border-amber-500/40 text-white/70')
                                : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/70 hover:border-white/30'))}>
                           <span className={cn('text-[9px] font-sans font-bold normal-case opacity-60')}>{n}N</span>
                           {cell && !hiddenByBudget ? (
@@ -471,6 +478,7 @@ export const SouHotelsBuilder: React.FC = () => {
                                   {on && <Check size={9} strokeWidth={3.5} />}
                                 </span>
                                 {fmtINR(cell.sellingTotal)}
+                                {cell.clientNote && <AlertTriangle size={9} className={on ? 'text-amber-300' : 'text-amber-600'} />}
                               </span>
                               {cell.planLabel && (
                                 <span className={cn('text-[8.5px] font-sans font-semibold normal-case truncate max-w-full', on ? 'text-white/70' : 'opacity-50')}>{cell.planLabel}</span>
