@@ -2028,13 +2028,17 @@ export const INLAND_HOTELS: InlandHotel[] = [
     remark: "Contact: 7874444204\nRailway Station — 1.5 km (~5 min)\nMain Pickup Point (SOU) — 2.5 km (~8 min)\nStatue of Unity — 6 km (~15 min)\nExtra breakfast (beyond CP): ₹263/person (GST incl.)",
     nameNotes: ["New rates till Sep 2026"],
     rooms: [
-      // "Festival + Friday + Saturday + long weekend" is a broader bracket
-      // than a plain weekend, so axisLabels keeps the hotel's own wording
-      // rather than relabelling it "WEEKENDS" like other hotels' plain
-      // Fri-Sat split.
+      // The hotel's surcharge condition is NOT identical across rooms —
+      // Deluxe prints "Festival + Fri + Sat + long weekend", Premium/Royal
+      // print "Festival + Fri + Sat + Link Holiday + Main Dates" (their own
+      // wording, kept verbatim). No calendar date is attached to any of
+      // this by the app — "Main Dates"/"Link Holiday"/"long weekend" are
+      // never computed from the check-in date, same as every other
+      // weekday_weekend hotel on this sheet: the agent reads the label and
+      // decides which column applies for a given real date.
       { name: "Deluxe Cottage", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Long Weekend"], rate1: 2415, onRequest1: false, rate2: 3990, onRequest2: false, mealPlan: "CPAI", childAdult: 630, lunchDinner: 420 },
-      { name: "Premium Cottage with Personal Garden", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Long Weekend"], rate1: 3150, onRequest1: false, rate2: 4725, onRequest2: false, mealPlan: "CPAI", childAdult: 630, lunchDinner: 420 },
-      { name: "Royal Cottage with Personal Garden", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Long Weekend"], rate1: 5775, onRequest1: false, rate2: 7874, onRequest2: false, mealPlan: "CPAI", childAdult: 945, lunchDinner: 420 },
+      { name: "Premium Cottage with Personal Garden", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Link Holiday + Main Dates"], rate1: 3150, onRequest1: false, rate2: 4725, onRequest2: false, mealPlan: "CPAI", childAdult: 630, lunchDinner: 420 },
+      { name: "Royal Cottage with Personal Garden", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Link Holiday + Main Dates"], rate1: 5775, onRequest1: false, rate2: 7874, onRequest2: false, mealPlan: "CPAI", childAdult: 945, lunchDinner: 420 },
     ],
   },
   {
