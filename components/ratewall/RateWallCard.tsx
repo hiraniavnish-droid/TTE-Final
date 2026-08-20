@@ -177,8 +177,20 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
     // derived '(MAP)' twin — and that pair must be plan-selectable exactly
     // like any other multi-plan room, not just rooms with zero primary rows.
     const isPlanChoice = main.length > 1;
+    // A derived label carries the axis text inside it ('Rate till Sep 2026
+    // (MAP)', 'WEEKDAYS (MAP)') — unlike 'CPAI'/'MAPAI', which never change.
+    // So an exact-label match on planOverride silently breaks the moment the
+    // date crosses a season/weekday boundary and the axis text underneath it
+    // changes: the stored 'Rate till Sep 2026 (MAP)' matches nothing in the
+    // new Oct-Mar row set, and the agent's MAP choice would quietly revert to
+    // CPAI without them touching the dropdown. Falling back to 'still ends in
+    // (MAP)' before the global default keeps the chosen PLAN sticky even
+    // when the specific axis label it was picked on stops existing.
+    const priorLabel = planOverride[g.roomName];
     const activeRow = isPlanChoice
-      ? (main.find(r => r.planLabel === planOverride[g.roomName]) || pickDefaultRow(main, preferredPlan))
+      ? (main.find(r => r.planLabel === priorLabel)
+          || (priorLabel?.endsWith('(MAP)') ? main.find(r => (r.planLabel || '').endsWith('(MAP)')) : undefined)
+          || pickDefaultRow(main, preferredPlan))
       : main[0];
     const shown = isPlanChoice ? [activeRow] : main;
 
