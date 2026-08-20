@@ -8,6 +8,10 @@
 // counts, optionally append a sightseeing itinerary package, share one
 // WhatsApp message. All hotel pricing comes from buildInlandWall() via
 // souHotelOptions.ts — nothing here re-derives a room rate.
+//
+// Two-column on wide screens: the left column (controls, hotel grid,
+// itinerary) scrolls; the right column (client message) is sticky so an
+// employee never has to scroll away from the working area to see it.
 // ============================================================
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -30,7 +34,6 @@ import {
 } from '../services/souHotelCompareMessage';
 
 const DURATIONS: SouOptionNights[] = [1, 2, 3];
-const MARKUP_OPTIONS = [10, 12, 15, 18, 20];
 const cellKey = (hotelId: string, n: number) => `${hotelId}::${n}`;
 
 // The two plan buckets Kevadiya's sheets actually print (CPAI/CP-only rooms,
@@ -48,7 +51,7 @@ export const SouHotelsBuilder: React.FC = () => {
   const [pax, setPax] = useState(2);
   const [extraMattress, setExtraMattress] = useState(0);
   const [markupMode, setMarkupMode] = useState<MarkupMode>('percent');
-  const [markupValue, setMarkupValue] = useState<number>(MARKUP_OPTIONS[1]);
+  const [markupValue, setMarkupValue] = useState(15);
   const [plan, setPlan] = useState<PlanChoice>('cp');
 
   // Rooms auto-suggests ceil(guests/2) as guests changes, but only while the
@@ -84,6 +87,8 @@ export const SouHotelsBuilder: React.FC = () => {
 
   const toggleHotel = (id: string) =>
     setSelectedHotelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const selectAllHotels = () => setSelectedHotelIds(allHotels.map(h => h.hotelId));
+  const selectNoHotels = () => setSelectedHotelIds([]);
 
   const options = useMemo(() => buildSouHotelOptions({
     checkIn: checkInStr, hotelIds: selectedHotelIds, durations: DURATIONS,
@@ -95,13 +100,6 @@ export const SouHotelsBuilder: React.FC = () => {
 
   const toggleCell = (hotelId: string, n: SouOptionNights) =>
     setTicks(prev => ({ ...prev, [cellKey(hotelId, n)]: !prev[cellKey(hotelId, n)] }));
-
-  const toggleRow = (hotelId: string) => setTicks(prev => {
-    const all = DURATIONS.every(n => prev[cellKey(hotelId, n)] === true);
-    const next = { ...prev };
-    DURATIONS.forEach(n => { next[cellKey(hotelId, n)] = !all; });
-    return next;
-  });
 
   const selectedCells = useMemo(
     () => options.cells.filter(c => ticks[cellKey(c.hotelId, c.nights)] === true),
@@ -211,8 +209,42 @@ export const SouHotelsBuilder: React.FC = () => {
     </div>
   );
 
+  const MessagePanel = (
+    <div className={cn(cardCls, 'shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)] flex flex-col min-h-0')}>
+      <div className="flex items-center gap-2 mb-2.5 shrink-0">
+        <ListChecks size={15} className="opacity-60" />
+        <span className={cn('font-bold text-[13px]', getTextColor())}>Message to client</span>
+        <span className={cn('ml-auto text-[10.5px] font-mono', getSecondaryTextColor())}>{compareText().length} chars</span>
+      </div>
+
+      {selectedRates.length === 0 ? (
+        <p className={cn('text-[12px]', getSecondaryTextColor())}>Tick the hotel rates you want to share.</p>
+      ) : (
+        <>
+          <pre className={cn('text-[11px] leading-relaxed whitespace-pre-wrap font-sans p-2.5 rounded-lg overflow-y-auto flex-1 min-h-[120px]',
+            theme === 'light' ? 'bg-slate-50 text-slate-700' : 'bg-black/20 text-white/75')}>{compareText()}</pre>
+          <div className="grid grid-cols-2 gap-2 pt-2.5 shrink-0">
+            <button onClick={downloadComparePdf} disabled={comparePdfBusy}
+              className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-900 text-white text-[12.5px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
+              {comparePdfBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} PDF
+            </button>
+            <button onClick={copyCompare}
+              className={cn('flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12.5px] font-bold border active:scale-[0.97] transition',
+                theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80')}>
+              <Copy size={14} /> Copy
+            </button>
+          </div>
+          <button onClick={shareCompare}
+            className="w-full flex items-center justify-center gap-1.5 py-2 mt-2 rounded-lg bg-emerald-600 text-white text-[12.5px] font-bold hover:bg-emerald-500 active:scale-[0.97] transition shrink-0">
+            Share on WhatsApp
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   return (
-    <div className="max-w-6xl mx-auto animate-in fade-in duration-500 pb-16">
+    <div className="max-w-[1400px] mx-auto animate-in fade-in duration-500 pb-16">
       {/* Header */}
       <div className="flex items-center gap-2.5 mb-4">
         <button onClick={() => navigate('/builder')} className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
@@ -221,229 +253,204 @@ export const SouHotelsBuilder: React.FC = () => {
         <span className={cn('text-[11.5px]', getSecondaryTextColor())}>Kevadiya hotel comparison</span>
       </div>
 
-      <div className="space-y-3">
-        {/* ─── Shared controls + hotel picker, one dense card ─── */}
-        <div className={cardCls}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-            <div className="col-span-2 lg:col-span-2">
-              <label className={labelCls}>Check-in</label>
-              <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
-            </div>
-            <div>
-              <label className={labelCls}>Rooms</label>
-              <Stepper value={rooms} set={setRooms} min={1} max={20} />
-            </div>
-            <div>
-              <label className={labelCls}>Guests</label>
-              <Stepper value={pax} set={setPax} min={1} max={40} />
-            </div>
-            <div>
-              <label className={labelCls}>Extra mattress</label>
-              <Stepper value={extraMattress} set={setExtraMattress} min={0} max={10} />
-            </div>
-            <div>
-              <label className={labelCls}>Plan</label>
-              <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
-                {(['cp', 'map'] as PlanChoice[]).map(p => (
-                  <button key={p} onClick={() => setPlan(p)}
-                    className={cn('flex-1 py-2 text-[12px] font-bold uppercase transition', plan === p ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
-                    {p}
-                  </button>
-                ))}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-start">
+        {/* ─── Left: everything that changes the numbers ─── */}
+        <div className="space-y-3 min-w-0">
+          {/* ─── Shared controls + hotel picker, one dense card ─── */}
+          <div className={cardCls}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="col-span-2 lg:col-span-2">
+                <label className={labelCls}>Check-in</label>
+                <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
               </div>
-            </div>
-            <div className="col-span-2 lg:col-span-1">
-              <label className={labelCls}>Markup %</label>
-              <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
-                {MARKUP_OPTIONS.map(m => (
-                  <button key={m} onClick={() => { setMarkupMode('percent'); setMarkupValue(m); }}
-                    className={cn('flex-1 py-2 text-[11.5px] font-bold transition', markupMode === 'percent' && markupValue === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
-                    {m}
-                  </button>
-                ))}
+              <div>
+                <label className={labelCls}>Rooms</label>
+                <Stepper value={rooms} set={setRooms} min={1} max={20} />
               </div>
-            </div>
-          </div>
-
-          <div className={cn('mt-3 pt-3 border-t', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className={cn('text-[10px] font-bold uppercase tracking-wider', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>Hotels</span>
-              <span className={cn('text-[10.5px]', getSecondaryTextColor())}>{selectedHotelIds.length}/{allHotels.length} selected</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {allHotels.map(h => {
-                const on = selectedHotelIds.includes(h.hotelId);
-                return (
-                  <button key={h.hotelId} onClick={() => toggleHotel(h.hotelId)}
-                    className={cn('px-2.5 py-1 rounded-full text-[11.5px] font-semibold border transition active:scale-[0.97]',
-                      on ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/60 hover:border-white/30'))}>
-                    {h.hotelName}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ─── Margin strip (internal only) ─── */}
-        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] px-0.5', getSecondaryTextColor())}>
-          <span className="font-bold uppercase tracking-wider opacity-60">Internal</span>
-          {margin ? (
-            <>
-              <span>Net {margin.netLo === margin.netHi ? fmtINR(margin.netLo) : `${fmtINR(margin.netLo)}–${fmtINR(margin.netHi)}`}</span>
-              <span>Margin {margin.profitLo === margin.profitHi ? fmtINR(margin.profitLo) : `${fmtINR(margin.profitLo)}–${fmtINR(margin.profitHi)}`}</span>
-              <span className="opacity-60">({selectedCells.length} ticked)</span>
-            </>
-          ) : (
-            <span className="opacity-60">Tick a cell to see net cost and margin.</span>
-          )}
-        </div>
-
-        {/* ─── Matrix ─── */}
-        <div className={cn('rounded-xl border overflow-hidden', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]' : 'bg-white/5 border-white/10')}>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className={cn(theme === 'light' ? 'bg-slate-50' : 'bg-white/5')}>
-                  <th className={cn('text-left px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>Hotel</th>
-                  {DURATIONS.map(n => (
-                    <th key={n} className={cn('px-2 py-2 text-[10.5px] font-bold uppercase tracking-wider text-center w-[130px]', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>
-                      {n}N / {n + 1}D
-                    </th>
+              <div>
+                <label className={labelCls}>Guests</label>
+                <Stepper value={pax} set={setPax} min={1} max={40} />
+              </div>
+              <div>
+                <label className={labelCls}>Extra mattress</label>
+                <Stepper value={extraMattress} set={setExtraMattress} min={0} max={10} />
+              </div>
+              <div>
+                <label className={labelCls}>Plan</label>
+                <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+                  {(['cp', 'map'] as PlanChoice[]).map(p => (
+                    <button key={p} onClick={() => setPlan(p)}
+                      className={cn('flex-1 py-2 text-[12px] font-bold uppercase transition', plan === p ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                      {p}
+                    </button>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {allHotels.filter(h => selectedHotelIds.includes(h.hotelId)).map(h => (
-                  <tr key={h.hotelId} className={cn('border-t', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
-                    <td className="px-3 py-1.5 align-middle">
-                      <button onClick={() => toggleRow(h.hotelId)} className="text-left group">
-                        <span className={cn('text-[12.5px] font-bold', getTextColor())}>{h.hotelName}</span>
-                        {h.starLabel && (
-                          <span className={cn('ml-1.5 text-[10px]', getSecondaryTextColor())}>{h.starLabel}</span>
-                        )}
+                </div>
+              </div>
+              <div className="col-span-2 sm:col-span-3 lg:col-span-2">
+                <label className={labelCls}>{markupMode === 'percent' ? 'Markup %' : 'Markup ₹/room/night'}</label>
+                <div className="flex gap-1.5">
+                  <div className={cn('flex rounded-lg border overflow-hidden shrink-0', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+                    {(['percent', 'flat'] as MarkupMode[]).map(m => (
+                      <button key={m} onClick={() => setMarkupMode(m)}
+                        className={cn('px-2.5 py-2 text-[11px] font-bold transition', markupMode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                        {m === 'percent' ? '%' : '₹'}
                       </button>
-                    </td>
+                    ))}
+                  </div>
+                  <input type="number" inputMode="decimal" min={0} value={markupValue}
+                    onChange={e => { const n = parseFloat(e.target.value); setMarkupValue(!isNaN(n) && n >= 0 ? n : 0); }}
+                    className={cn(inputCls, 'font-mono flex-1')} />
+                </div>
+              </div>
+            </div>
+
+            <div className={cn('mt-3 pt-3 border-t', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={cn('text-[10px] font-bold uppercase tracking-wider', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>Hotels</span>
+                <span className={cn('text-[10.5px]', getSecondaryTextColor())}>{selectedHotelIds.length}/{allHotels.length} selected</span>
+                <div className="ml-auto flex gap-1.5">
+                  <button onClick={selectAllHotels} className={cn('text-[10.5px] font-bold px-2 py-0.5 rounded', theme === 'light' ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100' : 'text-white/50 hover:text-white/90 hover:bg-white/10')}>Select all</button>
+                  <button onClick={selectNoHotels} className={cn('text-[10.5px] font-bold px-2 py-0.5 rounded', theme === 'light' ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100' : 'text-white/50 hover:text-white/90 hover:bg-white/10')}>Select none</button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {allHotels.map(h => {
+                  const on = selectedHotelIds.includes(h.hotelId);
+                  return (
+                    <button key={h.hotelId} onClick={() => toggleHotel(h.hotelId)}
+                      className={cn('px-2.5 py-1 rounded-full text-[11.5px] font-semibold border transition active:scale-[0.97]',
+                        on ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/60 hover:border-white/30'))}>
+                      {h.hotelName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Margin strip (internal only) ─── */}
+          <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] px-0.5', getSecondaryTextColor())}>
+            <span className="font-bold uppercase tracking-wider opacity-60">Internal</span>
+            {margin ? (
+              <>
+                <span>Net {margin.netLo === margin.netHi ? fmtINR(margin.netLo) : `${fmtINR(margin.netLo)}–${fmtINR(margin.netHi)}`}</span>
+                <span>Margin {margin.profitLo === margin.profitHi ? fmtINR(margin.profitLo) : `${fmtINR(margin.profitLo)}–${fmtINR(margin.profitHi)}`}</span>
+                <span className="opacity-60">({selectedCells.length} ticked)</span>
+              </>
+            ) : (
+              <span className="opacity-60">Tick a cell to see net cost and margin.</span>
+            )}
+          </div>
+
+          {/* ─── Hotel cards — 2-3 per row so more hotels fit without scrolling ─── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+            {allHotels.filter(h => selectedHotelIds.includes(h.hotelId)).map(h => {
+              const reason = options.unquotable.get(h.hotelId);
+              return (
+                <div key={h.hotelId} className={cn('rounded-xl border p-2.5', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+                  <div className="mb-1.5">
+                    <span className={cn('text-[12.5px] font-bold', getTextColor())}>{h.hotelName}</span>
+                    {h.starLabel && <span className={cn('ml-1.5 text-[10px]', getSecondaryTextColor())}>{h.starLabel}</span>}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
                     {DURATIONS.map(n => {
                       const cell = cellFor(h.hotelId, n);
                       const on = ticks[cellKey(h.hotelId, n)] === true;
                       return (
-                        <td key={n} className="px-1.5 py-1.5 text-center">
-                          <button onClick={() => cell && toggleCell(h.hotelId, n)} disabled={!cell}
-                            className={cn('w-full flex flex-col items-center justify-center gap-0 px-2 py-1.5 rounded-lg border text-[12.5px] font-mono font-bold transition active:scale-[0.97] disabled:opacity-40',
-                              on ? 'bg-slate-900 border-slate-900 text-white'
-                                 : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/70 hover:border-white/30'))}>
-                            <span className="flex items-center gap-1.5">
-                              <span className={cn('w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border',
-                                on ? 'bg-white border-white text-slate-900' : cn(theme === 'light' ? 'border-slate-300' : 'border-white/25'))}>
-                                {on && <Check size={10} strokeWidth={3.5} />}
+                        <button key={n} onClick={() => cell && toggleCell(h.hotelId, n)} disabled={!cell}
+                          title={!cell && reason ? reason : undefined}
+                          className={cn('flex flex-col items-center justify-center gap-0 px-1 py-1.5 rounded-lg border text-[12px] font-mono font-bold transition active:scale-[0.97] disabled:opacity-50',
+                            on ? 'bg-slate-900 border-slate-900 text-white'
+                               : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/70 hover:border-white/30'))}>
+                          <span className={cn('text-[9px] font-sans font-bold normal-case opacity-60')}>{n}N</span>
+                          {cell ? (
+                            <>
+                              <span className="flex items-center gap-1">
+                                <span className={cn('w-3 h-3 rounded flex items-center justify-center shrink-0 border',
+                                  on ? 'bg-white border-white text-slate-900' : cn(theme === 'light' ? 'border-slate-300' : 'border-white/25'))}>
+                                  {on && <Check size={9} strokeWidth={3.5} />}
+                                </span>
+                                {fmtINR(cell.sellingTotal)}
                               </span>
-                              {cell ? fmtINR(cell.sellingTotal) : '—'}
-                            </span>
-                            {cell?.planLabel && (
-                              <span className={cn('text-[9px] font-sans font-semibold normal-case', on ? 'text-white/70' : 'opacity-50')}>{cell.planLabel}</span>
-                            )}
-                          </button>
-                        </td>
+                              {cell.planLabel && (
+                                <span className={cn('text-[8.5px] font-sans font-semibold normal-case truncate max-w-full', on ? 'text-white/70' : 'opacity-50')}>{cell.planLabel}</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-[10.5px] font-sans normal-case opacity-50">On request</span>
+                          )}
+                        </button>
                       );
                     })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ─── Itinerary ─── */}
+          <div className={cn(cardCls, 'space-y-2.5')}>
+            <button onClick={() => setIncludeItinerary(v => !v)} className="flex items-center gap-2 text-left">
+              <span className={cn('w-4.5 h-4.5 rounded flex items-center justify-center shrink-0 border transition',
+                includeItinerary ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-300' : 'bg-white/5 border-white/20'))}>
+                {includeItinerary && <Check size={12} strokeWidth={3.5} />}
+              </span>
+              <span className={cn('text-[12.5px] font-bold', getTextColor())}>Include itinerary</span>
+              <span className={cn('text-[11px]', getSecondaryTextColor())}>— sightseeing package, independent of hotel nights</span>
+            </button>
+
+            {includeItinerary && (
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Itinerary plan</label>
+                    <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+                      {(Object.values(SOU_ITINERARIES)).map(p => (
+                        <button key={p.nights} onClick={() => setItineraryNights(p.nights)}
+                          className={cn('flex-1 py-2 text-[12px] font-bold transition', itineraryNights === p.nights ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <button onClick={() => setIncludeTransfer(v => !v)}
+                      className={cn('w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-[11.5px] font-bold transition',
+                        includeTransfer ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/60'))}>
+                      <span className={cn('w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border',
+                        includeTransfer ? 'bg-white border-white text-slate-900' : cn(theme === 'light' ? 'border-slate-300' : 'border-white/25'))}>
+                        {includeTransfer && <Check size={10} strokeWidth={3.5} />}
+                      </span>
+                      Railway transfer
+                    </button>
+                  </div>
+                </div>
+
+                <div className={cn('rounded-lg p-2.5 text-[11.5px] leading-relaxed', theme === 'light' ? 'bg-slate-50 text-slate-600' : 'bg-black/20 text-white/70')}>
+                  {SOU_ITINERARIES[itineraryNights].ticketItems.map(t => t.name).join(' · ')}
+                </div>
+
+                {itineraryPrice && (
+                  <>
+                    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]', getSecondaryTextColor())}>
+                      <span className="font-bold uppercase tracking-wider opacity-60">Internal</span>
+                      <span>Net {fmtINR(itineraryPrice.netTotal)}</span>
+                      <span>Markup {fmtINR(itineraryPrice.markupTotal)} (₹100/pax/day × {itineraryPrice.pax} × {itineraryPrice.days})</span>
+                      <span className="font-bold">Selling {fmtINR(itineraryPrice.sellingTotal)}</span>
+                    </div>
+                    <div className={cn('rounded-lg p-2.5 text-[10.5px] leading-relaxed italic', theme === 'light' ? 'bg-amber-50 text-amber-700' : 'bg-amber-500/10 text-amber-300')}>
+                      Golf Cart / E-Rickshaw are reference-only — never part of this price. {Object.values(TRANSPORT_REFERENCE).map(t => `${t.label}: ${fmtINR(t.perVehicle)}/vehicle (seats ${t.capacity})`).join(' · ')}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ─── Itinerary ─── */}
-        <div className={cn(cardCls, 'space-y-2.5')}>
-          <button onClick={() => setIncludeItinerary(v => !v)} className="flex items-center gap-2 text-left">
-            <span className={cn('w-4.5 h-4.5 rounded flex items-center justify-center shrink-0 border transition',
-              includeItinerary ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-300' : 'bg-white/5 border-white/20'))}>
-              {includeItinerary && <Check size={12} strokeWidth={3.5} />}
-            </span>
-            <span className={cn('text-[12.5px] font-bold', getTextColor())}>Include itinerary</span>
-            <span className={cn('text-[11px]', getSecondaryTextColor())}>— sightseeing package, independent of hotel nights</span>
-          </button>
-
-          {includeItinerary && (
-            <div className="space-y-2.5">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Itinerary plan</label>
-                  <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
-                    {(Object.values(SOU_ITINERARIES)).map(p => (
-                      <button key={p.nights} onClick={() => setItineraryNights(p.nights)}
-                        className={cn('flex-1 py-2 text-[12px] font-bold transition', itineraryNights === p.nights ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-end">
-                  <button onClick={() => setIncludeTransfer(v => !v)}
-                    className={cn('w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-[11.5px] font-bold transition',
-                      includeTransfer ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/60'))}>
-                    <span className={cn('w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border',
-                      includeTransfer ? 'bg-white border-white text-slate-900' : cn(theme === 'light' ? 'border-slate-300' : 'border-white/25'))}>
-                      {includeTransfer && <Check size={10} strokeWidth={3.5} />}
-                    </span>
-                    Railway transfer
-                  </button>
-                </div>
-              </div>
-
-              <div className={cn('rounded-lg p-2.5 text-[11.5px] leading-relaxed', theme === 'light' ? 'bg-slate-50 text-slate-600' : 'bg-black/20 text-white/70')}>
-                {SOU_ITINERARIES[itineraryNights].ticketItems.map(t => t.name).join(' · ')}
-              </div>
-
-              {itineraryPrice && (
-                <>
-                  <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]', getSecondaryTextColor())}>
-                    <span className="font-bold uppercase tracking-wider opacity-60">Internal</span>
-                    <span>Net {fmtINR(itineraryPrice.netTotal)}</span>
-                    <span>Markup {fmtINR(itineraryPrice.markupTotal)} (₹100/pax/day × {itineraryPrice.pax} × {itineraryPrice.days})</span>
-                    <span className="font-bold">Selling {fmtINR(itineraryPrice.sellingTotal)}</span>
-                  </div>
-                  <div className={cn('rounded-lg p-2.5 text-[10.5px] leading-relaxed italic', theme === 'light' ? 'bg-amber-50 text-amber-700' : 'bg-amber-500/10 text-amber-300')}>
-                    Golf Cart / E-Rickshaw are reference-only — never part of this price. {Object.values(TRANSPORT_REFERENCE).map(t => `${t.label}: ${fmtINR(t.perVehicle)}/vehicle (seats ${t.capacity})`).join(' · ')}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ─── Client-facing message ─── */}
-        <div className={cn(cardCls, 'shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]')}>
-          <div className="flex items-center gap-2 mb-2.5">
-            <ListChecks size={15} className="opacity-60" />
-            <span className={cn('font-bold text-[13px]', getTextColor())}>Message to client</span>
-            <span className={cn('ml-auto text-[10.5px] font-mono', getSecondaryTextColor())}>{compareText().length} chars</span>
-          </div>
-
-          {selectedRates.length === 0 ? (
-            <p className={cn('text-[12px]', getSecondaryTextColor())}>Tick the hotel rates you want to share.</p>
-          ) : (
-            <>
-              <pre className={cn('text-[11px] leading-relaxed whitespace-pre-wrap font-sans p-2.5 rounded-lg max-h-60 overflow-y-auto',
-                theme === 'light' ? 'bg-slate-50 text-slate-700' : 'bg-black/20 text-white/75')}>{compareText()}</pre>
-              <div className="grid grid-cols-2 gap-2 pt-2.5">
-                <button onClick={downloadComparePdf} disabled={comparePdfBusy}
-                  className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-900 text-white text-[12.5px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
-                  {comparePdfBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} PDF
-                </button>
-                <button onClick={copyCompare}
-                  className={cn('flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12.5px] font-bold border active:scale-[0.97] transition',
-                    theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80')}>
-                  <Copy size={14} /> Copy
-                </button>
-              </div>
-              <button onClick={shareCompare}
-                className="w-full flex items-center justify-center gap-1.5 py-2 mt-2 rounded-lg bg-emerald-600 text-white text-[12.5px] font-bold hover:bg-emerald-500 active:scale-[0.97] transition">
-                Share on WhatsApp
-              </button>
-            </>
-          )}
+        {/* ─── Right: client message, pinned so it never needs scrolling to reach ─── */}
+        <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:flex lg:flex-col">
+          {MessagePanel}
         </div>
       </div>
     </div>
