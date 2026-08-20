@@ -1889,11 +1889,18 @@ export const INLAND_HOTELS: InlandHotel[] = [
     remark: "\"Back Out Dates - Supplement Charges 1200/-\nJanmasthmi - 4 Sep 2026\nIndependence Day - 15 August 2026",
     nameNotes: ["Update Till Mar 2027"],
     rooms: [
-      { name: "Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 4000, onRequest1: false, rate2: 4700, onRequest2: false, mealPlan: "CPAI", childAdult: "1200 / 1500 / 2100", lunchDinner: 500.0 },
-      { name: "Pavilion Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 4700, onRequest1: false, rate2: 5400, onRequest2: false },
-      { name: "Premium Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 5200, onRequest1: false, rate2: 5900, onRequest2: false },
-      { name: "Club Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 5700, onRequest1: false, rate2: 6400, onRequest2: false },
-      { name: "Family Suite Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 7950, onRequest1: false, rate2: 9650, onRequest2: false },
+      // Child/Adult column prints "1200 / 1500 / 2100" as one merged cell
+      // spanning all 5 room categories, header "Child/Adult - CPAI / MAPAI /
+      // AP" (confirmed against the source sheet). Only CPAI is ever quoted
+      // here (axisType 'season', not 'meal_plan' — no MAPAI/AP room column
+      // exists in this hotel's data), so 1200 (the CPAI figure) is the only
+      // one of the three that applies; 1500/2100 are for plans this hotel
+      // sheet does not otherwise price.
+      { name: "Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 4000, onRequest1: false, rate2: 4700, onRequest2: false, mealPlan: "CPAI", childAdult: 1200, lunchDinner: 500.0 },
+      { name: "Pavilion Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 4700, onRequest1: false, rate2: 5400, onRequest2: false, mealPlan: "CPAI", childAdult: 1200 },
+      { name: "Premium Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 5200, onRequest1: false, rate2: 5900, onRequest2: false, mealPlan: "CPAI", childAdult: 1200 },
+      { name: "Club Grande Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 5700, onRequest1: false, rate2: 6400, onRequest2: false, mealPlan: "CPAI", childAdult: 1200 },
+      { name: "Family Suite Room", axisType: "season", axisLabels: ["Rate till Sep 2026", "Rate Oct to Mar 2027"], rate1: 7950, onRequest1: false, rate2: 9650, onRequest2: false, mealPlan: "CPAI", childAdult: 1200 },
     ],
   },
   {
