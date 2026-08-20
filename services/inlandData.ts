@@ -1977,9 +1977,16 @@ export const INLAND_HOTELS: InlandHotel[] = [
       // Same "Child/Adult / CPAI | Adult / MAPAI" column shape as Lavender
       // Hotels above — two per-plan extra-adult figures, not a lunch/dinner
       // supplement. Printed once per room, applying to all three.
-      { name: "Deluxe Room (36 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 2800, onRequest1: false, rate2: 3400, onRequest2: false, mealPlan: "CPAI", childAdultByPlan: { CPAI: 1000, MAPAI: 1300 } },
-      { name: "Premium Triple Bed (12 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 3800, onRequest1: false, rate2: 4700, onRequest2: false, childAdultByPlan: { CPAI: 1000, MAPAI: 1300 } },
-      { name: "Suite Quad (2 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 5300, onRequest1: false, rate2: 6500, onRequest2: false, childAdultByPlan: { CPAI: 1000, MAPAI: 1300 } },
+      //
+      // childAdultByPlan is keyed by the room's own printed axisLabels text
+      // (columnRow() looks it up by exact planLabel match, which IS the
+      // axisLabels string) — this sheet prints the CPAI column header as
+      // "CAPI" (its own typo, preserved in axisLabels below), so the key
+      // must be 'CAPI' too or the CPAI-side supplement silently never
+      // matches and every CPAI booking looks like it has no extra-bed rate.
+      { name: "Deluxe Room (36 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 2800, onRequest1: false, rate2: 3400, onRequest2: false, mealPlan: "CPAI", childAdultByPlan: { CAPI: 1000, MAPAI: 1300 } },
+      { name: "Premium Triple Bed (12 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 3800, onRequest1: false, rate2: 4700, onRequest2: false, childAdultByPlan: { CAPI: 1000, MAPAI: 1300 } },
+      { name: "Suite Quad (2 Room)", axisType: "meal_plan", axisLabels: ["CAPI", "MAPAI"], rate1: 5300, onRequest1: false, rate2: 6500, onRequest2: false, childAdultByPlan: { CAPI: 1000, MAPAI: 1300 } },
     ],
   },
   {
