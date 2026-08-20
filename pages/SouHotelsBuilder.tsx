@@ -225,9 +225,9 @@ export const SouHotelsBuilder: React.FC = () => {
 
   const Stepper: React.FC<{ value: number; set: (n: number) => void; min?: number; max?: number }> = ({ value, set, min = 1, max = 30 }) => (
     <div className={cn('flex items-center rounded-lg border', theme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-white/5')}>
-      <button onClick={() => set(Math.max(min, value - 1))} className="px-2.5 py-2 opacity-60 hover:opacity-100 active:scale-90 transition"><Minus size={13} /></button>
-      <span className={cn('flex-1 text-center text-[13px] font-bold tabular-nums', getTextColor())}>{value}</span>
-      <button onClick={() => set(Math.min(max, value + 1))} className="px-2.5 py-2 opacity-60 hover:opacity-100 active:scale-90 transition"><Plus size={13} /></button>
+      <button onClick={() => set(Math.max(min, value - 1))} className="px-1.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Minus size={12} /></button>
+      <span className={cn('flex-1 text-center text-[12.5px] font-bold tabular-nums', getTextColor())}>{value}</span>
+      <button onClick={() => set(Math.min(max, value + 1))} className="px-1.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Plus size={12} /></button>
     </div>
   );
 
@@ -280,67 +280,127 @@ export const SouHotelsBuilder: React.FC = () => {
         <div className="space-y-2.5 min-w-0">
           {/* ─── Shared controls + hotel picker, one dense card ─── */}
           <div className={cardCls}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="col-span-2 lg:col-span-2">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-[142px]">
                 <label className={labelCls}>Check-in</label>
-                <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
+                <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono py-1.5')} />
               </div>
-              <div>
+              <div className="w-[76px]">
                 <label className={labelCls}>Rooms</label>
                 <Stepper value={rooms} set={setRooms} min={1} max={20} />
               </div>
-              <div>
+              <div className="w-[76px]">
                 <label className={labelCls}>Guests</label>
                 <Stepper value={pax} set={setPax} min={1} max={40} />
               </div>
-              <div>
-                <label className={labelCls}>Extra mattress</label>
+              <div className="w-[86px]">
+                <label className={labelCls}>Mattress</label>
                 <Stepper value={extraMattress} set={setExtraMattress} min={0} max={10} />
               </div>
-              <div>
+              <div className="w-[76px]">
                 <label className={labelCls}>Plan</label>
                 <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
                   {(['cp', 'map'] as PlanChoice[]).map(p => (
                     <button key={p} onClick={() => setPlan(p)}
-                      className={cn('flex-1 py-2 text-[12px] font-bold uppercase transition', plan === p ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                      className={cn('flex-1 py-1.5 text-[11.5px] font-bold uppercase transition', plan === p ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
                       {p}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="col-span-2 sm:col-span-3 lg:col-span-2">
-                <label className={labelCls}>{markupMode === 'percent' ? 'Markup %' : 'Markup ₹/room/night'}</label>
-                <div className="flex gap-1.5">
+              <div className="w-[150px]">
+                <label className={labelCls}>{markupMode === 'percent' ? 'Markup %' : 'Markup ₹/rm/nt'}</label>
+                <div className="flex gap-1">
                   <div className={cn('flex rounded-lg border overflow-hidden shrink-0', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
                     {(['percent', 'flat'] as MarkupMode[]).map(m => (
                       <button key={m} onClick={() => setMarkupMode(m)}
-                        className={cn('px-2.5 py-2 text-[11px] font-bold transition', markupMode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                        className={cn('px-2 py-1.5 text-[11px] font-bold transition', markupMode === m ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
                         {m === 'percent' ? '%' : '₹'}
                       </button>
                     ))}
                   </div>
                   <input type="number" inputMode="decimal" min={0} value={markupValue}
                     onChange={e => { const n = parseFloat(e.target.value); setMarkupValue(!isNaN(n) && n >= 0 ? n : 0); }}
-                    className={cn(inputCls, 'font-mono flex-1')} />
+                    className={cn(inputCls, 'font-mono flex-1 py-1.5')} />
                 </div>
               </div>
-              <div>
-                <label className={labelCls}>Budget / person</label>
+              <div className="w-[110px]">
+                <label className={labelCls}>Budget/person</label>
                 <input type="number" inputMode="decimal" min={0} step={100} placeholder="e.g. 6000"
                   value={budgetPerPerson ?? ''}
                   onChange={e => setBudgetPerPerson(e.target.value ? Math.max(0, Number(e.target.value)) : undefined)}
-                  className={cn(inputCls, 'font-mono')} />
+                  className={cn(inputCls, 'font-mono py-1.5')} />
               </div>
               {!!budgetPerPerson && (
-                <div className="flex items-end">
+                <div>
+                  <label className={labelCls}>&nbsp;</label>
                   <button onClick={() => setHideOverBudget(v => !v)}
-                    className={cn('w-full py-2 rounded-lg border text-[11px] font-bold transition',
+                    className={cn('px-2.5 py-1.5 rounded-lg border text-[11px] font-bold whitespace-nowrap transition',
                       hideOverBudget ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/60'))}>
                     Hide over budget
                   </button>
                 </div>
               )}
+              <div>
+                <label className={labelCls}>&nbsp;</label>
+                <button onClick={() => setIncludeItinerary(v => !v)}
+                  className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold whitespace-nowrap transition',
+                    includeItinerary ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/60'))}>
+                  <span className={cn('w-3 h-3 rounded flex items-center justify-center shrink-0 border',
+                    includeItinerary ? 'bg-white border-white text-slate-900' : cn(theme === 'light' ? 'border-slate-300' : 'border-white/25'))}>
+                    {includeItinerary && <Check size={9} strokeWidth={3.5} />}
+                  </span>
+                  Include itinerary
+                </button>
+              </div>
             </div>
+
+            {includeItinerary && (
+              <div className={cn('mt-3 pt-3 border-t space-y-2.5', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Itinerary plan</label>
+                    <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+                      {(Object.values(SOU_ITINERARIES)).map(p => (
+                        <button key={p.nights} onClick={() => setItineraryNights(p.nights)}
+                          className={cn('flex-1 py-1.5 text-[12px] font-bold transition', itineraryNights === p.nights ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <button onClick={() => setIncludeTransfer(v => !v)}
+                      className={cn('w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11.5px] font-bold transition',
+                        includeTransfer ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/60'))}>
+                      <span className={cn('w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border',
+                        includeTransfer ? 'bg-white border-white text-slate-900' : cn(theme === 'light' ? 'border-slate-300' : 'border-white/25'))}>
+                        {includeTransfer && <Check size={10} strokeWidth={3.5} />}
+                      </span>
+                      Railway transfer
+                    </button>
+                  </div>
+                </div>
+
+                <div className={cn('rounded-lg p-2.5 text-[11.5px] leading-relaxed', theme === 'light' ? 'bg-slate-50 text-slate-600' : 'bg-black/20 text-white/70')}>
+                  {SOU_ITINERARIES[itineraryNights].ticketItems.map(t => t.name).join(' · ')}
+                </div>
+
+                {itineraryPrice && (
+                  <>
+                    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]', getSecondaryTextColor())}>
+                      <span className="font-bold uppercase tracking-wider opacity-60">Internal</span>
+                      <span>Net {fmtINR(itineraryPrice.netTotal)}</span>
+                      <span>Markup {fmtINR(itineraryPrice.markupTotal)} (₹100/pax/day × {itineraryPrice.pax} × {itineraryPrice.days})</span>
+                      <span className="font-bold">Selling {fmtINR(itineraryPrice.sellingTotal)}</span>
+                    </div>
+                    <div className={cn('rounded-lg p-2.5 text-[10.5px] leading-relaxed italic', theme === 'light' ? 'bg-amber-50 text-amber-700' : 'bg-amber-500/10 text-amber-300')}>
+                      Golf Cart / E-Rickshaw are reference-only — never part of this price. {Object.values(TRANSPORT_REFERENCE).map(t => `${t.label}: ${fmtINR(t.perVehicle)}/vehicle (seats ${t.capacity})`).join(' · ')}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className={cn('mt-3 pt-3 border-t', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
               <div className="flex items-center gap-2 mb-2">
@@ -416,11 +476,12 @@ export const SouHotelsBuilder: React.FC = () => {
                                 <span className={cn('text-[8.5px] font-sans font-semibold normal-case truncate max-w-full', on ? 'text-white/70' : 'opacity-50')}>{cell.planLabel}</span>
                               )}
                               {budget && (
-                                <span className={cn('text-[8.5px] font-sans font-bold normal-case',
-                                  budget.bucket === 'best-fit' ? (on ? 'text-emerald-300' : 'text-emerald-600')
-                                    : budget.bucket === 'under' ? (on ? 'text-sky-300' : 'text-sky-600')
-                                    : (on ? 'text-rose-300' : 'text-rose-600'))}>
-                                  {budget.bucket === 'best-fit' ? 'Best fit' : budget.bucket === 'under' ? 'Under' : 'Over'}
+                                <span title={budget.bucket === 'best-fit' ? 'Best fit' : budget.bucket === 'under' ? 'Under budget' : 'Over budget'}
+                                  className={cn('text-[8.5px] font-sans font-bold normal-case',
+                                    budget.bucket === 'best-fit' ? (on ? 'text-emerald-300' : 'text-emerald-600')
+                                      : budget.bucket === 'under' ? (on ? 'text-sky-300' : 'text-sky-600')
+                                      : (on ? 'text-rose-300' : 'text-rose-600'))}>
+                                  {fmtINR(Math.round((cell.sellingTotal + (itineraryPrice?.sellingTotal ?? 0)) / pax))}/pp
                                 </span>
                               )}
                             </>
@@ -434,65 +495,6 @@ export const SouHotelsBuilder: React.FC = () => {
                 </div>
               );
             })}
-          </div>
-
-          {/* ─── Itinerary ─── */}
-          <div className={cn(cardCls, 'space-y-2.5')}>
-            <button onClick={() => setIncludeItinerary(v => !v)} className="flex items-center gap-2 text-left">
-              <span className={cn('w-4.5 h-4.5 rounded flex items-center justify-center shrink-0 border transition',
-                includeItinerary ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-300' : 'bg-white/5 border-white/20'))}>
-                {includeItinerary && <Check size={12} strokeWidth={3.5} />}
-              </span>
-              <span className={cn('text-[12.5px] font-bold', getTextColor())}>Include itinerary</span>
-              <span className={cn('text-[11px]', getSecondaryTextColor())}>— sightseeing package, independent of hotel nights</span>
-            </button>
-
-            {includeItinerary && (
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>Itinerary plan</label>
-                    <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
-                      {(Object.values(SOU_ITINERARIES)).map(p => (
-                        <button key={p.nights} onClick={() => setItineraryNights(p.nights)}
-                          className={cn('flex-1 py-2 text-[12px] font-bold transition', itineraryNights === p.nights ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-end">
-                    <button onClick={() => setIncludeTransfer(v => !v)}
-                      className={cn('w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-[11.5px] font-bold transition',
-                        includeTransfer ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/60'))}>
-                      <span className={cn('w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border',
-                        includeTransfer ? 'bg-white border-white text-slate-900' : cn(theme === 'light' ? 'border-slate-300' : 'border-white/25'))}>
-                        {includeTransfer && <Check size={10} strokeWidth={3.5} />}
-                      </span>
-                      Railway transfer
-                    </button>
-                  </div>
-                </div>
-
-                <div className={cn('rounded-lg p-2.5 text-[11.5px] leading-relaxed', theme === 'light' ? 'bg-slate-50 text-slate-600' : 'bg-black/20 text-white/70')}>
-                  {SOU_ITINERARIES[itineraryNights].ticketItems.map(t => t.name).join(' · ')}
-                </div>
-
-                {itineraryPrice && (
-                  <>
-                    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]', getSecondaryTextColor())}>
-                      <span className="font-bold uppercase tracking-wider opacity-60">Internal</span>
-                      <span>Net {fmtINR(itineraryPrice.netTotal)}</span>
-                      <span>Markup {fmtINR(itineraryPrice.markupTotal)} (₹100/pax/day × {itineraryPrice.pax} × {itineraryPrice.days})</span>
-                      <span className="font-bold">Selling {fmtINR(itineraryPrice.sellingTotal)}</span>
-                    </div>
-                    <div className={cn('rounded-lg p-2.5 text-[10.5px] leading-relaxed italic', theme === 'light' ? 'bg-amber-50 text-amber-700' : 'bg-amber-500/10 text-amber-300')}>
-                      Golf Cart / E-Rickshaw are reference-only — never part of this price. {Object.values(TRANSPORT_REFERENCE).map(t => `${t.label}: ${fmtINR(t.perVehicle)}/vehicle (seats ${t.capacity})`).join(' · ')}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
