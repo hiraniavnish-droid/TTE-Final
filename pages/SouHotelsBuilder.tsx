@@ -33,6 +33,8 @@ import {
   buildSouCompareMessage, groupCompareHotelRates, fmtCompareDate, fmtINR, addDaysISO,
   type CompareHotelRate,
 } from '../services/souHotelCompareMessage';
+import { FestiveDatePicker } from '../components/ratewall/FestiveDatePicker';
+import { festiveRangesFor } from '../services/kevadiyaFestiveDates';
 
 const ALL_DURATIONS: SouOptionNights[] = [1, 2, 3];
 const cellKey = (hotelId: string, n: number) => `${hotelId}::${n}`;
@@ -310,7 +312,10 @@ export const SouHotelsBuilder: React.FC = () => {
             <div className="flex flex-wrap items-end gap-2">
               <div className="w-[142px]">
                 <label className={labelCls}>Check-in</label>
-                <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono py-1.5')} />
+                <div className="flex gap-1">
+                  <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono py-1.5 flex-1 min-w-0')} />
+                  <FestiveDatePicker value={checkInStr} onChange={setCheckInStr} />
+                </div>
               </div>
               <div className="w-[76px]">
                 <label className={labelCls}>Rooms</label>
@@ -392,6 +397,13 @@ export const SouHotelsBuilder: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {festiveRangesFor(checkInStr).length > 0 && (
+              <div className={cn('mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold', theme === 'light' ? 'text-rose-600' : 'text-rose-300')}>
+                <AlertTriangle size={12} className="shrink-0" />
+                {festiveRangesFor(checkInStr).map(r => r.label).join(', ')} — rates may vary, confirm with hotel before quoting.
+              </div>
+            )}
 
             {includeItinerary && (
               <div className={cn('mt-3 pt-3 border-t space-y-2.5', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
@@ -516,11 +528,13 @@ export const SouHotelsBuilder: React.FC = () => {
                                 <span className={cn('text-[8.5px] font-sans font-semibold normal-case truncate max-w-full', on ? 'text-white/70' : 'opacity-50')}>{cell.planLabel}</span>
                               )}
                               <span title={budget ? (budget.bucket === 'best-fit' ? 'Best fit' : budget.bucket === 'under' ? 'Under budget' : 'Over budget') : undefined}
-                                className={cn('text-[8.5px] font-sans font-bold normal-case',
+                                className={cn('text-[8.5px] font-sans font-bold normal-case px-1.5 py-0.5 rounded-full',
                                   !budget ? (on ? 'text-white/60' : 'opacity-50')
-                                    : budget.bucket === 'best-fit' ? (on ? 'text-emerald-300' : 'text-emerald-600')
-                                    : budget.bucket === 'under' ? (on ? 'text-sky-300' : 'text-sky-600')
-                                    : (on ? 'text-rose-300' : 'text-rose-600'))}>
+                                    // Best fit: the most visible fill — this is the number an agent wants to spot first.
+                                    : budget.bucket === 'best-fit' ? cn(on ? 'bg-emerald-400/30 text-emerald-100' : theme === 'light' ? 'bg-emerald-500/25 text-emerald-700' : 'bg-emerald-400/25 text-emerald-200')
+                                    // Under budget: room to upsell, not urgent — kept the softest/most transparent of the three.
+                                    : budget.bucket === 'under' ? cn(on ? 'bg-sky-400/10 text-sky-100' : theme === 'light' ? 'bg-sky-500/10 text-sky-600' : 'bg-sky-400/10 text-sky-300')
+                                    : cn(on ? 'bg-rose-400/25 text-rose-100' : theme === 'light' ? 'bg-rose-500/20 text-rose-700' : 'bg-rose-400/20 text-rose-200'))}>
                                 {fmtINR(Math.round((cell.sellingTotal + (itineraryPrice?.sellingTotal ?? 0)) / pax))}/pp
                               </span>
                             </>
