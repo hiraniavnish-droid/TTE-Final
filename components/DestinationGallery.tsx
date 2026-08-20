@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../utils/helpers';
-import { ArrowRight, Map, MapPin, Tent, Home, Building2 } from 'lucide-react';
+import { ArrowRight, Map, MapPin, Tent, Home, Building2, Landmark } from 'lucide-react';
 
 interface DestinationGalleryProps {
   onSelect: (id: string) => void;
@@ -26,7 +26,55 @@ export const DestinationGallery: React.FC<DestinationGalleryProps> = ({ onSelect
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
+
+        {/* Card 0: Statue of Unity Hotels Comparison Builder */}
+        <button
+          onClick={() => onSelect('sou-hotels')}
+          className={cn(
+            "group relative h-96 w-full rounded-3xl overflow-hidden text-left shadow-[0_8px_30px_-8px_rgba(15,23,42,0.25)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_-12px_rgba(15,23,42,0.35)] active:scale-[0.99]",
+            "border border-white/10 outline-none focus:ring-4 focus:ring-orange-500/20"
+          )}
+        >
+          <div className="absolute inset-0 bg-orange-950">
+            <img
+              src="https://images.unsplash.com/photo-1602002418082-a4443e081dd1?auto=format&fit=crop&w=800&q=80"
+              alt="Statue of Unity hotels"
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-orange-950 via-orange-950/45 to-orange-950/5" />
+          </div>
+
+          <div className="absolute top-6 right-6 z-10">
+            <span className="px-3 py-1 bg-black/25 backdrop-blur-md border border-white/20 text-white text-xs font-bold rounded-full shadow-sm flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+              Live Rates 26-27
+            </span>
+          </div>
+
+          <div className="absolute top-6 left-6 z-10">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white">
+              <Landmark size={24} />
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 p-8 w-full z-10">
+            <div className="flex items-center gap-2 text-orange-200 font-bold text-[10px] uppercase tracking-[0.2em] mb-2">
+              <MapPin size={12} /> Ekta Nagar, Kevadia
+            </div>
+            <h2 className="text-3xl font-bold text-white font-serif mb-2 leading-tight">SOU Hotels</h2>
+            <p className="text-white/80 text-xs mb-6 line-clamp-2 leading-relaxed">
+              Compare multiple Kevadiya hotels across nights, with an optional sightseeing package — share with or without.
+            </p>
+
+            <div className="flex items-center gap-3 text-white font-bold text-sm opacity-0 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-75">
+              <span className="w-10 h-10 rounded-full bg-white text-orange-900 flex items-center justify-center">
+                <ArrowRight size={18} />
+              </span>
+              Compare Hotels
+            </div>
+          </div>
+        </button>
+
         {/* Card 1: Rann Utsav Quotation Builder */}
         <button
           onClick={() => onSelect('rann-utsav')}

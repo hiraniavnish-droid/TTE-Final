@@ -444,6 +444,7 @@ export const KutchItineraryBuilder = () => {
       onSelect={(dest) => {
         if (dest === 'rann-utsav') navigate('/rann-utsav-builder');
         else if (dest === 'sou-tent-city') navigate('/sou-tent-city-builder');
+        else if (dest === 'sou-hotels') navigate('/sou-hotels-builder');
         else if (dest === 'rajarshi') navigate('/rajarshi-builder');
         else if (dest === 'inland') navigate('/inland-builder');
       }}

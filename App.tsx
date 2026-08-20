@@ -22,6 +22,7 @@ const KutchItineraryBuilder = React.lazy(() => import('./components/KutchItinera
 const BlockedRates = React.lazy(() => import('./pages/BlockedRates').then(module => ({ default: module.BlockedRates })));
 const RannUtsavBuilder = React.lazy(() => import('./pages/RannUtsavBuilder').then(module => ({ default: module.RannUtsavBuilder })));
 const SouTentCityBuilder = React.lazy(() => import('./pages/SouTentCityBuilder').then(module => ({ default: module.SouTentCityBuilder })));
+const SouHotelsBuilder = React.lazy(() => import('./pages/SouHotelsBuilder').then(module => ({ default: module.SouHotelsBuilder })));
 const RajarshiBuilder = React.lazy(() => import('./pages/RajarshiBuilder').then(module => ({ default: module.RajarshiBuilder })));
 const InlandBuilder = React.lazy(() => import('./pages/InlandBuilder').then(module => ({ default: module.InlandBuilder })));
 const Payments = React.lazy(() => import('./pages/Payments').then(module => ({ default: module.Payments })));
@@ -67,6 +68,7 @@ function App() {
                       <Route path="builder" element={<KutchItineraryBuilder />} />
                       <Route path="rann-utsav-builder" element={<RannUtsavBuilder />} />
                       <Route path="sou-tent-city-builder" element={<SouTentCityBuilder />} />
+                      <Route path="sou-hotels-builder" element={<SouHotelsBuilder />} />
                       <Route path="rajarshi-builder" element={<RajarshiBuilder />} />
                       <Route path="inland-builder" element={<InlandBuilder />} />
                       <Route path="payments" element={<Payments />} />
