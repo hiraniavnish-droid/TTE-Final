@@ -25,6 +25,7 @@ const SouTentCityBuilder = React.lazy(() => import('./pages/SouTentCityBuilder')
 const RajarshiBuilder = React.lazy(() => import('./pages/RajarshiBuilder').then(module => ({ default: module.RajarshiBuilder })));
 const InlandBuilder = React.lazy(() => import('./pages/InlandBuilder').then(module => ({ default: module.InlandBuilder })));
 const Payments = React.lazy(() => import('./pages/Payments').then(module => ({ default: module.Payments })));
+const QuoteTrainerPractice = React.lazy(() => import('./pages/QuoteTrainerPractice').then(module => ({ default: module.QuoteTrainerPractice })));
 
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
@@ -74,6 +75,8 @@ function App() {
                       <Route path="customers" element={<Customers />} />
                       <Route path="reminders" element={<Reminders />} />
                       <Route path="team-settings" element={<TeamSettings />} />
+                      {/* Not in the sidebar yet — internal practice tool, testing before rollout. */}
+                      <Route path="quote-trainer" element={<QuoteTrainerPractice />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                   </Route>
