@@ -10,12 +10,15 @@
 // the real app uses — buildInlandWall() — never a hand-typed number, or a
 // bug in this file could silently teach the wrong price.
 //
-// The trainee only ever picks a HOTEL and a MEAL PLAN (breakfast, or
-// breakfast + dinner) — never a room. A hotel can print half a dozen room
-// types; asking the trainee to also identify the exact room name would be
-// testing sheet-reading trivia, not quotation judgement. Internally, each
-// (hotel, plan) is priced off whichever of that hotel's rooms is cheapest
-// for that plan — the trainee is never shown or asked about the room.
+// The stated budget is a STARTING POINT, not a cutoff — a real agent quotes
+// a spread of 3-4 hotels around it, some pricier, some cheaper, and lets the
+// client choose. So there is no single "correct" hotel or meal plan here:
+// the trainee picks whichever they'd actually suggest, and grading checks
+// only whether the price they typed is right FOR THE COMBINATION THEY
+// PICKED — priced off whichever of that hotel's rooms is cheapest for that
+// plan (the room itself is resolved internally and never shown; asking the
+// trainee to also identify the exact room name would be testing
+// sheet-reading trivia, not quotation judgement).
 // ============================================================
 
 import { buildInlandWall } from './inlandWall';
@@ -42,11 +45,7 @@ const PAX_OPTIONS = [2, 3, 4, 5, 6];
 const MARKUP_OPTIONS = [12, 15, 18, 20];
 const DISCOUNT_OPTIONS = [0, 0, 0, 5, 10]; // ~40% of questions carry a discount round
 // A star-rating floor, when stated, is a real constraint a customer states —
-// not a trick. Without it the cheapest Kevadiya option (a 3-star property)
-// wins almost every scenario regardless of dates/pax, since relative pricing
-// across these 10 hotels barely moves — so every question would train the
-// same one hotel. Filtering by an explicit, printed fact keeps grading
-// honest while forcing the trainee to actually know the other properties.
+// not a trick — that narrows which hotels are even worth shortlisting.
 const MIN_STAR_OPTIONS = [0, 0, 3, 4, 4, 4];
 
 function addDays(iso: string, n: number): string {
@@ -94,22 +93,15 @@ export const MEAL_PLAN_LABEL: Record<MealPlan, string> = {
 };
 
 // One (hotel, meal plan) combination — priced off whichever ROOM of that
-// hotel is cheapest for that plan. The room itself is resolved internally
-// and never surfaced; the trainee only ever sees the hotel and the plan.
+// hotel is cheapest for that plan, BEFORE any discount. The room itself is
+// resolved internally and never surfaced; the trainee only ever sees the
+// hotel and the plan.
 export interface HotelPlanOption {
   hotelName: string;
   mealPlan: MealPlan;
-  sellingTotal: number;
-  sellingPerPerson: number;
+  sellingTotal: number;    // net + markup, pre-discount
   netTotal: number;
   markupAmount: number;
-}
-
-export interface TrainerAnswer {
-  hotelName: string;
-  mealPlan: MealPlan;
-  sellingPerPerson: number;
-  totalMargin: number;   // markupAmount minus any requested discount — the actual profit earned
 }
 
 export interface TrainerQuestion {
@@ -118,21 +110,17 @@ export interface TrainerQuestion {
   nights: number;
   pax: number;
   rooms: number;
-  budgetPerPerson: number;
+  budgetPerPerson: number;   // a STARTING POINT the client quoted, not a cutoff — real options run both above and below it
   markupPercent: number;
   discountPercent: number;
   minStarRating: number;   // 0 = no preference stated
   sightseeing: string[];
   hotelOptions: string[];              // distinct hotel names on offer — the hotel dropdown's contents
   plansByHotel: Record<string, HotelPlanOption[]>;  // filled in once a hotel is picked, for the plan dropdown
-  answer: TrainerAnswer;
 }
 
-// A tie at the top makes "the" correct combination ambiguous, which would
-// grade a perfectly reasonable runner-up as wrong. Re-roll rather than
-// accept a question with no single right answer.
-const TIE_GUARD_RUPEES = 50;
-const MAX_ATTEMPTS = 30;
+const MIN_COMBOS = 3; // need a genuine shortlist to pick from, not just one hotel
+const MAX_ATTEMPTS = 20;
 
 function tryGenerate(id: string): TrainerQuestion | null {
   const checkIn = addDays(new Date().toISOString().slice(0, 10), 3 + Math.floor(Math.random() * 90));
@@ -158,40 +146,23 @@ function tryGenerate(id: string): TrainerQuestion | null {
       const key = `${e.hotelName}::${mealPlan}`;
       const existing = combos.get(key);
       if (!existing || row.sellingTotal < existing.sellingTotal) {
+        const netTotal = Math.round(row.sellingTotal / (1 + markupPercent / 100));
         combos.set(key, {
           hotelName: e.hotelName, mealPlan, sellingTotal: row.sellingTotal,
-          sellingPerPerson: row.sellingTotal / pax,
-          netTotal: 0, markupAmount: 0, // filled in below once markup% recompute is known — see note
+          netTotal, markupAmount: row.sellingTotal - netTotal,
         });
       }
     }
   }
   const allCombos = Array.from(combos.values());
-  if (allCombos.length < 2) return null;
+  if (allCombos.length < MIN_COMBOS) return null;
 
-  allCombos.sort((a, b) => a.sellingTotal - b.sellingTotal);
-  const cheapest = allCombos[0];
-  const runnerUp = allCombos[1];
-  if (runnerUp.sellingTotal - cheapest.sellingTotal < TIE_GUARD_RUPEES) return null;
-
-  // Sit the stated budget just above the true cheapest combination, so
-  // there is exactly one defensible recommendation — not "anything under
-  // budget qualifies".
-  const budgetPerPerson = Math.ceil((cheapest.sellingPerPerson * 1.05) / 100) * 100;
-
-  const netTotal = Math.round(cheapest.sellingTotal / (1 + markupPercent / 100));
-  const markupAmount = cheapest.sellingTotal - netTotal;
-  const discountAmount = Math.round(cheapest.sellingTotal * discountPercent / 100);
-  const sellingTotalAfterDiscount = cheapest.sellingTotal - discountAmount;
-
-  // Fill in every combo's own net/markup split (needed for the plan dropdown
-  // once the trainee has picked a hotel, so switching plans shows honest
-  // numbers rather than staying pinned to the answer key's).
-  for (const c of allCombos) {
-    const net = Math.round(c.sellingTotal / (1 + markupPercent / 100));
-    c.netTotal = net;
-    c.markupAmount = c.sellingTotal - net;
-  }
+  // A tentative anchor for the brief — roughly the middle of what's on
+  // offer, so a sensible shortlist genuinely runs both above and below it.
+  // No property is required to sit at or under this figure.
+  const sorted = allCombos.slice().sort((a, b) => a.sellingTotal - b.sellingTotal);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const budgetPerPerson = Math.round(median.sellingTotal / pax / 100) * 100;
 
   const hotelOptions = Array.from(new Set(allCombos.map(c => c.hotelName)));
   const plansByHotel: Record<string, HotelPlanOption[]> = {};
@@ -203,11 +174,6 @@ function tryGenerate(id: string): TrainerQuestion | null {
     id, checkIn, nights, pax, rooms, budgetPerPerson, markupPercent, discountPercent, minStarRating,
     sightseeing: sampleSpots(3 + Math.floor(Math.random() * 3)),
     hotelOptions, plansByHotel,
-    answer: {
-      hotelName: cheapest.hotelName, mealPlan: cheapest.mealPlan,
-      sellingPerPerson: Math.round(sellingTotalAfterDiscount / pax),
-      totalMargin: markupAmount - discountAmount,
-    },
   };
 }
 
@@ -216,13 +182,20 @@ export function generateQuestion(id: string): TrainerQuestion {
     const q = tryGenerate(id);
     if (q) return q;
   }
-  // Every attempt hit a tie or a dry scenario (astronomically unlikely with
-  // 10 hotels and this pax/date spread) — surface it rather than loop
-  // forever or hand back a broken question.
+  // Every attempt landed on a scenario with fewer than 3 quotable
+  // combinations (astronomically unlikely with 10 hotels and this pax/date
+  // spread) — surface it rather than loop forever or hand back a broken
+  // question.
   throw new Error('Could not generate a well-posed question after ' + MAX_ATTEMPTS + ' attempts');
 }
 
 // ── grading ──────────────────────────────────────────────────────────────
+//
+// Hotel and meal plan are the trainee's own call — any real, on-offer
+// combination is a valid recommendation, so those two fields only check
+// that a genuine (hotel, plan) pair was picked at all, not that it matches
+// some single "right" answer. The two money fields are graded against
+// whatever THAT combination actually prices to, discount included.
 
 export interface SubmittedAnswer {
   hotelName: string;
@@ -255,17 +228,33 @@ function numField(expected: number, got: number): FieldResult {
 }
 
 export function gradeAnswer(q: TrainerQuestion, submitted: SubmittedAnswer): GradeResult {
+  const hotelValid = !!submitted.hotelName && q.hotelOptions.includes(submitted.hotelName);
   const hotel: FieldResult = {
-    correct: submitted.hotelName === q.answer.hotelName,
-    expected: q.answer.hotelName, got: submitted.hotelName || '(none selected)',
+    correct: hotelValid,
+    expected: '(any hotel you can justify)',
+    got: submitted.hotelName || '(none selected)',
   };
+
+  const combo = hotelValid
+    ? (q.plansByHotel[submitted.hotelName] || []).find(p => p.mealPlan === submitted.mealPlan)
+    : undefined;
   const mealPlan: FieldResult = {
-    correct: submitted.mealPlan === q.answer.mealPlan,
-    expected: MEAL_PLAN_LABEL[q.answer.mealPlan],
+    correct: !!combo,
+    expected: hotelValid ? '(any plan that hotel offers)' : '(pick a hotel first)',
     got: submitted.mealPlan ? MEAL_PLAN_LABEL[submitted.mealPlan] : '(none selected)',
   };
-  const perPerson = numField(q.answer.sellingPerPerson, submitted.sellingPerPerson);
-  const margin = numField(q.answer.totalMargin, submitted.totalMargin);
+
+  if (!combo) {
+    const blocked: FieldResult = { correct: false, expected: '(pick a valid hotel + plan first)', got: submitted.sellingPerPerson };
+    return { allCorrect: false, hotel, mealPlan, perPerson: blocked, margin: { ...blocked, got: submitted.totalMargin } };
+  }
+
+  const discountAmount = Math.round(combo.sellingTotal * q.discountPercent / 100);
+  const expectedPerPerson = Math.round((combo.sellingTotal - discountAmount) / q.pax);
+  const expectedMargin = combo.markupAmount - discountAmount;
+
+  const perPerson = numField(expectedPerPerson, submitted.sellingPerPerson);
+  const margin = numField(expectedMargin, submitted.totalMargin);
   return {
     allCorrect: hotel.correct && mealPlan.correct && perPerson.correct && margin.correct,
     hotel, mealPlan, perPerson, margin,

@@ -23,8 +23,20 @@ import {
   type TrainerQuestion, type GradeResult, type SubmittedAnswer, type MealPlan,
 } from '../services/quoteTrainerEngine';
 
-type Mode = '10min' | '15min' | 'untimed';
+type Mode = '10min' | '15min' | '10q' | '15q' | '20q' | 'untimed';
 type Phase = 'setup' | 'active' | 'ended';
+
+const CHALLENGES: { id: Mode; label: string; group: string }[] = [
+  { id: '10min', label: '10-min challenge', group: 'Timed' },
+  { id: '15min', label: '15-min challenge', group: 'Timed' },
+  { id: '10q', label: '10 quotations', group: 'Fixed count' },
+  { id: '15q', label: '15 quotations', group: 'Fixed count' },
+  { id: '20q', label: '20 quotations', group: 'Fixed count' },
+  { id: 'untimed', label: 'Untimed practice', group: 'Open-ended' },
+];
+
+const isTimeMode = (m: Mode) => m === '10min' || m === '15min';
+const questionTargetOf = (m: Mode): number => (m === '10q' ? 10 : m === '15q' ? 15 : m === '20q' ? 20 : 0);
 
 interface HistoryItem {
   question: TrainerQuestion;
@@ -83,7 +95,7 @@ export const QuoteTrainerPractice: React.FC = () => {
     setTimeLeft(duration);
     setPhase('active');
     nextQuestion();
-    if (mode !== 'untimed') {
+    if (isTimeMode(mode)) {
       timerRef.current = setInterval(() => {
         setTimeLeft(t => {
           if (t <= 1) { stopTimer(); setPhase('ended'); return 0; }
@@ -117,6 +129,8 @@ export const QuoteTrainerPractice: React.FC = () => {
   );
 
   const attempted = history.length;
+  const questionTarget = questionTargetOf(mode);
+  const isLastQuestion = questionTarget > 0 && attempted >= questionTarget;
   const correct = history.filter(h => h.grade.allCorrect).length;
   const accuracy = attempted ? Math.round((correct / attempted) * 100) : 0;
   const avgTime = attempted ? Math.round(history.reduce((s, h) => s + h.timeTakenSec, 0) / attempted) : 0;
@@ -141,15 +155,22 @@ export const QuoteTrainerPractice: React.FC = () => {
         </div>
         <div className={cardCls}>
           <div className={labelCls}>Choose a challenge</div>
-          <div className="grid grid-cols-3 gap-2">
-            {([['10min', '10-min challenge'], ['15min', '15-min challenge'], ['untimed', 'Untimed practice']] as const).map(([m, label]) => (
-              <button key={m} type="button" onClick={() => setMode(m)}
-                className={cn('rounded-xl border px-3 py-3 text-sm font-semibold transition',
-                  mode === m
-                    ? (light ? 'border-slate-900 bg-slate-900 text-white' : 'border-white bg-white text-slate-900')
-                    : cn(getInputClass(), getSecondaryTextColor()))}>
-                {label}
-              </button>
+          <div className="space-y-3">
+            {Array.from(new Set(CHALLENGES.map(c => c.group))).map(group => (
+              <div key={group}>
+                <div className={cn('text-[10px] font-semibold uppercase tracking-wider mb-1.5', getSecondaryTextColor())}>{group}</div>
+                <div className="flex flex-wrap gap-2">
+                  {CHALLENGES.filter(c => c.group === group).map(c => (
+                    <button key={c.id} type="button" onClick={() => setMode(c.id)}
+                      className={cn('flex-1 min-w-[120px] rounded-xl border px-3 py-3 text-sm font-semibold transition',
+                        mode === c.id
+                          ? (light ? 'border-slate-900 bg-slate-900 text-white' : 'border-white bg-white text-slate-900')
+                          : cn(getInputClass(), getSecondaryTextColor()))}>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
           <button type="button" onClick={start}
@@ -215,13 +236,14 @@ export const QuoteTrainerPractice: React.FC = () => {
       {/* scoreboard */}
       <div className={cn('sticky top-0 z-10 flex items-center gap-4 rounded-xl border px-4 py-2.5 backdrop-blur',
         light ? 'bg-white/90 border-slate-200' : 'bg-slate-900/90 border-white/10')}>
-        {mode !== 'untimed' && (
+        {isTimeMode(mode) && (
           <div className={cn('flex items-center gap-1.5 font-mono font-bold text-sm',
             timeLeft <= 30 ? 'text-rose-500' : getTextColor())}>
             <Timer size={14} /> {fmtClock(timeLeft)}
           </div>
         )}
-        <ScoreChip icon={<Target size={12} />} label="Attempted" value={String(attempted)} />
+        <ScoreChip icon={<Target size={12} />} label="Attempted"
+          value={questionTarget > 0 ? `${attempted}/${questionTarget}` : String(attempted)} />
         <ScoreChip icon={<Check size={12} />} label="Correct" value={String(correct)} />
         <ScoreChip icon={<Trophy size={12} />} label="Accuracy" value={`${accuracy}%`} />
         <ScoreChip icon={<Clock size={12} />} label="Avg" value={`${avgTime}s`} />
@@ -311,10 +333,17 @@ export const QuoteTrainerPractice: React.FC = () => {
                   <FieldRow label="Price/person" fr={grade.perPerson} money />
                   <FieldRow label="Total margin" fr={grade.margin} money />
                 </div>
-                <button type="button" onClick={nextQuestion}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 transition">
-                  Next question <ChevronRight size={16} />
-                </button>
+                {isLastQuestion ? (
+                  <button type="button" onClick={endSession}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 transition">
+                    Finish session <Trophy size={16} />
+                  </button>
+                ) : (
+                  <button type="button" onClick={nextQuestion}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 transition">
+                    Next question <ChevronRight size={16} />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -338,7 +367,7 @@ export const QuoteTrainerPractice: React.FC = () => {
                   ? <Check size={12} className="text-emerald-600 shrink-0" />
                   : <X size={12} className="text-rose-600 shrink-0" />}
               </div>
-              <div className={cn('truncate mt-0.5', getSecondaryTextColor())}>{h.question.answer.hotelName}</div>
+              <div className={cn('truncate mt-0.5', getSecondaryTextColor())}>{h.submitted.hotelName || '—'}</div>
             </div>
           ))}
           {attempted === 0 && <div className={cn('text-xs', getSecondaryTextColor())}>Nothing submitted yet.</div>}
