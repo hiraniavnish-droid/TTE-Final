@@ -2012,6 +2012,32 @@ export const INLAND_HOTELS: InlandHotel[] = [
     ],
   },
   {
+    // Every figure below is the hotel's own quote plus 5% GST (rounded to
+    // the nearest rupee), per explicit instruction — the hotel quoted base
+    // rates and this system stores GST-inclusive final rates throughout
+    // (INLAND_SUPPLIER.gstIncluded), so the raw numbers are never stored
+    // as-is. Base -> final: Deluxe 2300->2415 / 3800->3990, extra person
+    // 600->630; Premium 3000->3150 / 4500->4725, extra person 600->630;
+    // Royal 5500->5775 / 7499->7873.95 (rounded 7874), extra person
+    // 900->945; meal-plan (lunch/dinner) supplement 400->420/person/meal.
+    id: "vadodara-nirvana-resort-restaurant",
+    name: "Nirvana Resort & Restaurant",
+    city: "KEVADIYA (Ekta Nagar)",
+    isOnCallOnly: false,
+    headerNote: "Rates inclusive of 5% GST. Please send inquiry before quoting — rates can change on peak/festival dates.",
+    remark: "Contact: 7874444204\nRailway Station — 1.5 km (~5 min)\nMain Pickup Point (SOU) — 2.5 km (~8 min)\nStatue of Unity — 6 km (~15 min)\nExtra breakfast (beyond CP): ₹263/person (GST incl.)",
+    nameNotes: ["New rates till Sep 2026"],
+    rooms: [
+      // "Festival + Friday + Saturday + long weekend" is a broader bracket
+      // than a plain weekend, so axisLabels keeps the hotel's own wording
+      // rather than relabelling it "WEEKENDS" like other hotels' plain
+      // Fri-Sat split.
+      { name: "Deluxe Cottage", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Long Weekend"], rate1: 2415, onRequest1: false, rate2: 3990, onRequest2: false, mealPlan: "CPAI", childAdult: 630, lunchDinner: 420 },
+      { name: "Premium Cottage with Personal Garden", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Long Weekend"], rate1: 3150, onRequest1: false, rate2: 4725, onRequest2: false, mealPlan: "CPAI", childAdult: 630, lunchDinner: 420 },
+      { name: "Royal Cottage with Personal Garden", axisType: "weekday_weekend", axisLabels: ["Regular", "Festival + Fri + Sat + Long Weekend"], rate1: 5775, onRequest1: false, rate2: 7874, onRequest2: false, mealPlan: "CPAI", childAdult: 945, lunchDinner: 420 },
+    ],
+  },
+  {
     id: "saputara-the-fern-heaven-on-the-hills-hatgad-saputara",
     name: "The Fern Heaven on The Hills, Hatgad-Saputara",
     city: "SAPUTARA",
