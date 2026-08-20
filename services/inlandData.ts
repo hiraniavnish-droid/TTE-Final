@@ -1922,9 +1922,12 @@ export const INLAND_HOTELS: InlandHotel[] = [
       // rate2=MAPAI, matching the H1 block's shape above exactly — this
       // hotel's data model prices extra guests via the childAdult supplement
       // rather than a distinct Triple room row, same as every other
-      // meal_plan room on this sheet. Child/Adult is printed "-" for this
-      // block (none), unlike H1's 700/1000.
-      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4500, onRequest1: false, rate2: 5550, onRequest2: false, mealPlan: "CPAI", season: "H2" },
+      // meal_plan room on this sheet. The sheet prints "-" (none) in the
+      // Child/Adult column for this block, but per explicit confirmation
+      // the extra-bed rate is the same year-round, so this carries the
+      // identical 700 CPAI / 1000 MAPAI figure from the H1 block above
+      // rather than leaving it uncovered.
+      { name: "Deluxe Room", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4500, onRequest1: false, rate2: 5550, onRequest2: false, mealPlan: "CPAI", childAdultByPlan: { CPAI: 700, MAPAI: 1000 }, season: "H2" },
       { name: "Premium Garden View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 4920, onRequest1: false, rate2: 5970, onRequest2: false, season: "H2" },
       { name: "Premium River View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 5350, onRequest1: false, rate2: 6400, onRequest2: false, season: "H2" },
       { name: "Club Room Statue View", axisType: "meal_plan", axisLabels: ["CPAI", "MAPAI"], rate1: 5760, onRequest1: false, rate2: 6800, onRequest2: false, season: "H2" },
