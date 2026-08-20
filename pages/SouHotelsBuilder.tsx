@@ -23,13 +23,14 @@ import {
   Landmark, ArrowLeft, Minus, Plus, Check, Download, Copy, Loader2, ListChecks,
 } from 'lucide-react';
 import { buildSouHotelOptions, listSouHotels, type SouOptionNights } from '../services/souHotelOptions';
+import { budgetStatus, type BudgetStatus } from '../services/rateWall';
 import type { MarkupMode } from '../services/inlandRates';
 import {
   SOU_ITINERARIES, TRANSPORT_REFERENCE, priceSouItinerary,
   type SouItineraryNights,
 } from '../services/souItinerary';
 import {
-  buildSouCompareMessage, groupCompareHotelRates, fmtCompareDate, fmtINR,
+  buildSouCompareMessage, groupCompareHotelRates, fmtCompareDate, fmtINR, addDaysISO,
   type CompareHotelRate,
 } from '../services/souHotelCompareMessage';
 
@@ -53,6 +54,8 @@ export const SouHotelsBuilder: React.FC = () => {
   const [markupMode, setMarkupMode] = useState<MarkupMode>('percent');
   const [markupValue, setMarkupValue] = useState(15);
   const [plan, setPlan] = useState<PlanChoice>('cp');
+  const [budgetPerPerson, setBudgetPerPerson] = useState<number | undefined>(undefined);
+  const [hideOverBudget, setHideOverBudget] = useState(false);
 
   // Rooms auto-suggests ceil(guests/2) as guests changes, but only while the
   // agent hasn't diverged from the last suggestion — same behaviour as the
@@ -95,11 +98,23 @@ export const SouHotelsBuilder: React.FC = () => {
     rooms, pax, extraMattress, markupMode, markupValue, preferredPlan: PLAN_PREFERENCE[plan],
   }), [checkInStr, selectedHotelIds, rooms, pax, extraMattress, markupMode, markupValue, plan]);
 
+  const itineraryPrice = useMemo(
+    () => includeItinerary ? priceSouItinerary({ nights: itineraryNights, pax, includeRailwayTransfer: includeTransfer }) : null,
+    [includeItinerary, itineraryNights, pax, includeTransfer]);
+
   const cellFor = (hotelId: string, n: SouOptionNights) =>
     options.cells.find(c => c.hotelId === hotelId && c.nights === n);
 
   const toggleCell = (hotelId: string, n: SouOptionNights) =>
     setTicks(prev => ({ ...prev, [cellKey(hotelId, n)]: !prev[cellKey(hotelId, n)] }));
+
+  // Budget is a per-person figure for the whole booking (matches the same
+  // convention as the main Rate Wall's budgetStatus — see rateWall.ts). When
+  // a package is included, the figure a client actually judges against is
+  // the COMBINED hotel + package total, not the hotel alone.
+  const totalBudget = budgetPerPerson ? budgetPerPerson * pax : undefined;
+  const cellBudget = (sellingTotal: number): BudgetStatus | null =>
+    budgetStatus(sellingTotal + (itineraryPrice?.sellingTotal ?? 0), totalBudget);
 
   const selectedCells = useMemo(
     () => options.cells.filter(c => ticks[cellKey(c.hotelId, c.nights)] === true),
@@ -122,11 +137,9 @@ export const SouHotelsBuilder: React.FC = () => {
     };
   }, [selectedCells]);
 
-  const compareGroups = useMemo(() => groupCompareHotelRates(selectedRates), [selectedRates]);
-
-  const itineraryPrice = useMemo(
-    () => includeItinerary ? priceSouItinerary({ nights: itineraryNights, pax, includeRailwayTransfer: includeTransfer }) : null,
-    [includeItinerary, itineraryNights, pax, includeTransfer]);
+  const compareGroups = useMemo(
+    () => groupCompareHotelRates(selectedRates, itineraryPrice?.sellingTotal ?? 0),
+    [selectedRates, itineraryPrice]);
 
   const compareText = (): string => buildSouCompareMessage({
     checkIn: checkInStr, rooms, pax, rates: selectedRates, itinerary: itineraryPrice,
@@ -159,25 +172,34 @@ export const SouHotelsBuilder: React.FC = () => {
       doc.setFontSize(12);
       doc.text('Statue of Unity — Kevadiya Hotels', W / 2, y, { align: 'center' }); y += 10;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-      doc.text(`Check-in: ${fmtCompareDate(checkInStr)}`, 14, y); y += 6;
       doc.text(`${pax} guest(s)  ·  ${rooms} room(s)`, 14, y); y += 8;
 
-      for (const g of compareGroups) {
+      const itineraryTotal = itineraryPrice?.sellingTotal ?? 0;
+      compareGroups.forEach((g, gi) => {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-        doc.text(`${g.hotelName}${g.starLabel ? ` (${g.starLabel})` : ''}`, 14, y); y += 6;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-        doc.text(g.rates.map(r => `${r.nights}N ${fmtINR(r.sellingTotal)}`).join('   ·   '), 14, y); y += 8;
-      }
+        doc.text(`Option ${gi + 1}: ${g.hotelName}${g.starLabel ? ` (${g.starLabel})` : ''}`, 14, y); y += 6;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+        g.rates.forEach(r => {
+          const combined = r.sellingTotal + itineraryTotal;
+          const perPerson = Math.round(combined / pax);
+          const checkOut = fmtCompareDate(addDaysISO(checkInStr, r.nights));
+          const label = `${r.nights}N/${r.nights + 1}D${itineraryPrice ? ' — SOU KV Package' : ''}`;
+          doc.text(`${label}: ${fmtCompareDate(checkInStr)} to ${checkOut}  —  ${fmtINR(combined)} (${fmtINR(perPerson)}/person)`, 14, y);
+          y += 5;
+        });
+        y += 3;
+      });
 
       if (itineraryPrice) {
         const it = itineraryPrice;
         doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-        doc.text(`Sightseeing package — ${it.plan.label}`, 14, y); y += 6;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-        doc.text(`${fmtINR(it.sellingTotal)} for ${it.pax} guest(s) (${fmtINR(it.sellingPerPerson)}/person)`, 14, y); y += 6;
-        const items = it.plan.ticketItems.map(t => t.name).join(', ');
-        const wrapped = doc.splitTextToSize(items, W - 28);
-        doc.text(wrapped, 14, y); y += wrapped.length * 5 + 3;
+        doc.text(`What's Included — ${it.plan.label} Sightseeing Package`, 14, y); y += 6;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+        it.plan.ticketItems.forEach((t, idx) => {
+          doc.text(`${idx + 1}. ${t.name}`, 14, y); y += 5;
+        });
+        if (it.transferNetTotal > 0) { doc.text(`${it.plan.ticketItems.length + 1}. Railway station transfer`, 14, y); y += 5; }
+        y += 2;
         doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5);
         doc.text('For your reference — not included in the package above:', 14, y); y += 4.5;
         Object.values(TRANSPORT_REFERENCE).forEach(t => {
@@ -199,7 +221,7 @@ export const SouHotelsBuilder: React.FC = () => {
 
   const inputCls = cn('w-full px-2.5 py-2 rounded-lg border outline-none text-[13px]', getInputClass());
   const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-1 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
-  const cardCls = cn('rounded-xl border p-3.5', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]' : 'bg-white/5 border-white/10');
+  const cardCls = cn('rounded-xl border p-3', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]' : 'bg-white/5 border-white/10');
 
   const Stepper: React.FC<{ value: number; set: (n: number) => void; min?: number; max?: number }> = ({ value, set, min = 1, max = 30 }) => (
     <div className={cn('flex items-center rounded-lg border', theme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-white/5')}>
@@ -244,18 +266,18 @@ export const SouHotelsBuilder: React.FC = () => {
   );
 
   return (
-    <div className="max-w-[1400px] mx-auto animate-in fade-in duration-500 pb-16">
+    <div className="w-full animate-in fade-in duration-500 pb-8">
       {/* Header */}
-      <div className="flex items-center gap-2.5 mb-4">
+      <div className="flex items-center gap-2.5 mb-3">
         <button onClick={() => navigate('/builder')} className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
         <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Landmark size={17} /></div>
         <h1 className={cn('text-lg font-bold tracking-tight leading-none', getTextColor())}>Statue of Unity Hotels</h1>
         <span className={cn('text-[11.5px]', getSecondaryTextColor())}>Kevadiya hotel comparison</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-3 items-start">
         {/* ─── Left: everything that changes the numbers ─── */}
-        <div className="space-y-3 min-w-0">
+        <div className="space-y-2.5 min-w-0">
           {/* ─── Shared controls + hotel picker, one dense card ─── */}
           <div className={cardCls}>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -302,6 +324,22 @@ export const SouHotelsBuilder: React.FC = () => {
                     className={cn(inputCls, 'font-mono flex-1')} />
                 </div>
               </div>
+              <div>
+                <label className={labelCls}>Budget / person</label>
+                <input type="number" inputMode="decimal" min={0} step={100} placeholder="e.g. 6000"
+                  value={budgetPerPerson ?? ''}
+                  onChange={e => setBudgetPerPerson(e.target.value ? Math.max(0, Number(e.target.value)) : undefined)}
+                  className={cn(inputCls, 'font-mono')} />
+              </div>
+              {!!budgetPerPerson && (
+                <div className="flex items-end">
+                  <button onClick={() => setHideOverBudget(v => !v)}
+                    className={cn('w-full py-2 rounded-lg border text-[11px] font-bold transition',
+                      hideOverBudget ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/60'))}>
+                    Hide over budget
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className={cn('mt-3 pt-3 border-t', theme === 'light' ? 'border-slate-100' : 'border-white/5')}>
@@ -343,7 +381,7 @@ export const SouHotelsBuilder: React.FC = () => {
           </div>
 
           {/* ─── Hotel cards — 2-3 per row so more hotels fit without scrolling ─── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
             {allHotels.filter(h => selectedHotelIds.includes(h.hotelId)).map(h => {
               const reason = options.unquotable.get(h.hotelId);
               return (
@@ -356,14 +394,16 @@ export const SouHotelsBuilder: React.FC = () => {
                     {DURATIONS.map(n => {
                       const cell = cellFor(h.hotelId, n);
                       const on = ticks[cellKey(h.hotelId, n)] === true;
+                      const budget = cell ? cellBudget(cell.sellingTotal) : null;
+                      const hiddenByBudget = !!(cell && hideOverBudget && budget && !budget.fits);
                       return (
-                        <button key={n} onClick={() => cell && toggleCell(h.hotelId, n)} disabled={!cell}
-                          title={!cell && reason ? reason : undefined}
+                        <button key={n} onClick={() => cell && !hiddenByBudget && toggleCell(h.hotelId, n)} disabled={!cell || hiddenByBudget}
+                          title={!cell && reason ? reason : hiddenByBudget ? 'Over the stated budget' : undefined}
                           className={cn('flex flex-col items-center justify-center gap-0 px-1 py-1.5 rounded-lg border text-[12px] font-mono font-bold transition active:scale-[0.97] disabled:opacity-50',
                             on ? 'bg-slate-900 border-slate-900 text-white'
                                : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/70 hover:border-white/30'))}>
                           <span className={cn('text-[9px] font-sans font-bold normal-case opacity-60')}>{n}N</span>
-                          {cell ? (
+                          {cell && !hiddenByBudget ? (
                             <>
                               <span className="flex items-center gap-1">
                                 <span className={cn('w-3 h-3 rounded flex items-center justify-center shrink-0 border',
@@ -375,9 +415,17 @@ export const SouHotelsBuilder: React.FC = () => {
                               {cell.planLabel && (
                                 <span className={cn('text-[8.5px] font-sans font-semibold normal-case truncate max-w-full', on ? 'text-white/70' : 'opacity-50')}>{cell.planLabel}</span>
                               )}
+                              {budget && (
+                                <span className={cn('text-[8.5px] font-sans font-bold normal-case',
+                                  budget.bucket === 'best-fit' ? (on ? 'text-emerald-300' : 'text-emerald-600')
+                                    : budget.bucket === 'under' ? (on ? 'text-sky-300' : 'text-sky-600')
+                                    : (on ? 'text-rose-300' : 'text-rose-600'))}>
+                                  {budget.bucket === 'best-fit' ? 'Best fit' : budget.bucket === 'under' ? 'Under' : 'Over'}
+                                </span>
+                              )}
                             </>
                           ) : (
-                            <span className="text-[10.5px] font-sans normal-case opacity-50">On request</span>
+                            <span className="text-[10.5px] font-sans normal-case opacity-50">{hiddenByBudget ? 'Over budget' : 'On request'}</span>
                           )}
                         </button>
                       );
