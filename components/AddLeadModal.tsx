@@ -196,6 +196,7 @@ export const AddLeadModal = () => {
               budget: Number(formData.get('budget') || 0),
               paxConfig: newLeadPax,
               startDate: formData.get('startDate') as string,
+              nights: formData.get('nights') ? Number(formData.get('nights')) : undefined,
           },
           preferences: newLeadPrefs,
           status: 'New',
@@ -302,14 +303,18 @@ export const AddLeadModal = () => {
                 </div>
 
                 <div className="space-y-4">
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                         <div className="space-y-1">
-                            <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Destination</label>
-                            <input name="destination" required placeholder="Where to?" className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
-                         </div>
+                     <div className="space-y-1">
+                        <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Destination</label>
+                        <input name="destination" required placeholder="Where to?" className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
                          <div className="space-y-1">
                             <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Start Date</label>
                             <input name="startDate" type="date" required className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
+                         </div>
+                         <div className="space-y-1">
+                            <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Nights</label>
+                            <input name="nights" type="number" min={1} placeholder="e.g. 3" className={cn("w-full bg-transparent border-b p-2 outline-none text-base font-mono transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
                          </div>
                      </div>
 
