@@ -30,6 +30,9 @@ dist-ssr
 # Vercel link metadata (org/project ids)
 .vercel/
 
+# Supabase CLI local link/cache state
+supabase/.temp/
+
 # Superpowers plugin internals
 .superpowers/
 

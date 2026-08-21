@@ -15,6 +15,7 @@ import { WorkflowStepper } from '../components/WorkflowStepper';
 import { VendorManagementModal } from '../components/VendorManagementModal'; // NEW
 import { VendorPaymentModal } from '../components/VendorPaymentModal';
 import { QuoteEngineCostingPanel } from '../components/leads/QuoteEngineCostingPanel';
+import { DocumentsPanel } from '../components/leads/DocumentsPanel';
 import { LeadCodeChip } from '../components/ui/LeadCodeChip';
 import { PaymentLinkWidget } from '../components/PaymentLinkWidget';
 import { WhatsAppChatWidget } from '../components/WhatsAppChatWidget';
@@ -921,6 +922,9 @@ export const LeadDetails = () => {
 
               {/* Suggested Suppliers Widget */}
               <SuggestedSuppliers lead={lead} allLeads={allLeads} suppliers={suppliers} />
+
+              {/* Documents — hotel vouchers, payment bills, etc. */}
+              <DocumentsPanel leadId={lead.id} uploadedBy={user?.name || 'Unknown'} />
 
               {/* Tasks List */}
               <Card noPadding className="max-h-[300px] flex flex-col">
