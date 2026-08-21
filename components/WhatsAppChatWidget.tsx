@@ -19,11 +19,17 @@ interface ParsedMsg {
 
 interface WhatsAppChatWidgetProps {
   lead: Lead;
+  // When true, renders as a single icon button instead of the full inline
+  // thread — the full chat (composer, history, live disclaimer) is still
+  // exactly one click away via the same popup the inline card's own
+  // Maximize2 button already opens. Nothing about the chat itself changes,
+  // only how much space it occupies before it's opened.
+  compact?: boolean;
 }
 
 const last10 = (raw: string) => String(raw || '').replace(/[^0-9]/g, '').slice(-10);
 
-export const WhatsAppChatWidget: React.FC<WhatsAppChatWidgetProps> = ({ lead }) => {
+export const WhatsAppChatWidget: React.FC<WhatsAppChatWidgetProps> = ({ lead, compact }) => {
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
   const { interactions } = useLeads();
   const [draft, setDraft] = useState('');
@@ -135,6 +141,22 @@ export const WhatsAppChatWidget: React.FC<WhatsAppChatWidgetProps> = ({ lead }) 
 
   return (
     <>
+    {compact ? (
+      <button
+        onClick={() => setPopupOpen(true)}
+        title="Open WhatsApp chat"
+        className={cn('flex items-center gap-2 px-3 py-2 rounded-xl border transition active:scale-[0.97] w-full',
+          theme === 'light' ? 'bg-white border-slate-200 hover:border-emerald-300' : 'bg-white/5 border-white/10 hover:border-emerald-500/40')}
+      >
+        <div className={cn('p-1.5 rounded-md', theme === 'light' ? 'bg-emerald-50 text-emerald-600' : 'bg-emerald-500/15 text-emerald-300')}>
+          <MessageCircle size={15} />
+        </div>
+        <span className={cn('font-bold text-[13px]', getTextColor())}>WhatsApp</span>
+        <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
+          Live
+        </span>
+      </button>
+    ) : (
     <Card noPadding className="overflow-hidden border-l-4 border-l-emerald-500 flex flex-col">
       <div className="p-4 pb-3">
         <div className="flex items-center gap-2">
@@ -193,6 +215,7 @@ export const WhatsAppChatWidget: React.FC<WhatsAppChatWidgetProps> = ({ lead }) 
         </button>
       </div>
     </Card>
+    )}
 
     {popupOpen && (
       <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">

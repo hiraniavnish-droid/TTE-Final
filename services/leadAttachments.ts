@@ -14,7 +14,15 @@
 
 import { supabase } from '../lib/supabase';
 
-export const DOC_TYPES = ['Hotel Voucher', 'Payment Bill', 'ID Proof', 'Itinerary', 'Other'] as const;
+// Supplier Voucher — what the hotel/supplier sends TTE confirming the booking.
+// Client Invoice   — the bill/GST invoice TTE sends the client (a different,
+//                     freeform-upload concept from the sequential `documents`
+//                     table's auto-generated invoices — see migration 010's
+//                     header comment).
+// Booking Voucher   — the confirmation voucher TTE hands the client, not a
+//                     bill (multiple allowed, e.g. one per hotel on a trip).
+// ID Proof          — passport/Aadhaar/etc., also frequently multiple.
+export const DOC_TYPES = ['Supplier Voucher', 'Client Invoice', 'Booking Voucher', 'ID Proof', 'Other'] as const;
 export type DocType = typeof DOC_TYPES[number];
 
 export interface LeadAttachment {
@@ -75,6 +83,27 @@ export async function uploadAttachment(
   const { data, error } = await supabase.from('lead_attachments').insert(row).select().single();
   if (error || !data) throw new Error(error?.message || 'Uploaded, but could not save the record');
   return fromRow(data);
+}
+
+// Set once R2's "Public Development URL" (or a custom domain) is enabled on
+// the bucket — a permanent, unsigned link an agent can hand to anyone, no
+// expiry. Until that env var is set, callers fall back to a long-lived
+// presigned link (getAttachmentUrl below) instead of failing outright.
+//
+// Trade-off, deliberately accepted per explicit request for a durable public
+// link: once enabled, ANYONE with a document's URL can view it forever —
+// the object key is the only thing standing between a leaked link and the
+// file, not a real access check. Fine for vouchers/bills meant to be shared
+// with a client anyway; do not point this at anything more sensitive.
+const R2_PUBLIC_BASE_URL = (import.meta as any).env?.VITE_R2_PUBLIC_BASE_URL as string | undefined;
+
+export function hasPublicUrls(): boolean {
+  return !!R2_PUBLIC_BASE_URL;
+}
+
+export function getPublicUrl(attachment: LeadAttachment): string | null {
+  if (!R2_PUBLIC_BASE_URL) return null;
+  return `${R2_PUBLIC_BASE_URL.replace(/\/$/, '')}/${attachment.r2Key}`;
 }
 
 export async function getAttachmentUrl(

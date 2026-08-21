@@ -149,9 +149,9 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
     }
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <Card>
-                <div className="flex items-center justify-between mb-6 border-b border-gray-500/10 pb-4">
+                <div className="flex items-center justify-between mb-3 border-b border-gray-500/10 pb-3">
                     <div className="flex items-center gap-2.5">
                         <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
                             <Calculator size={18} strokeWidth={2.5} />
@@ -163,7 +163,7 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
                     </Button>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-3">
                     <QuoteEngineCostingPanel lead={lead} onSaveVendor={onSaveVendor} onLogNote={onLogNote} />
 
                     {/* Vendors List Summary */}
@@ -219,7 +219,7 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                         <div className="space-y-1">
                             <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>
                                 Total Selling Price
@@ -242,7 +242,7 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
             </Card>
 
             <Card className={cn("transition-all duration-500 border", marginBg || "border-transparent")}>
-                <div className="flex items-center gap-2.5 mb-6 border-b border-gray-500/10 pb-4">
+                <div className="flex items-center gap-2.5 mb-3 border-b border-gray-500/10 pb-3">
                     <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-emerald-50 text-emerald-600' : 'bg-emerald-500/20 text-emerald-300')}>
                         <TrendingUp size={18} strokeWidth={2.5} />
                     </div>
@@ -346,7 +346,7 @@ const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads,
 
     return (
         <>
-            <Card noPadding className="mb-6 overflow-hidden">
+            <Card noPadding className="mb-3 overflow-hidden">
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className={cn(
@@ -628,7 +628,7 @@ export const LeadDetails = () => {
   );
 
   return (
-    <div className="animate-in fade-in slide-in-from-right-8 duration-500 max-w-7xl mx-auto relative pb-20">
+    <div className="animate-in fade-in slide-in-from-right-8 duration-500 max-w-[1680px] mx-auto relative pb-10">
       
 
       {/* --- Gatekeeper Modal --- */}
@@ -640,7 +640,7 @@ export const LeadDetails = () => {
       />
 
       {/* Header Section */}
-      <div className="flex flex-col lg:flex-row justify-between items-start gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row justify-between items-start gap-3 mb-3">
           <div>
               <div className="flex items-center gap-2.5 mb-2">
                   <Button variant="ghost" onClick={() => navigate('/leads')} className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
@@ -709,10 +709,10 @@ export const LeadDetails = () => {
       </div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
           {/* LEFT COLUMN (2/3): Workflow, Profile, Commercials */}
-          <div className="xl:col-span-2 space-y-8">
+          <div className="xl:col-span-2 space-y-4">
               
               {/* Workflow Stepper */}
               <Card>
@@ -721,7 +721,7 @@ export const LeadDetails = () => {
 
               {/* Editable Profile */}
               <Card>
-                  <div className="flex items-center gap-2.5 mb-6 border-b border-gray-500/10 pb-4">
+                  <div className="flex items-center gap-2.5 mb-3 border-b border-gray-500/10 pb-3">
                       <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
                           <User size={18} strokeWidth={2.5} />
                       </div>
@@ -898,10 +898,10 @@ export const LeadDetails = () => {
           </div>
 
           {/* RIGHT COLUMN (1/3): Timeline & Tasks */}
-          <div className="space-y-6">
+          <div className="space-y-3">
 
               {/* WhatsApp Two-Way Chat */}
-              <WhatsAppChatWidget lead={lead} />
+              <WhatsAppChatWidget lead={lead} compact />
 
               {/* Razorpay Payment Collection */}
               <PaymentLinkWidget lead={lead} />

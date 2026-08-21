@@ -27,7 +27,11 @@ import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  // supabase-js's functions.invoke() sends x-client-info and apikey
+  // alongside authorization/content-type — all four must be allowed or the
+  // browser's CORS preflight rejects the request before it ever reaches
+  // this function.
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 

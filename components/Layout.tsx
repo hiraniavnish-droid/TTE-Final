@@ -49,7 +49,8 @@ export const Layout = () => {
   // any screen wider than ~1280px the page sat in a fixed-width column with
   // large dead margins either side. These two routes get the full viewport
   // width instead, same as the Kanban board does.
-  const isWide = location.pathname === '/rajarshi-builder' || location.pathname === '/inland-builder' || location.pathname === '/sou-hotels-builder';
+  const isWide = location.pathname === '/rajarshi-builder' || location.pathname === '/inland-builder' || location.pathname === '/sou-hotels-builder'
+    || location.pathname.startsWith('/leads/'); // lead detail page — needs its own width, not the 7xl cap other pages use
   // The quote trainer manages its own spacing (a quiz screen, not a form
   // stack) — Layout's default padding + max-w-7xl cap just wasted the sides
   // of any screen wider than ~1280px. No padding here at all; the page
