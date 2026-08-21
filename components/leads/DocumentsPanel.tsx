@@ -11,7 +11,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
-import { FileText, Plus, Eye, Download, Share2, Trash2, Loader2, File as FileIcon, Globe } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { FileText, Plus, Eye, Download, Share2, Trash2, Loader2, File as FileIcon, Globe, FileWarning } from 'lucide-react';
 import {
   listAttachments, uploadAttachment, getAttachmentUrl, deleteAttachment,
   getPublicUrl, hasPublicUrls,
@@ -25,12 +26,19 @@ const fmtSize = (bytes: number | null): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+// Nudge, not a block: past this, a friendly ask to compress before
+// uploading — the agent can still proceed. Past HARD_LIMIT_BYTES, upload is
+// refused outright.
+const SOFT_LIMIT_BYTES = 10 * 1024 * 1024;
+const HARD_LIMIT_BYTES = 25 * 1024 * 1024;
+
 export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = ({ leadId, uploadedBy }) => {
   const { theme, getTextColor, getSecondaryTextColor } = useTheme();
   const [docs, setDocs] = useState<LeadAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [oversizeNudge, setOversizeNudge] = useState<{ file: File; docType: DocType } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingDocType = useRef<DocType>('Other');
 
@@ -46,13 +54,10 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
     fileInputRef.current?.click();
   };
 
-  const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file next time
-    if (!file) return;
+  const doUpload = async (file: File, docType: DocType) => {
     setUploading(true);
     try {
-      const doc = await uploadAttachment(leadId, file, pendingDocType.current, uploadedBy);
+      const doc = await uploadAttachment(leadId, file, docType, uploadedBy);
       setDocs(prev => [doc, ...prev]);
       toast.success('File uploaded');
     } catch (err: any) {
@@ -60,6 +65,22 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file next time
+    if (!file) return;
+
+    if (file.size > HARD_LIMIT_BYTES) {
+      toast.error(`"${file.name}" is ${fmtSize(file.size)} — the maximum allowed is 25 MB.`, { duration: 6000 });
+      return;
+    }
+    if (file.size > SOFT_LIMIT_BYTES) {
+      setOversizeNudge({ file, docType: pendingDocType.current });
+      return;
+    }
+    await doUpload(file, pendingDocType.current);
   };
 
   const openLink = async (doc: LeadAttachment, download: boolean) => {
@@ -177,6 +198,32 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
           })
         )}
       </div>
+
+      <Modal isOpen={!!oversizeNudge} onClose={() => setOversizeNudge(null)} title="Large file">
+        {oversizeNudge && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className={cn('p-2 rounded-lg shrink-0', theme === 'light' ? 'bg-amber-50 text-amber-600' : 'bg-amber-500/15 text-amber-300')}>
+                <FileWarning size={18} />
+              </div>
+              <p className={cn('text-sm leading-relaxed', getTextColor())}>
+                Dear {uploadedBy}, "{oversizeNudge.file.name}" is {fmtSize(oversizeNudge.file.size)}. Compressing it before uploading would be appreciated — though if that's not possible, completely fine, go ahead and upload as-is.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setOversizeNudge(null)}
+                className={cn('py-2.5 rounded-lg text-[13px] font-bold border transition',
+                  theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80')}>
+                I'll compress it
+              </button>
+              <button onClick={() => { const n = oversizeNudge; setOversizeNudge(null); if (n) doUpload(n.file, n.docType); }}
+                className="py-2.5 rounded-lg text-[13px] font-bold bg-slate-900 text-white hover:bg-slate-800 transition">
+                Upload anyway
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
