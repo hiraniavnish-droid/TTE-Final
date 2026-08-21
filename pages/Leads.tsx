@@ -307,26 +307,28 @@ const LeadCard: React.FC<{ lead: Lead; isOverlay?: boolean; isDragging?: boolean
         </div>
 
         <div className="flex-1 min-w-0">
-          {/* Name + time */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1 min-w-0">
-              <span className={cn('font-bold tracking-tight truncate', compact ? 'text-[12px]' : 'text-[13px]', theme === 'light' ? 'text-slate-900' : 'text-white')}>
-                {lead.name}
-              </span>
-              {ServiceIcon && !compact && <ServiceIcon size={11} className="shrink-0 opacity-40 text-slate-400" />}
-              {hasUrgency && <AlertOctagon size={11} className={cn('shrink-0', isRed ? 'text-red-500' : 'text-orange-500')} />}
+          {/* Name — its own full-width line so it's never squeezed by the
+              timestamp; icons still ride alongside since they're cheap. */}
+          <div className="flex items-center gap-1 min-w-0" title={lead.name}>
+            <span className={cn('font-bold tracking-tight truncate', compact ? 'text-[12px]' : 'text-[13px]', theme === 'light' ? 'text-slate-900' : 'text-white')}>
+              {lead.name}
+            </span>
+            {ServiceIcon && !compact && <ServiceIcon size={11} className="shrink-0 opacity-40 text-slate-400" />}
+            {hasUrgency && <AlertOctagon size={11} className={cn('shrink-0', isRed ? 'text-red-500' : 'text-orange-500')} />}
+          </div>
+
+          {/* Lead code + destination + pax, timestamp pushed down here so it
+              never competes with the name for space. */}
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <div className={cn('truncate min-w-0', compact ? 'text-[10px]' : 'text-[11px]', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>
+              {lead.leadCode && (
+                <span className={cn('font-mono font-bold mr-1.5', theme === 'light' ? 'text-slate-400' : 'text-white/35')}>{lead.leadCode}</span>
+              )}
+              {destPax || <span className="italic opacity-50">No details</span>}
             </div>
             <span className={cn('whitespace-nowrap shrink-0 tracking-wide', compact ? 'text-[9px]' : 'text-[10px]', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
               {timeAgo(lead.createdAt)}
             </span>
-          </div>
-
-          {/* Lead code + destination + pax */}
-          <div className={cn('truncate mt-0.5', compact ? 'text-[10px]' : 'text-[11px]', theme === 'light' ? 'text-slate-500' : 'text-white/50')}>
-            {lead.leadCode && (
-              <span className={cn('font-mono font-bold mr-1.5', theme === 'light' ? 'text-slate-400' : 'text-white/35')}>{lead.leadCode}</span>
-            )}
-            {destPax || <span className="italic opacity-50">No details</span>}
           </div>
 
           {/* Meta row — temperature dot + agent + budget (hidden when compact) */}
@@ -559,7 +561,7 @@ const DroppableColumn: React.FC<{ status: string; children: React.ReactNode; col
     // ── Double-Bezel outer shell (owns flex dimensions) ──────────────────────
     <div className={cn(
       'p-[1.5px] rounded-[1.375rem] transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]',
-      onToggle ? 'flex-none w-[228px]' : 'flex-1 min-w-[196px]',
+      onToggle ? 'flex-none w-[228px]' : 'flex-1 min-w-[224px]',
       'h-full',
       theme === 'light'
         ? cn(
