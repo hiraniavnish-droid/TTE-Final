@@ -3,8 +3,7 @@
 // Self-contained (Vercel bundles each api/*.ts alone — no cross-file imports).
 // GET/POST /api/rann-quote?product=&tent=&date=&nights=&pax=&rooms=&discount=
 // Returns JSON incl. a ready-to-send `reply` string for the WhatsApp bot.
-// NOTE: the pricing logic here is duplicated verbatim in api/rann-enquiry.ts —
-// keep the two in sync (both mirror services/rannUtsavRates.ts).
+// Mirrors services/rannUtsavRates.ts — keep the two in sync.
 // ============================================================
 
 
@@ -127,11 +126,9 @@ function resolveTent(raw: any): string {
   return 'Super Premium Tent';
 }
 
-// Exported so /api/rann-enquiry can price an enquiry without an HTTP hop back to
-// this route (Vercel protects the raw deployment URL, and a bot mid-conversation
-// shouldn't pay a network round-trip). This is the single source of rate truth —
-// don't reimplement pricing anywhere else.
-export function computeQuote(src: any): any {
+// This is the single source of rate truth for this route — don't reimplement
+// pricing anywhere else.
+function computeQuote(src: any): any {
   try {
     const product = resolveProduct(src.product);
     const checkIn = parseDate(src.date);
