@@ -380,34 +380,32 @@ export const RannUtsavBuilder: React.FC = () => {
     }
   };
 
-  const inputCls = cn('w-full px-3 py-2.5 rounded-lg border outline-none text-sm', getInputClass());
-  const labelCls = cn('text-[11px] font-bold uppercase tracking-wider mb-1.5 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
+  const inputCls = cn('w-full px-2.5 py-2 rounded-lg border outline-none text-[13px]', getInputClass());
+  const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-1 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
 
   const Stepper: React.FC<{ value: number; set: (n: number) => void; min?: number; max?: number }> = ({ value, set, min = 0, max = 20 }) => (
     <div className={cn('flex items-center rounded-lg border', theme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-white/5')}>
-      <button onClick={() => set(Math.max(min, value - 1))} className="px-3 py-2.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Minus size={14} /></button>
-      <span className={cn('flex-1 text-center text-sm font-bold tabular-nums', getTextColor())}>{value}</span>
-      <button onClick={() => set(Math.min(max, value + 1))} className="px-3 py-2.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Plus size={14} /></button>
+      <button onClick={() => set(Math.max(min, value - 1))} className="px-2.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Minus size={13} /></button>
+      <span className={cn('flex-1 text-center text-[13px] font-bold tabular-nums', getTextColor())}>{value}</span>
+      <button onClick={() => set(Math.min(max, value + 1))} className="px-2.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Plus size={13} /></button>
     </div>
   );
 
   return (
-    <div className="max-w-6xl mx-auto animate-in fade-in duration-500 pb-20">
+    <div className="max-w-5xl mx-auto animate-in fade-in duration-500 pb-10">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/builder')} className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={20} /></button>
-        <div className={cn('p-2 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Tent size={20} /></div>
-        <div>
-          <h1 className={cn('text-2xl font-bold tracking-tight leading-none', getTextColor())}>Rann Utsav Quotation</h1>
-          <p className={cn('text-[12px] mt-1', getSecondaryTextColor())}>Season 2026-27 · Tent Resort & Tent City rate builder</p>
-        </div>
+      <div className="flex items-center gap-2.5 mb-3">
+        <button onClick={() => navigate('/builder')} className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
+        <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Tent size={17} /></div>
+        <h1 className={cn('text-lg font-bold tracking-tight leading-none', getTextColor())}>Rann Utsav Quotation</h1>
+        <span className={cn('text-[11.5px]', getSecondaryTextColor())}>Season 2026-27 · Tent Resort &amp; Tent City rate builder</span>
       </div>
 
       {/* Product tabs */}
-      <div className={cn('inline-flex p-1 rounded-xl border mb-6', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+      <div className={cn('inline-flex p-1 rounded-xl border mb-3', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
         {([['tentcity', 'Rann Utsav Tent City'], ['resort', 'Rann Tent Resort'], ['compare', 'Compare Options']] as [Product, string][]).map(([p, label]) => (
           <button key={p} onClick={() => { setProduct(p); setNights(2); if (p === 'resort') setOccupancy('double'); }}
-            className={cn('px-4 py-2 rounded-lg text-[13px] font-bold transition-all active:scale-[0.98]',
+            className={cn('px-3 py-1.5 rounded-lg text-[12.5px] font-bold transition-all active:scale-[0.98]',
               product === p ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'text-slate-500 hover:text-slate-800' : 'text-white/50 hover:text-white/80'))}>
             {label}
           </button>
@@ -415,10 +413,10 @@ export const RannUtsavBuilder: React.FC = () => {
       </div>
 
       {product !== 'compare' && (
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* ─── Form ─── */}
-        <div className="lg:col-span-3 space-y-5">
-          <div className={cn('rounded-2xl border p-5 space-y-4', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]' : 'bg-white/5 border-white/10')}>
+        <div className="lg:col-span-3 space-y-3">
+          <div className={cn('rounded-2xl border p-3.5 space-y-2.5', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]' : 'bg-white/5 border-white/10')}>
             <div>
               <label className={labelCls}>Guest name</label>
               <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Mr. Avnish Hirani" className={inputCls} />
@@ -433,12 +431,12 @@ export const RannUtsavBuilder: React.FC = () => {
               </div>
             )}
             {product === 'resort' && (
-              <div className={cn('rounded-lg px-3 py-2.5 text-sm font-semibold border', theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/70')}>
-                <Tent size={13} className="inline mr-1.5 -mt-0.5" /> Premium AC Tent — single room type
+              <div className={cn('rounded-lg px-2.5 py-2 text-[12.5px] font-semibold border', theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-white/70')}>
+                <Tent size={12} className="inline mr-1.5 -mt-0.5" /> Premium AC Tent — single room type
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Check-in date</label>
                 <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
@@ -448,7 +446,7 @@ export const RannUtsavBuilder: React.FC = () => {
                 <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
                   {nightsOpts.map(n => (
                     <button key={n} onClick={() => setNights(n)}
-                      className={cn('flex-1 py-2.5 text-[12px] font-bold transition', effNights === n ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                      className={cn('flex-1 py-2 text-[11.5px] font-bold transition', effNights === n ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
                       {n}N/{n + 1}D
                     </button>
                   ))}
@@ -456,7 +454,7 @@ export const RannUtsavBuilder: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Rooms / Tents</label>
                 <Stepper value={rooms} set={setRooms} min={1} max={30} />
@@ -467,7 +465,7 @@ export const RannUtsavBuilder: React.FC = () => {
                   <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
                     {(['double', 'single'] as const).map(o => (
                       <button key={o} onClick={() => setOccupancy(o)}
-                        className={cn('flex-1 py-2.5 text-[12px] font-bold capitalize transition', occupancy === o ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
+                        className={cn('flex-1 py-2 text-[11.5px] font-bold capitalize transition', occupancy === o ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}>
                         {o}{o === 'single' ? ' (75%)' : ''}
                       </button>
                     ))}
@@ -476,7 +474,7 @@ export const RannUtsavBuilder: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>{extraLabel} <span className="opacity-50 normal-case">(not discounted)</span></label>
                 <Stepper value={extraPersons} set={setExtraPersons} />
@@ -489,23 +487,23 @@ export const RannUtsavBuilder: React.FC = () => {
 
             <div>
               <label className={labelCls}>Discount on room rent</label>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 {DISCOUNTS.map(d => (
                   <button key={d} onClick={() => { setDiscount(d); setCustomDiscountOpen(false); setCustomDiscountStr(''); }}
-                    className={cn('flex-1 py-2.5 rounded-lg text-sm font-bold border transition active:scale-[0.97]',
+                    className={cn('flex-1 py-2 rounded-lg text-[12.5px] font-bold border transition active:scale-[0.97]',
                       !isCustomDiscount && discount === d ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-500 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/50'))}>
                     {d === 0 ? 'None' : d + '%'}
                   </button>
                 ))}
                 <button
                   onClick={() => { setCustomDiscountOpen(true); setCustomDiscountStr(isCustomDiscount && discount ? String(discount) : ''); }}
-                  className={cn('flex-1 py-2.5 rounded-lg text-sm font-bold border transition active:scale-[0.97] flex items-center justify-center gap-1',
+                  className={cn('flex-1 py-2 rounded-lg text-[12.5px] font-bold border transition active:scale-[0.97] flex items-center justify-center gap-1',
                     isCustomDiscount ? 'bg-slate-900 border-slate-900 text-white' : cn(theme === 'light' ? 'bg-white border-slate-200 text-slate-500 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/50'))}>
-                  <Percent size={13} /> Custom
+                  <Percent size={12} /> Custom
                 </button>
               </div>
               {isCustomDiscount && (
-                <div className="mt-2 relative">
+                <div className="mt-1.5 relative">
                   <input
                     type="number"
                     inputMode="decimal"
@@ -532,29 +530,29 @@ export const RannUtsavBuilder: React.FC = () => {
 
         {/* ─── Live quote ─── */}
         <div className="lg:col-span-2">
-          <div className={cn('rounded-2xl border p-5 lg:sticky lg:top-4', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]' : 'bg-white/5 border-white/10')}>
-            <div className="flex items-center gap-2 mb-4">
-              <IndianRupee size={16} className="opacity-60" />
-              <span className={cn('font-bold text-sm', getTextColor())}>Live Quotation</span>
+          <div className={cn('rounded-2xl border p-3.5 lg:sticky lg:top-4', theme === 'light' ? 'bg-white border-slate-200 shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]' : 'bg-white/5 border-white/10')}>
+            <div className="flex items-center gap-2 mb-2.5">
+              <IndianRupee size={15} className="opacity-60" />
+              <span className={cn('font-bold text-[13px]', getTextColor())}>Live Quotation</span>
             </div>
 
             {outOfSeason ? (
-              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                <p className="text-xs leading-relaxed">Check-in is outside the {product === 'resort' ? 'Resort (10 Nov 2026 – 28 Feb 2027)' : 'Tent City (1 Nov 2026 – 7 Mar 2027)'} season. Pick an in-season date.</p>
+              <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <p className="text-[11.5px] leading-relaxed">Check-in is outside the {product === 'resort' ? 'Resort (10 Nov 2026 – 28 Feb 2027)' : 'Tent City (1 Nov 2026 – 7 Mar 2027)'} season. Pick an in-season date.</p>
               </div>
             ) : quote && (
-              <div className="space-y-1.5 text-sm">
+              <div className="space-y-1 text-[13px]">
                 {quote.tcTierUsed && (
-                  <div className={cn('flex items-center gap-1.5 text-[11px] font-bold mb-2 px-2 py-1 rounded-md',
+                  <div className={cn('flex items-center gap-1.5 text-[10.5px] font-bold mb-1.5 px-2 py-1 rounded-md',
                     quote.tcTierUsed === 's2' ? 'bg-rose-50 text-rose-600' : quote.tcTierUsed === 's1' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600')}>
-                    <Moon size={11} /> {TC_TIER_LABEL[quote.tcTierUsed]}
+                    <Moon size={10} /> {TC_TIER_LABEL[quote.tcTierUsed]}
                   </div>
                 )}
                 {quote.perNight && (
-                  <div className="mb-2 space-y-1">
+                  <div className="mb-1.5 space-y-0.5">
                     {quote.perNight.map((p, i) => (
-                      <div key={i} className="flex justify-between text-[12px]">
+                      <div key={i} className="flex justify-between text-[11.5px]">
                         <span className={getSecondaryTextColor()}>{fmtDate(p.date)} · <b className={p.tier === 'Premium' ? 'text-rose-500' : p.tier === 'Economy' ? 'text-sky-500' : 'text-amber-500'}>{p.tier}</b></span>
                         <span className={cn('font-mono', getTextColor())}>{fmtINR(p.rate)}</span>
                       </div>
@@ -564,27 +562,27 @@ export const RannUtsavBuilder: React.FC = () => {
                 <Line label="Room rent" value={fmtINR(quote.roomRent)} bold />
                 {quote.discountPct > 0 && <Line label={`Discount (${quote.discountPct}%)`} value={'- ' + fmtINR(quote.clientDiscountAmount)} accent />}
                 {quote.extras.map((e, i) => <Line key={i} label={e.label} value={fmtINR(e.amount)} muted />)}
-                <div className={cn('h-px my-2', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
+                <div className={cn('h-px my-1.5', theme === 'light' ? 'bg-slate-200' : 'bg-white/10')} />
                 <Line label="Sub-total" value={fmtINR(quote.clientBeforeTax)} />
                 <Line label="GST @ 18%" value={fmtINR(quote.clientGst)} muted />
-                <div className={cn('flex justify-between items-center mt-3 p-3 rounded-xl', theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10')}>
-                  <span className="text-[13px] font-bold uppercase tracking-wide">Grand Total</span>
-                  <span className="text-xl font-bold font-mono">{fmtINR(quote.sellingPrice)}</span>
+                <div className={cn('flex justify-between items-center mt-2.5 p-2.5 rounded-xl', theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10')}>
+                  <span className="text-[12px] font-bold uppercase tracking-wide">Grand Total</span>
+                  <span className="text-lg font-bold font-mono">{fmtINR(quote.sellingPrice)}</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-3">
+                <div className="grid grid-cols-2 gap-2 pt-2.5">
                   <button onClick={downloadPdf} disabled={pdfBusy}
-                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-slate-900 text-white text-[13px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
-                    {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} PDF
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-900 text-white text-[12.5px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
+                    {pdfBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} PDF
                   </button>
                   <button onClick={copyText}
-                    className={cn('flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold border active:scale-[0.97] transition',
+                    className={cn('flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12.5px] font-bold border active:scale-[0.97] transition',
                       theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80')}>
-                    <Copy size={15} /> Copy
+                    <Copy size={14} /> Copy
                   </button>
                 </div>
                 <button onClick={openWhatsApp}
-                  className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg bg-emerald-600 text-white text-[13px] font-bold hover:bg-emerald-500 active:scale-[0.97] transition">
+                  className="w-full flex items-center justify-center gap-1.5 py-2 mt-1.5 rounded-lg bg-emerald-600 text-white text-[12.5px] font-bold hover:bg-emerald-500 active:scale-[0.97] transition">
                   Share on WhatsApp
                 </button>
               </div>
