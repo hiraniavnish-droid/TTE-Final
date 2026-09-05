@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import {
   quoteResort, quoteTentCity, resortTier, tcTier, TC_TENT_TYPES, TC_TIER_LABEL,
-  isSuite, fmtINR, RESORT_SEASON, TC_SEASON, TC_SUITE, type TCTentType, type QuoteResult,
+  isSuite, fmtINR, RESORT_SEASON, TC_SEASON, TC_SUITE, TC_BASE, TC_SURCHARGE,
+  type TCTentType, type QuoteResult,
 } from '../services/rannUtsavRates';
 import { buildRannOptions, type OptionCell, type OptionDuration } from '../services/rannOptions';
 import { itineraryWarnings } from '../services/rannItinerary';
@@ -176,33 +177,45 @@ export const RannUtsavBuilder: React.FC = () => {
   const buildText = (): string => {
     if (!quote) return '';
     const L: string[] = [];
-    L.push('*THE TOURISM EXPERTS*');
-    L.push('*Rann Utsav 2026-27 Quotation*');
+    const titleLabel = product === 'resort' ? 'Rann Utsav Tent Resort' : 'Rann Utsav Tent City';
+    const baseAdults = suite ? TC_SUITE[tent].pax * rooms : rooms * (occupancy === 'single' ? 1 : 2);
+    const totalAdults = baseAdults + extraPersons;
+
+    L.push(`*${titleLabel} 2026-27 Quotation*`);
     L.push('');
-    if (clientName) L.push(`Guest: ${clientName}`);
-    L.push(`Package: ${productLabel}`);
-    L.push(`Accommodation: ${tentLabel}`);
-    L.push(`Check-in: ${fmtDate(checkIn)}  |  ${nightsLabel}`);
-    L.push(`Rooms: ${rooms}  |  ${suite ? 'Suite' : occupancy === 'single' ? 'Single occupancy' : 'Double occupancy'}`);
+    L.push('Please find your detailed quotation below.');
+    L.push('');
+    L.push(`*Accommodation: ${tentLabel}*`);
+    L.push(`*Check-in: ${fmtDate(checkIn)}  |  ${nightsLabel}*`);
+    L.push(`Rooms: ${rooms}  |  ${suite ? 'Suite' : occupancy === 'single' ? 'Single Occupancy' : 'Double Occupancy'}`);
+    L.push(`Pax: ${totalAdults} Adult${totalAdults === 1 ? '' : 's'}`);
     if (children) L.push(`Children under 6: ${children} (complimentary)`);
     L.push('');
+
+    L.push('*Rate Breakup*');
     if (quote.perNight) {
-      L.push('Nightly rate (per couple):');
-      quote.perNight.forEach(p => L.push(`  ${fmtDate(p.date)} — ${p.tier}: ${fmtINR(p.rate)}`));
-    } else if (quote.tcTierUsed) {
-      L.push(`Rate basis: ${TC_TIER_LABEL[quote.tcTierUsed]}`);
+      quote.perNight.forEach(p => L.push(`${fmtDate(p.date)} (${p.tier}): ${fmtINR(p.rate)}/night`));
+      L.push(`Room rent: ${fmtINR(quote.roomRent)}`);
+    } else if (quote.tcTierUsed && !suite) {
+      const perNightBase = TC_BASE[tent][effNights] / effNights;
+      const surchargeTotal = TC_SURCHARGE[quote.tcTierUsed][effNights] * 2 * rooms * (occupancy === 'single' ? 0.75 : 1);
+      const baseTotal = quote.roomRent - surchargeTotal;
+      L.push(`Tent rent (${fmtINR(perNightBase)}/person/night × ${baseAdults} pax × ${effNights}N): ${fmtINR(baseTotal)}`);
+      if (surchargeTotal > 0) L.push(`${TC_TIER_LABEL[quote.tcTierUsed]} surcharge: ${fmtINR(surchargeTotal)}`);
+    } else {
+      const perNightFlat = TC_SUITE[tent].rates[effNights] / effNights;
+      L.push(`Suite rent (${fmtINR(perNightFlat)}/night flat × ${effNights}N): ${fmtINR(quote.roomRent)}`);
     }
-    L.push('');
-    L.push(`Room rent: ${fmtINR(quote.roomRent)}`);
     if (quote.discountPct > 0) L.push(`Discount (${quote.discountPct}%): -${fmtINR(quote.clientDiscountAmount)}`);
     quote.extras.forEach(e => L.push(`${e.label}: ${fmtINR(e.amount)}`));
     L.push(`Sub-total: ${fmtINR(quote.clientBeforeTax)}`);
-    L.push(`GST @18%: ${fmtINR(quote.clientGst)}`);
+    L.push(`GST @ 18%: ${fmtINR(quote.clientGst)}`);
     L.push('');
     L.push(`*GRAND TOTAL: ${fmtINR(quote.sellingPrice)}*`);
     L.push('');
-    L.push('_Rates inclusive of taxes as shown. Extra mattress/person charges are not discountable._');
-    L.push('The Tourism Experts · +91 7096090666 · rannutsav.in');
+    L.push('This package includes all sightseeing, pickups, drops and meals as per the itinerary.');
+    L.push('');
+    L.push('We look forward to hosting you.');
     return L.join('\n');
   };
 
