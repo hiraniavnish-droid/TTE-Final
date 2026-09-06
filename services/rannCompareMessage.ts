@@ -12,9 +12,9 @@
 // percentage itself is an internal negotiating position and is never printed.
 // ============================================================
 
-import { TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, type TCTentType } from './rannUtsavRates';
+import { TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, tcTier, type TCTentType } from './rannUtsavRates';
 import type { OptionDuration } from './rannOptions';
-import { condensedItinerary } from './rannItinerary';
+import { condensedItinerary, addLocalDays } from './rannItinerary';
 
 /** One ticked cell, reduced to the only figure a client may see. */
 export interface CompareRate {
@@ -165,43 +165,85 @@ export function occupancyLine(rooms: number, single: boolean): string {
   return `${single ? 'Single' : 'Double'} occupancy · ${rooms} room${rooms === 1 ? '' : 's'}`;
 }
 
+/** One line per day, split into a heading (with its real calendar date) plus
+ *  one bullet per activity — `condensedItinerary` hands back a single dense
+ *  line per day, which reads as a cramped wall of text on WhatsApp. Nothing
+ *  is added or reworded here, only re-laid-out: the day number and activity
+ *  list are parsed back out of that same line. */
+function formatItineraryDays(dayLines: string[], checkIn: Date): string[] {
+  const out: string[] = [];
+  dayLines.forEach((line, idx) => {
+    const m = line.match(/^\*Day (\d+)\* — (.*)$/);
+    if (!m) { out.push(line); return; }
+    const dayNum = Number(m[1]);
+    const date = addLocalDays(checkIn, dayNum - 1);
+    const qualifier = idx === 0 ? ' (Check-in)' : idx === dayLines.length - 1 ? ' (Check-out)' : '';
+    out.push(`*Day ${dayNum} — ${fmtCompareDate(date)}${qualifier}*`);
+    m[2].split(' · ').forEach(activity => out.push(`• ${activity}`));
+    if (idx < dayLines.length - 1) out.push('');
+  });
+  return out;
+}
+
 /** The WhatsApp / clipboard text. Returns '' when nothing is ticked. */
 export function buildCompareMessage(i: CompareMessageInput): string {
   const groups = groupCompareRates(i.rates);
   if (groups.length === 0) return '';
 
-  const L: string[] = [];
-  L.push('*THE TOURISM EXPERTS*');
-  L.push('*Rann Utsav — Tent City*');
-  L.push('');
-  L.push(`Check-in: ${fmtCompareDate(i.checkIn)}`);
-  L.push(occupancyLine(i.rooms, i.single));
-  // Mattresses change every figure below, so the client must see the count.
-  if (i.extraMattress > 0) {
-    L.push(`Extra mattress: ${i.extraMattress}`);
-  }
+  // Surcharge tier depends only on the check-in date, so it's the same for
+  // every ticked duration — but suites never carry a surcharge (they're
+  // priced flat off TC_SUITE, TC_SURCHARGE never enters that calculation).
+  const surchargeActive = tcTier(i.checkIn) !== 'none';
+  const durations = compareDurations(i.rates);
+  const baseAdults = i.rooms * (i.single ? 1 : 2);
+  const totalPax = baseAdults + i.extraMattress;
 
+  const L: string[] = [];
+  L.push('*Rann Utsav Tent City 2026-27 — Options*');
+  L.push('');
+  L.push(`📅 Check-in: ${fmtCompareDate(i.checkIn)}`);
+  L.push(`Quotation for: ${durations.map(n => `${n}N/${n + 1}D`).join(' & ')}`);
+  L.push(occupancyLine(i.rooms, i.single));
+  L.push(i.extraMattress > 0
+    ? `Pax: ${totalPax} Adults (incl. ${i.extraMattress} extra mattress)`
+    : `Pax: ${totalPax} Adult${totalPax === 1 ? '' : 's'}`);
+  L.push('──────────────');
+
+  let anySurchargedNonSuite = false;
   for (const g of groups) {
     L.push('');
-    L.push(`*${g.category}*${suiteQualifier(g.category)}`);
-    L.push(g.rates.map(r => `${r.nights}N ${fmtINR(r.sellingPrice)}`).join('  ·  '));
+    const suite = isSuite(g.category);
+    const rateNote = suite ? '' : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night`;
+    L.push(`*${g.category}*${suiteQualifier(g.category)}${rateNote}`);
+    const showTick = surchargeActive && !suite;
+    if (showTick) anySurchargedNonSuite = true;
+    L.push(g.rates.map(r => `${r.nights}N: ${fmtINR(r.sellingPrice)}${showTick ? ' ✓' : ''}`).join('   '));
   }
 
+  if (anySurchargedNonSuite) {
+    L.push('');
+    L.push('✓ Festive-date rate applies for these dates');
+  }
+  L.push('──────────────');
+
   if (i.includeItinerary) {
-    const sec = compareItinerarySection(compareDurations(i.rates));
+    const sec = compareItinerarySection(durations);
     if (sec) {
       L.push('');
       L.push(`*${sec.heading}*`);          // WhatsApp bold
-      sec.dayLines.forEach(line => L.push(line));
+      L.push('');
+      formatItineraryDays(sec.dayLines, i.checkIn).forEach(line => L.push(line));
       if (sec.concludesLine) {
         L.push('');
         L.push(`_${sec.concludesLine}_`);  // WhatsApp italic
       }
+      L.push('──────────────');
     }
   }
 
   L.push('');
-  L.push('All rates include GST. Children under 6 years complimentary.');
-  L.push('The Tourism Experts');
+  L.push('✓ All rates include GST. Children under 6 years complimentary.');
+  L.push('');
+  L.push('We look forward to hosting you at Rann Utsav this season.');
   return L.join('\n');
 }

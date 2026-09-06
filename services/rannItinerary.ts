@@ -247,7 +247,7 @@ export interface ItineraryWarning {
 
 // Local date arithmetic only. UTC-based date formatting is banned in this
 // repo: it rolls an IST date back to the previous day.
-const addLocalDays = (d: Date, n: number) =>
+export const addLocalDays = (d: Date, n: number) =>
   new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 
 const WEEKDAY = { WED: 3, FRI: 5 } as const;
