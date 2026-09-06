@@ -14,18 +14,24 @@
 
 import {
   TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, TC_SURCHARGE, TC_MATTRESS, SUITE_MATTRESS,
-  tcTier, TC_TIER_LABEL, type TCTentType,
+  tcTier, type TCTentType,
 } from './rannUtsavRates';
 import type { OptionDuration } from './rannOptions';
 import { condensedItinerary, addLocalDays } from './rannItinerary';
 import { GST_RATE } from './leadCostingEngine';
 
-/** One ticked cell, reduced to the only figure a client may see. */
+/** One ticked cell, reduced to figures a client may see — still no netCost,
+ *  profit or commissionPct. `originalSellingPrice` is the undiscounted price
+ *  at the same surcharge/extras/GST, kept alongside `sellingPrice` only to
+ *  render the struck-through "was" price; it is NOT itself a margin figure. */
 export interface CompareRate {
   category: TCTentType;
   nights: OptionDuration;
   /** GST-inclusive total payable for the whole booking. */
   sellingPrice: number;
+  /** What sellingPrice would be at 0% discount. Equal to sellingPrice when no
+   *  discount is applied. */
+  originalSellingPrice: number;
 }
 
 export interface CompareMessageInput {
@@ -33,6 +39,11 @@ export interface CompareMessageInput {
   rooms: number;
   single: boolean;
   extraMattress: number;
+  /** Shown as a struck-through "was" price + this percentage next to each
+   *  rate when > 0. The percentage itself is printed here deliberately —
+   *  unlike the single-quote builder, this was an explicit choice for the
+   *  Compare Options message, not the default. */
+  discountPct: number;
   rates: CompareRate[];
   includeItinerary: boolean;
 }
@@ -230,10 +241,15 @@ export function buildCompareMessage(i: CompareMessageInput): string {
       const mRate = suite ? SUITE_MATTRESS : TC_MATTRESS[tier][g.category.includes('Non-AC') ? 'nonac' : 'ac'];
       const mattressAmt = i.extraMattress * mRate * r.nights;
       const notes: string[] = [];
-      if (surchargeAmt > 0) notes.push(`${fmtINR(surchargeAmt)} ${TC_TIER_LABEL[tier]} surcharge`);
+      if (surchargeAmt > 0) notes.push(`${fmtINR(surchargeAmt)} festive surcharge`);
       if (mattressAmt > 0) notes.push(`${fmtINR(mattressAmt)} extra mattress`);
       const suffix = notes.length > 0 ? ` (incl. ${notes.join(' + ')})` : '';
-      L.push(`${r.nights}N: ${fmtINR(r.sellingPrice)}${suffix}`);
+      // Struck-through "was" price + the final price + the percentage — no
+      // rupee "you save" figure, by explicit choice.
+      const priceStr = i.discountPct > 0 && r.originalSellingPrice > r.sellingPrice
+        ? `~${fmtINR(r.originalSellingPrice)}~ ${fmtINR(r.sellingPrice)} (${i.discountPct}% discount)`
+        : fmtINR(r.sellingPrice);
+      L.push(`${r.nights}N: ${priceStr}${suffix}`);
     });
   }
 

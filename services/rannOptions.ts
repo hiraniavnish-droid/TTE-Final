@@ -16,6 +16,7 @@ import {
   TC_SEASON,
   type TCTentType,
 } from './rannUtsavRates';
+import { GST_RATE } from './leadCostingEngine';
 
 export type OptionDuration = 1 | 2 | 3;
 
@@ -34,6 +35,10 @@ export interface OptionCell {
   category: TCTentType;
   nights: OptionDuration;
   sellingPrice: number; // what the client pays, GST included
+  // What sellingPrice would be at 0% discount, same surcharge/extras/GST —
+  // a client-facing figure (just the undiscounted price), not a margin one,
+  // so unlike netCost/profit it's safe to carry through to the message.
+  originalSellingPrice: number;
   netCost: number;
   profit: number;
 }
@@ -86,6 +91,10 @@ export function buildRannOptions(input: RannOptionsInput): RannOptionsResult {
         category,
         nights,
         sellingPrice: q.sellingPrice,
+        // Discount only ever reduces roomRent (extras/mattress are never
+        // discounted), and GST is charged on top of that reduction too —
+        // so adding the discount back pre-GST reproduces the 0%-discount price.
+        originalSellingPrice: q.sellingPrice + q.clientDiscountAmount * (1 + GST_RATE),
         netCost: q.netCost,
         profit: q.profit,
       });

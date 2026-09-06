@@ -103,9 +103,14 @@ export const RannUtsavBuilder: React.FC = () => {
     [compare, ticks]);
 
   const selectedRates: CompareRate[] = useMemo(
-    // Deliberately projected down to the client-facing figure only: netCost and
-    // profit do not travel into the message builder.
-    () => selectedCells.map(c => ({ category: c.category, nights: c.nights, sellingPrice: c.sellingPrice })),
+    // Deliberately projected down to client-facing figures only: netCost and
+    // profit do not travel into the message builder. originalSellingPrice is
+    // still client-facing (just the undiscounted price), kept for the
+    // struck-through "was" price in the message.
+    () => selectedCells.map(c => ({
+      category: c.category, nights: c.nights,
+      sellingPrice: c.sellingPrice, originalSellingPrice: c.originalSellingPrice,
+    })),
     [selectedCells]);
 
   // Employee-only. Summing net/profit across ticked options would be nonsense —
@@ -149,6 +154,7 @@ export const RannUtsavBuilder: React.FC = () => {
     rooms,
     single: occupancy === 'single',
     extraMattress: extraPersons,
+    discountPct: discount,
     rates: selectedRates,
     includeItinerary,
   });
@@ -201,7 +207,7 @@ export const RannUtsavBuilder: React.FC = () => {
       const surchargeTotal = TC_SURCHARGE[quote.tcTierUsed][effNights] * 2 * rooms * (occupancy === 'single' ? 0.75 : 1);
       const baseTotal = quote.roomRent - surchargeTotal;
       L.push(`Tent rent (${fmtINR(perNightBase)}/person/night × ${baseAdults} pax × ${effNights}N): ${fmtINR(baseTotal)}`);
-      if (surchargeTotal > 0) L.push(`${TC_TIER_LABEL[quote.tcTierUsed]} surcharge: ${fmtINR(surchargeTotal)}`);
+      if (surchargeTotal > 0) L.push(`Festive surcharge: ${fmtINR(surchargeTotal)}`);
     } else {
       const perNightFlat = TC_SUITE[tent].rates[effNights] / effNights;
       L.push(`Suite rent (${fmtINR(perNightFlat)}/night flat × ${effNights}N): ${fmtINR(quote.roomRent)}`);
