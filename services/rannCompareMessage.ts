@@ -214,10 +214,18 @@ export function buildCompareMessage(i: CompareMessageInput): string {
   for (const g of groups) {
     L.push('');
     const suite = isSuite(g.category);
-    const rateNote = suite ? '' : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + ${GST_RATE * 100}% GST`;
-    L.push(`*${g.category}*${suiteQualifier(g.category)}${rateNote}`);
     const showTick = surchargeActive && !suite;
     if (showTick) anySurchargedNonSuite = true;
+    // The "+X% GST" note only holds as a complete formula when nothing else
+    // is added on top of the base rate. Once a festive surcharge applies,
+    // stating just "+ GST" would let a client compute base×pax×nights×1.18
+    // and land short of the real total — so the note names the surcharge
+    // too rather than implying a formula that no longer holds.
+    const rateNote = suite ? ''
+      : showTick
+        ? ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + festive surcharge + ${GST_RATE * 100}% GST`
+        : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + ${GST_RATE * 100}% GST`;
+    L.push(`*${g.category}*${suiteQualifier(g.category)}${rateNote}`);
     L.push(g.rates.map(r => `${r.nights}N: ${fmtINR(r.sellingPrice)}${showTick ? ' ✓' : ''}`).join('   '));
   }
 
