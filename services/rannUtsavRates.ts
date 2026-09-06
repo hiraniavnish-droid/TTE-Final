@@ -52,10 +52,10 @@ export const TC_SURCHARGE: Record<TCTier, Record<number, number>> = {
   none: { 1: 0, 2: 0, 3: 0 }, s1: { 1: 2000, 2: 3500, 3: 4500 }, s2: { 1: 4000, 2: 6000, 3: 8000 },
 };
 // extra mattress per night by (tier, isNonAC)
-const TC_MATTRESS: Record<TCTier, { ac: number; nonac: number }> = {
+export const TC_MATTRESS: Record<TCTier, { ac: number; nonac: number }> = {
   none: { ac: 5500, nonac: 4500 }, s1: { ac: 6000, nonac: 5000 }, s2: { ac: 6000, nonac: 5000 },
 };
-const SUITE_MATTRESS = 7750;
+export const SUITE_MATTRESS = 7750;
 
 export const TC_TENT_TYPES: TCTentType[] = [
   'Super Premium Tent', 'Premium Tent', 'Deluxe AC Swiss Cottage', 'Non-AC Swiss Cottage', 'Rajwadi Suite', 'Darbari Suite',

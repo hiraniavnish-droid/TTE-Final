@@ -12,7 +12,10 @@
 // percentage itself is an internal negotiating position and is never printed.
 // ============================================================
 
-import { TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, tcTier, type TCTentType } from './rannUtsavRates';
+import {
+  TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, TC_SURCHARGE, TC_MATTRESS, SUITE_MATTRESS,
+  tcTier, TC_TIER_LABEL, type TCTentType,
+} from './rannUtsavRates';
 import type { OptionDuration } from './rannOptions';
 import { condensedItinerary, addLocalDays } from './rannItinerary';
 import { GST_RATE } from './leadCostingEngine';
@@ -194,7 +197,8 @@ export function buildCompareMessage(i: CompareMessageInput): string {
   // Surcharge tier depends only on the check-in date, so it's the same for
   // every ticked duration — but suites never carry a surcharge (they're
   // priced flat off TC_SUITE, TC_SURCHARGE never enters that calculation).
-  const surchargeActive = tcTier(i.checkIn) !== 'none';
+  const tier = tcTier(i.checkIn);
+  const occMult = i.single ? 0.75 : 1;
   const durations = compareDurations(i.rates);
   const baseAdults = i.rooms * (i.single ? 1 : 2);
   const totalPax = baseAdults + i.extraMattress;
@@ -210,28 +214,32 @@ export function buildCompareMessage(i: CompareMessageInput): string {
     : `Pax: ${totalPax} Adult${totalPax === 1 ? '' : 's'}`);
   L.push('──────────────');
 
-  let anySurchargedNonSuite = false;
   for (const g of groups) {
     L.push('');
     const suite = isSuite(g.category);
-    const showTick = surchargeActive && !suite;
-    if (showTick) anySurchargedNonSuite = true;
-    // The "+X% GST" note only holds as a complete formula when nothing else
-    // is added on top of the base rate. Once a festive surcharge applies,
-    // stating just "+ GST" would let a client compute base×pax×nights×1.18
-    // and land short of the real total — so the note names the surcharge
-    // too rather than implying a formula that no longer holds.
-    const rateNote = suite ? ''
-      : showTick
-        ? ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + festive surcharge + ${GST_RATE * 100}% GST`
-        : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + ${GST_RATE * 100}% GST`;
+    const rateNote = suite ? '' : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + ${GST_RATE * 100}% GST`;
     L.push(`*${g.category}*${suiteQualifier(g.category)}${rateNote}`);
-    L.push(g.rates.map(r => `${r.nights}N: ${fmtINR(r.sellingPrice)}${showTick ? ' ✓' : ''}`).join('   '));
+
+    // Surcharge and extra-mattress amounts are computed straight off the same
+    // rate tables the engine itself uses (TC_SURCHARGE / TC_MATTRESS /
+    // SUITE_MATTRESS), so this can never drift from what quoteTentCity would
+    // actually charge. Extra mattress is not eligible for a discount, so its
+    // amount here is unaffected even when a discount is applied elsewhere.
+    g.rates.forEach(r => {
+      const surchargeAmt = suite ? 0 : TC_SURCHARGE[tier][r.nights] * 2 * i.rooms * occMult;
+      const mRate = suite ? SUITE_MATTRESS : TC_MATTRESS[tier][g.category.includes('Non-AC') ? 'nonac' : 'ac'];
+      const mattressAmt = i.extraMattress * mRate * r.nights;
+      const notes: string[] = [];
+      if (surchargeAmt > 0) notes.push(`${fmtINR(surchargeAmt)} ${TC_TIER_LABEL[tier]} surcharge`);
+      if (mattressAmt > 0) notes.push(`${fmtINR(mattressAmt)} extra mattress`);
+      const suffix = notes.length > 0 ? ` (incl. ${notes.join(' + ')})` : '';
+      L.push(`${r.nights}N: ${fmtINR(r.sellingPrice)}${suffix}`);
+    });
   }
 
-  if (anySurchargedNonSuite) {
+  if (i.extraMattress > 0) {
     L.push('');
-    L.push('✓ Festive-date rate applies for these dates');
+    L.push('_Extra mattress charges are not eligible for any discount._');
   }
   L.push('──────────────');
 
