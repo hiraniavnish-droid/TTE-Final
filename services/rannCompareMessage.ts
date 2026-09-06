@@ -15,6 +15,7 @@
 import { TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, tcTier, type TCTentType } from './rannUtsavRates';
 import type { OptionDuration } from './rannOptions';
 import { condensedItinerary, addLocalDays } from './rannItinerary';
+import { GST_RATE } from './leadCostingEngine';
 
 /** One ticked cell, reduced to the only figure a client may see. */
 export interface CompareRate {
@@ -213,7 +214,7 @@ export function buildCompareMessage(i: CompareMessageInput): string {
   for (const g of groups) {
     L.push('');
     const suite = isSuite(g.category);
-    const rateNote = suite ? '' : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night`;
+    const rateNote = suite ? '' : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + ${GST_RATE * 100}% GST`;
     L.push(`*${g.category}*${suiteQualifier(g.category)}${rateNote}`);
     const showTick = surchargeActive && !suite;
     if (showTick) anySurchargedNonSuite = true;
