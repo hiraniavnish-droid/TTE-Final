@@ -1394,6 +1394,14 @@ const vendorTotals = (l: Lead) => {
   return { cost, paid, owed: Math.max(cost - paid, 0) };
 };
 
+// Cheque no. / UTR / UPI txn ID entered against each vendor payment — a lead
+// can have several vendors, each with several payments, so this joins every
+// reference across all of them rather than picking one.
+const vendorPaymentRefs = (l: Lead): string =>
+  (l.vendors || [])
+    .flatMap(v => (v.payments || []).map(p => p.reference).filter((r): r is string => !!r))
+    .join('; ');
+
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'leadCode', label: 'Lead Code', get: l => l.leadCode || '' },
   { key: 'name', label: 'Guest Name', get: l => l.name },
@@ -1411,11 +1419,13 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'netCost', label: 'Net Cost', get: l => l.commercials?.netCost || 0 },
   { key: 'profit', label: 'Profit', get: l => (l.commercials?.sellingPrice || 0) - (l.commercials?.netCost || 0) },
   { key: 'collected', label: 'Collected', get: (l, pay) => pay?.collected || 0 },
+  { key: 'paymentReference', label: 'Payment Reference(s)', get: (l, pay) => (pay?.referenceIds || []).join('; ') },
   { key: 'pending', label: 'Pending', get: (l, pay) => Math.max((l.commercials?.sellingPrice || 0) - (pay?.collected || 0), 0) },
   { key: 'paymentStatus', label: 'Payment Status', get: (l, pay) => { const s = getPayState(l, pay, true); return s ? s[0].toUpperCase() + s.slice(1) : ''; } },
   { key: 'vendorNames', label: 'Vendor(s)', get: l => (l.vendors || []).map(v => v.name).join('; ') || (l.commercials?.manualVendorName || '') },
   { key: 'vendorCost', label: 'Vendor Cost', get: l => vendorTotals(l).cost },
   { key: 'vendorPaid', label: 'Vendor Paid', get: l => vendorTotals(l).paid },
+  { key: 'vendorPaymentReference', label: 'Vendor Payment Reference(s)', get: l => vendorPaymentRefs(l) },
   { key: 'vendorOwed', label: 'Vendor Owed', get: l => vendorTotals(l).owed },
   { key: 'hotel', label: 'Hotel Pref', get: l => l.preferences?.hotel || '' },
   { key: 'mealPlan', label: 'Meal Plan', get: l => l.preferences?.mealPlan || '' },
@@ -1426,8 +1436,8 @@ const EXPORT_COLUMNS: ExportColumn[] = [
 ];
 
 const EXPORT_PRESETS: { label: string; keys: string[] }[] = [
-  { label: 'Booking / Vendor Sheet', keys: ['leadCode', 'name', 'phone', 'destination', 'travelDate', 'nights', 'pax', 'assignedTo', 'vendorNames', 'vendorCost', 'vendorPaid', 'vendorOwed', 'status'] },
-  { label: 'Reconciliation Sheet', keys: ['leadCode', 'name', 'phone', 'sellingPrice', 'collected', 'pending', 'paymentStatus', 'vendorCost', 'vendorPaid', 'vendorOwed', 'profit'] },
+  { label: 'Booking / Vendor Sheet', keys: ['leadCode', 'name', 'phone', 'destination', 'travelDate', 'nights', 'pax', 'assignedTo', 'vendorNames', 'vendorCost', 'vendorPaid', 'vendorPaymentReference', 'vendorOwed', 'status'] },
+  { label: 'Reconciliation Sheet', keys: ['leadCode', 'name', 'phone', 'sellingPrice', 'collected', 'paymentReference', 'pending', 'paymentStatus', 'vendorCost', 'vendorPaid', 'vendorPaymentReference', 'vendorOwed', 'profit'] },
   { label: 'Everything', keys: EXPORT_COLUMNS.map(c => c.key) },
 ];
 

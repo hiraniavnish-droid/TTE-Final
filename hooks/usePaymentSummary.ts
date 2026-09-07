@@ -6,6 +6,9 @@ export interface LeadPaymentSummary {
   collected: number;   // sum of amounts actually received (status === 'paid', any source)
   requested: number;   // sum of all amounts ever requested/recorded for this lead
   hasAny: boolean;      // any payment record at all (link or manual)
+  // reference_id (Razorpay link) or manual_reference (manually-logged payment),
+  // one entry per PAID record, in the order the records were fetched.
+  referenceIds: string[];
 }
 
 // Raw shape needed for cash-basis (bank/Razorpay-reconcilable) reporting — every
@@ -39,10 +42,14 @@ export function usePaymentSummary() {
         const next: Record<string, LeadPaymentSummary> = {};
         for (const r of raw) {
           if (!r.leadId) continue;
-          const s = next[r.leadId] || { collected: 0, requested: 0, hasAny: false };
+          const s = next[r.leadId] || { collected: 0, requested: 0, hasAny: false, referenceIds: [] };
           s.hasAny = true;
           s.requested += Number(r.amount) || 0;
-          if (r.status === 'paid') s.collected += Number(r.amount) || 0;
+          if (r.status === 'paid') {
+            s.collected += Number(r.amount) || 0;
+            const ref = r.source === 'manual' ? r.manual_reference : r.reference_id;
+            if (ref) s.referenceIds.push(ref);
+          }
           next[r.leadId] = s;
         }
         setMap(next);
