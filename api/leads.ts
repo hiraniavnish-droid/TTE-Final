@@ -16,11 +16,15 @@
 // Every one of these leads is for Rann Utsav specifically (this endpoint's
 // only caller) — destination is hardcoded, not guessed from payload.
 //
-// Auto-assigned to Sonali (DEFAULT_ASSIGNEE) — every Rann Utsav website/bot
-// lead currently goes to her per explicit instruction. On a repeat touch to
-// an existing lead, this only fills the assignment in if it's still unset,
-// same "never overwrite a real value" rule as every other merged field —
-// a lead someone has already claimed/reassigned is left alone.
+// Auto-assignment is read from the `app_settings` table (single row, id =
+// true) on every request rather than hardcoded — Team Settings lets the
+// business owner pause it or change the assignee without a code change/
+// deploy. Falls back to the last known-good default (enabled, Sonali) if
+// that row is ever unreachable, so a Supabase hiccup never blocks a lead
+// from being created, it just leaves it unassigned that once.
+// On a repeat touch to an existing lead, assignment only fills in if it's
+// still unset, same "never overwrite a real value" rule as every other
+// merged field — a lead someone has already claimed/reassigned is left alone.
 // ============================================================
 
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
@@ -28,7 +32,6 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const WEBHOOK_SECRET = process.env.LEADS_WEBHOOK_SECRET || '';
 
 const DESTINATION = 'Rann Utsav';
-const DEFAULT_ASSIGNEE = 'Sonali';
 
 const SOURCE_LABEL: Record<string, string> = {
   website_form: 'Website - Rann Utsav',
@@ -62,6 +65,18 @@ interface LeadPayload {
   travelDate?: string | null;
   city?: string | null;
   timestamp?: string;
+}
+
+async function getAutoAssignee(): Promise<string | null> {
+  try {
+    const res = await sb('app_settings?select=auto_assign_enabled,auto_assign_to&limit=1');
+    const rows = await res.json().catch(() => []);
+    const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    if (!row) return 'Sonali'; // table unreachable/empty — fall back to prior hardcoded behavior
+    return row.auto_assign_enabled && row.auto_assign_to ? row.auto_assign_to : null;
+  } catch {
+    return 'Sonali';
+  }
 }
 
 async function findExistingLead(phone10: string): Promise<any | null> {
@@ -104,7 +119,7 @@ export default async function handler(req: any, res: any) {
   const timestamp = body.timestamp || new Date().toISOString();
 
   try {
-    const existing = await findExistingLead(phone10);
+    const [existing, autoAssignee] = await Promise.all([findExistingLead(phone10), getAutoAssignee()]);
 
     if (existing) {
       // Fill in previously-null fields only — never overwrite a real value
@@ -112,7 +127,7 @@ export default async function handler(req: any, res: any) {
       const patch: Record<string, unknown> = {};
       if (!existing.name && body.name) patch.name = body.name;
       if (!existing.email && body.email) patch.email = body.email;
-      if (!existing.assigned_to) patch.assigned_to = DEFAULT_ASSIGNEE;
+      if (!existing.assigned_to && autoAssignee) patch.assigned_to = autoAssignee;
 
       const existingTripDetails = existing.trip_details || {};
       const tripPatch: Record<string, unknown> = {};
@@ -179,7 +194,7 @@ export default async function handler(req: any, res: any) {
       tags: [body.source || 'website'],
       interested_services: [],
       reference_name: null,
-      assigned_to: DEFAULT_ASSIGNEE,
+      assigned_to: autoAssignee,
       notes: body.message || '',
     };
 
