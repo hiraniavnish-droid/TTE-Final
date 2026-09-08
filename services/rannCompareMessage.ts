@@ -12,7 +12,7 @@
 // percentage itself is an internal negotiating position and is never printed.
 // ============================================================
 
-import { TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, type TCTentType } from './rannUtsavRates';
+import { TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, tcTier, TC_SURCHARGE, type TCTentType } from './rannUtsavRates';
 import type { OptionDuration } from './rannOptions';
 import { condensedItinerary, addLocalDays } from './rannItinerary';
 
@@ -213,6 +213,25 @@ export function buildCompareMessage(i: CompareMessageInput): string {
     L.push('');
     L.push(`*${g.category}*${suiteQualifier(g.category)}`);
     L.push(g.rates.map(r => `${r.nights}N: ${fmtINR(r.sellingPrice)}`).join('   '));
+  }
+
+  // Condensed, dynamic per the actual check-in date and ticked durations —
+  // not a static disclaimer. Suites never carry this (TC_SURCHARGE never
+  // enters their flat TC_SUITE pricing), so it only lists durations where a
+  // non-suite category is actually ticked, and says nothing at all outside
+  // a festive tier or when only suites are selected.
+  const tier = tcTier(i.checkIn);
+  if (tier !== 'none') {
+    const occMult = i.single ? 0.75 : 1;
+    const surchargedDurations = durations.filter(n =>
+      groups.some(g => !isSuite(g.category) && g.rates.some(r => r.nights === n)));
+    if (surchargedDurations.length > 0) {
+      L.push('');
+      L.push('*Additional Charges (festive dates, already included above)*');
+      L.push(surchargedDurations
+        .map(n => `${n}N: ${fmtINR(TC_SURCHARGE[tier][n] * 2 * i.rooms * occMult)}`)
+        .join('   '));
+    }
   }
 
   if (i.extraMattress > 0) {
