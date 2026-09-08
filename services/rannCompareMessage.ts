@@ -13,7 +13,7 @@
 // ============================================================
 
 import {
-  TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, TC_SURCHARGE, TC_MATTRESS, SUITE_MATTRESS,
+  TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, TC_MATTRESS, SUITE_MATTRESS,
   tcTier, type TCTentType,
 } from './rannUtsavRates';
 import type { OptionDuration } from './rannOptions';
@@ -205,11 +205,11 @@ export function buildCompareMessage(i: CompareMessageInput): string {
   const groups = groupCompareRates(i.rates);
   if (groups.length === 0) return '';
 
-  // Surcharge tier depends only on the check-in date, so it's the same for
-  // every ticked duration — but suites never carry a surcharge (they're
-  // priced flat off TC_SUITE, TC_SURCHARGE never enters that calculation).
+  // Needed for the extra-mattress rate (TC_MATTRESS is keyed by tier). The
+  // festive surcharge itself is deliberately not broken out or mentioned in
+  // this message — it's still folded into sellingPrice like every other
+  // component, just not called out as its own line.
   const tier = tcTier(i.checkIn);
-  const occMult = i.single ? 0.75 : 1;
   const durations = compareDurations(i.rates);
   const baseAdults = i.rooms * (i.single ? 1 : 2);
   const totalPax = baseAdults + i.extraMattress;
@@ -231,19 +231,14 @@ export function buildCompareMessage(i: CompareMessageInput): string {
     const rateNote = suite ? '' : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + ${GST_RATE * 100}% GST`;
     L.push(`*${g.category}*${suiteQualifier(g.category)}${rateNote}`);
 
-    // Surcharge and extra-mattress amounts are computed straight off the same
-    // rate tables the engine itself uses (TC_SURCHARGE / TC_MATTRESS /
-    // SUITE_MATTRESS), so this can never drift from what quoteTentCity would
-    // actually charge. Extra mattress is not eligible for a discount, so its
-    // amount here is unaffected even when a discount is applied elsewhere.
+    // Extra-mattress amount is computed straight off the same rate table the
+    // engine itself uses (TC_MATTRESS / SUITE_MATTRESS), so this can never
+    // drift from what quoteTentCity would actually charge. It's not eligible
+    // for a discount, so this amount is unaffected even when one is applied.
     g.rates.forEach(r => {
-      const surchargeAmt = suite ? 0 : TC_SURCHARGE[tier][r.nights] * 2 * i.rooms * occMult;
       const mRate = suite ? SUITE_MATTRESS : TC_MATTRESS[tier][g.category.includes('Non-AC') ? 'nonac' : 'ac'];
       const mattressAmt = i.extraMattress * mRate * r.nights;
-      const notes: string[] = [];
-      if (surchargeAmt > 0) notes.push(`${fmtINR(surchargeAmt)} festive surcharge`);
-      if (mattressAmt > 0) notes.push(`${fmtINR(mattressAmt)} extra mattress`);
-      const suffix = notes.length > 0 ? ` (incl. ${notes.join(' + ')})` : '';
+      const suffix = mattressAmt > 0 ? ` (incl. ${fmtINR(mattressAmt)} extra mattress)` : '';
       // Struck-through "was" price + the final price + the percentage — no
       // rupee "you save" figure, by explicit choice.
       const priceStr = i.discountPct > 0 && r.originalSellingPrice > r.sellingPrice
