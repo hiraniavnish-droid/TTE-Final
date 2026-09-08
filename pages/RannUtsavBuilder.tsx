@@ -192,20 +192,9 @@ export const RannUtsavBuilder: React.FC = () => {
     if (children) L.push(`Children under 6: ${children} (complimentary)`);
     L.push('');
 
+    // Just the rate — no per-night formula, no rate-basis/surcharge line.
     L.push('*Rate Breakup*');
-    if (quote.perNight) {
-      quote.perNight.forEach(p => L.push(`${fmtDate(p.date)} (${p.tier}): ${fmtINR(p.rate)}/night`));
-      L.push(`Room rent: ${fmtINR(quote.roomRent)}`);
-    } else if (quote.tcTierUsed && !suite) {
-      const perNightBase = TC_BASE[tent][effNights] / effNights;
-      const surchargeTotal = TC_SURCHARGE[quote.tcTierUsed][effNights] * 2 * rooms * (occupancy === 'single' ? 0.75 : 1);
-      const baseTotal = quote.roomRent - surchargeTotal;
-      L.push(`Tent rent (${fmtINR(perNightBase)}/person/night × ${baseAdults} pax × ${effNights}N): ${fmtINR(baseTotal)}`);
-      if (surchargeTotal > 0) L.push(`Festive surcharge: ${fmtINR(surchargeTotal)}`);
-    } else {
-      const perNightFlat = TC_SUITE[tent].rates[effNights] / effNights;
-      L.push(`Suite rent (${fmtINR(perNightFlat)}/night flat × ${effNights}N): ${fmtINR(quote.roomRent)}`);
-    }
+    L.push(`Room rent: ${fmtINR(quote.roomRent)}`);
     if (quote.discountPct > 0) L.push(`Discount (${quote.discountPct}%): -${fmtINR(quote.clientDiscountAmount)}`);
     quote.extras.forEach(e => L.push(`${e.label}: ${fmtINR(e.amount)}`));
     L.push(`Sub-total: ${fmtINR(quote.clientBeforeTax)}`);
