@@ -103,14 +103,9 @@ export const RannUtsavBuilder: React.FC = () => {
     [compare, ticks]);
 
   const selectedRates: CompareRate[] = useMemo(
-    // Deliberately projected down to client-facing figures only: netCost and
-    // profit do not travel into the message builder. originalSellingPrice is
-    // still client-facing (just the undiscounted price), kept for the
-    // struck-through "was" price in the message.
-    () => selectedCells.map(c => ({
-      category: c.category, nights: c.nights,
-      sellingPrice: c.sellingPrice, originalSellingPrice: c.originalSellingPrice,
-    })),
+    // Deliberately projected down to the client-facing figure only: netCost and
+    // profit do not travel into the message builder.
+    () => selectedCells.map(c => ({ category: c.category, nights: c.nights, sellingPrice: c.sellingPrice })),
     [selectedCells]);
 
   // Employee-only. Summing net/profit across ticked options would be nonsense —
@@ -154,7 +149,6 @@ export const RannUtsavBuilder: React.FC = () => {
     rooms,
     single: occupancy === 'single',
     extraMattress: extraPersons,
-    discountPct: discount,
     rates: selectedRates,
     includeItinerary,
   });

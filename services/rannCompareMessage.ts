@@ -12,26 +12,16 @@
 // percentage itself is an internal negotiating position and is never printed.
 // ============================================================
 
-import {
-  TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, TC_BASE, TC_MATTRESS, SUITE_MATTRESS,
-  tcTier, type TCTentType,
-} from './rannUtsavRates';
+import { TC_TENT_TYPES, TC_SUITE, isSuite, fmtINR, type TCTentType } from './rannUtsavRates';
 import type { OptionDuration } from './rannOptions';
 import { condensedItinerary, addLocalDays } from './rannItinerary';
-import { GST_RATE } from './leadCostingEngine';
 
-/** One ticked cell, reduced to figures a client may see — still no netCost,
- *  profit or commissionPct. `originalSellingPrice` is the undiscounted price
- *  at the same surcharge/extras/GST, kept alongside `sellingPrice` only to
- *  render the struck-through "was" price; it is NOT itself a margin figure. */
+/** One ticked cell, reduced to the only figure a client may see. */
 export interface CompareRate {
   category: TCTentType;
   nights: OptionDuration;
   /** GST-inclusive total payable for the whole booking. */
   sellingPrice: number;
-  /** What sellingPrice would be at 0% discount. Equal to sellingPrice when no
-   *  discount is applied. */
-  originalSellingPrice: number;
 }
 
 export interface CompareMessageInput {
@@ -39,11 +29,6 @@ export interface CompareMessageInput {
   rooms: number;
   single: boolean;
   extraMattress: number;
-  /** Shown as a struck-through "was" price + this percentage next to each
-   *  rate when > 0. The percentage itself is printed here deliberately —
-   *  unlike the single-quote builder, this was an explicit choice for the
-   *  Compare Options message, not the default. */
-  discountPct: number;
   rates: CompareRate[];
   includeItinerary: boolean;
 }
@@ -205,11 +190,6 @@ export function buildCompareMessage(i: CompareMessageInput): string {
   const groups = groupCompareRates(i.rates);
   if (groups.length === 0) return '';
 
-  // Needed for the extra-mattress rate (TC_MATTRESS is keyed by tier). The
-  // festive surcharge itself is deliberately not broken out or mentioned in
-  // this message — it's still folded into sellingPrice like every other
-  // component, just not called out as its own line.
-  const tier = tcTier(i.checkIn);
   const durations = compareDurations(i.rates);
   const baseAdults = i.rooms * (i.single ? 1 : 2);
   const totalPax = baseAdults + i.extraMattress;
@@ -225,27 +205,14 @@ export function buildCompareMessage(i: CompareMessageInput): string {
     : `Pax: ${totalPax} Adult${totalPax === 1 ? '' : 's'}`);
   L.push('──────────────');
 
+  // No price bifurcation in this message by explicit choice — just the
+  // category and its final, all-inclusive figure per duration. Surcharge,
+  // extra mattress, and discount are all still folded into sellingPrice,
+  // none of them called out as a separate number.
   for (const g of groups) {
     L.push('');
-    const suite = isSuite(g.category);
-    const rateNote = suite ? '' : ` — ${fmtINR(TC_BASE[g.category][1])}/person/night + ${GST_RATE * 100}% GST`;
-    L.push(`*${g.category}*${suiteQualifier(g.category)}${rateNote}`);
-
-    // Extra-mattress amount is computed straight off the same rate table the
-    // engine itself uses (TC_MATTRESS / SUITE_MATTRESS), so this can never
-    // drift from what quoteTentCity would actually charge. It's not eligible
-    // for a discount, so this amount is unaffected even when one is applied.
-    g.rates.forEach(r => {
-      const mRate = suite ? SUITE_MATTRESS : TC_MATTRESS[tier][g.category.includes('Non-AC') ? 'nonac' : 'ac'];
-      const mattressAmt = i.extraMattress * mRate * r.nights;
-      const suffix = mattressAmt > 0 ? ` (incl. ${fmtINR(mattressAmt)} extra mattress)` : '';
-      // Struck-through "was" price + the final price + the percentage — no
-      // rupee "you save" figure, by explicit choice.
-      const priceStr = i.discountPct > 0 && r.originalSellingPrice > r.sellingPrice
-        ? `~${fmtINR(r.originalSellingPrice)}~ ${fmtINR(r.sellingPrice)} (${i.discountPct}% discount)`
-        : fmtINR(r.sellingPrice);
-      L.push(`${r.nights}N: ${priceStr}${suffix}`);
-    });
+    L.push(`*${g.category}*${suiteQualifier(g.category)}`);
+    L.push(g.rates.map(r => `${r.nights}N: ${fmtINR(r.sellingPrice)}`).join('   '));
   }
 
   if (i.extraMattress > 0) {
