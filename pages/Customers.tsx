@@ -5,7 +5,7 @@ import { useLeads } from '../contexts/LeadContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePaymentSummary } from '../hooks/usePaymentSummary';
-import { useDocumentsSummary } from '../hooks/useDocumentsSummary';
+import { useDocumentsSummary, LeadGstSummary } from '../hooks/useDocumentsSummary';
 import { Card } from '../components/ui/Card';
 import { Lead } from '../types';
 import { STATUS_COLUMNS } from '../constants';
@@ -22,6 +22,8 @@ import {
   FileClock,
   FileX2,
   ArrowUpRight,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -51,6 +53,192 @@ const GST_META: Record<string, { label: string; className: string; icon: React.R
   none: { label: 'No GST', className: 'bg-slate-500/10 text-slate-400 border-slate-500/20', icon: <FileX2 size={11} strokeWidth={2.5} /> },
 };
 
+interface AccountRow {
+  lead: Lead;
+  collected: number;
+  vendor: { cost: number; paid: number; owed: number };
+  vendorNames: string;
+  gst: LeadGstSummary;
+}
+
+// Same shape as pages/Leads.tsx's export (ExportColumn/ExportPanel) — kept as
+// its own copy here rather than shared, since the two pages export different
+// row shapes (a Lead vs this page's merged AccountRow) and the UI is small
+// enough that forcing a shared generic wasn't worth it.
+type ExportRow = Record<string, string | number>;
+interface ExportColumn { key: string; label: string; get: (r: AccountRow) => string | number; }
+
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'leadCode', label: 'Lead Code', get: r => r.lead.leadCode || '' },
+  { key: 'name', label: 'Customer', get: r => r.lead.name },
+  { key: 'phone', label: 'Phone', get: r => r.lead.contact?.phone || '' },
+  { key: 'email', label: 'Email', get: r => r.lead.contact?.email || '' },
+  { key: 'destination', label: 'Destination', get: r => r.lead.tripDetails?.destination || '' },
+  { key: 'status', label: 'Stage', get: r => r.lead.status },
+  { key: 'wonAt', label: 'Booking Done Date', get: r => r.lead.wonAt ? formatDate(r.lead.wonAt) : '' },
+  { key: 'sellingPrice', label: 'Selling Price', get: r => r.lead.commercials?.sellingPrice || 0 },
+  { key: 'collected', label: 'Amount Collected', get: r => r.collected },
+  { key: 'pending', label: 'Pending', get: r => Math.max((r.lead.commercials?.sellingPrice || 0) - r.collected, 0) },
+  { key: 'vendorNames', label: 'Vendor(s)', get: r => r.vendorNames },
+  { key: 'vendorCost', label: 'Vendor Cost', get: r => r.vendor.cost },
+  { key: 'vendorPaid', label: 'Amount Paid to Vendor', get: r => r.vendor.paid },
+  { key: 'vendorOwed', label: 'Vendor Owed', get: r => r.vendor.owed },
+  { key: 'gstStatus', label: 'GST Status', get: r => GST_META[r.gst.status].label },
+  { key: 'gstAmount', label: 'GST Amount', get: r => r.gst.gstAmount },
+  { key: 'gstInvoiceNumbers', label: 'GST Invoice No.', get: r => r.gst.invoiceNumbers.join('; ') },
+  { key: 'assignedTo', label: 'Agent', get: r => r.lead.assignedTo || 'Unassigned' },
+  { key: 'createdAt', label: 'Created', get: r => r.lead.createdAt ? formatDate(r.lead.createdAt) : '' },
+];
+
+const EXPORT_PRESETS: { label: string; keys: string[] }[] = [
+  { label: 'Accounts Summary', keys: ['leadCode', 'name', 'phone', 'destination', 'wonAt', 'sellingPrice', 'collected', 'pending', 'status'] },
+  { label: 'GST / CA Sheet', keys: ['leadCode', 'name', 'phone', 'wonAt', 'sellingPrice', 'gstStatus', 'gstAmount', 'gstInvoiceNumbers'] },
+  { label: 'Vendor Sheet', keys: ['leadCode', 'name', 'destination', 'vendorNames', 'vendorCost', 'vendorPaid', 'vendorOwed'] },
+  { label: 'Everything', keys: EXPORT_COLUMNS.map(c => c.key) },
+];
+
+const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ rows, onClose }) => {
+  const { theme, getTextColor, getBorderClass } = useTheme();
+  const [stage, setStage] = useState('');
+  const [selected, setSelected] = useState<string[]>(EXPORT_PRESETS[0].keys);
+  const [copied, setCopied] = useState(false);
+
+  const filtered = useMemo(() => (stage ? rows.filter(r => r.lead.status === stage) : rows), [rows, stage]);
+  const cols = useMemo(() => EXPORT_COLUMNS.filter(c => selected.includes(c.key)), [selected]);
+
+  const toCsvRows = () => filtered.map(r => {
+    const row: ExportRow = {};
+    for (const c of cols) row[c.label] = c.get(r);
+    return row;
+  });
+
+  const handleDownload = () => {
+    const csv = Papa.unparse(toCsvRows());
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tte-accounts-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopy = async () => {
+    const header = cols.map(c => c.label).join('\t');
+    const body = filtered.map(r => cols.map(c => String(c.get(r))).join('\t')).join('\n');
+    try {
+      await navigator.clipboard.writeText(`${header}\n${body}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (_) {}
+  };
+
+  const toggleCol = (key: string) => setSelected(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div className={cn('relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden', theme === 'dark' ? 'bg-slate-900 border border-white/10' : 'bg-white')}>
+        <div className={cn('flex items-center justify-between px-5 py-4 border-b shrink-0', getBorderClass())}>
+          <div>
+            <h2 className={cn('text-lg font-bold', getTextColor())}>Export Accounts</h2>
+            <p className={cn('text-[12px]', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>{filtered.length} booking{filtered.length === 1 ? '' : 's'} will be exported</p>
+          </div>
+          <button onClick={onClose} className={cn('p-2 rounded-full', theme === 'light' ? 'hover:bg-slate-100 text-slate-400' : 'hover:bg-white/10 text-white/50')}><X size={18} /></button>
+        </div>
+
+        <div className="p-5 flex flex-col gap-4 overflow-y-auto">
+          {/* Stage filter */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn('text-[11px] font-bold uppercase tracking-wide', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>Stage</span>
+            {['', ...STATUS_COLUMNS].map(s => (
+              <button
+                key={s || 'all'}
+                onClick={() => setStage(s)}
+                className={cn('px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all',
+                  stage === s ? 'bg-slate-900 border-slate-900 text-white' : (theme === 'light' ? 'bg-white border-slate-200 text-slate-500' : 'bg-white/5 border-white/10 text-white/50'))}
+              >
+                {s || 'All'}
+              </button>
+            ))}
+          </div>
+
+          {/* Presets */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn('text-[11px] font-bold uppercase tracking-wide', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>Presets</span>
+            {EXPORT_PRESETS.map(p => (
+              <button
+                key={p.label}
+                onClick={() => setSelected(p.keys)}
+                className={cn('px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all',
+                  theme === 'light' ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/60 hover:border-white/30')}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Column picker */}
+          <div>
+            <span className={cn('text-[11px] font-bold uppercase tracking-wide', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>Columns ({selected.length})</span>
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {EXPORT_COLUMNS.map(c => (
+                <label key={c.key} className={cn('flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[12px] cursor-pointer select-none', theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5')}>
+                  <input type="checkbox" checked={selected.includes(c.key)} onChange={() => toggleCol(c.key)} className="w-3.5 h-3.5 accent-slate-900 cursor-pointer shrink-0" />
+                  <span className={getTextColor()}>{c.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div>
+            <span className={cn('text-[11px] font-bold uppercase tracking-wide', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>Preview</span>
+            <div className={cn('mt-2 overflow-auto rounded-xl border max-h-56', getBorderClass())}>
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className={theme === 'light' ? 'bg-slate-50' : 'bg-white/5'}>
+                    {cols.map(c => <th key={c.key} className={cn('px-2.5 py-2 text-left font-bold whitespace-nowrap', getTextColor())}>{c.label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.slice(0, 25).map(r => (
+                    <tr key={r.lead.id} className={cn('border-t', getBorderClass())}>
+                      {cols.map(c => <td key={c.key} className={cn('px-2.5 py-1.5 whitespace-nowrap', theme === 'light' ? 'text-slate-600' : 'text-white/70')}>{String(c.get(r))}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filtered.length > 25 && <div className={cn('px-2.5 py-2 text-[11px] text-center', theme === 'light' ? 'text-slate-400 bg-slate-50' : 'text-white/30 bg-white/5')}>…and {filtered.length - 25} more rows in the export</div>}
+              {filtered.length === 0 && <div className={cn('px-2.5 py-6 text-[11px] text-center', theme === 'light' ? 'text-slate-400' : 'text-white/30')}>No bookings match this stage.</div>}
+            </div>
+          </div>
+        </div>
+
+        <div className={cn('flex items-center justify-end gap-2 px-5 py-4 border-t shrink-0', getBorderClass())}>
+          <button
+            onClick={handleCopy}
+            disabled={filtered.length === 0 || cols.length === 0}
+            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all disabled:opacity-40',
+              theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30')}
+          >
+            {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
+            {copied ? 'Copied!' : 'Copy to Clipboard'}
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={filtered.length === 0 || cols.length === 0}
+            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40',
+              theme === 'light' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-900 hover:bg-white/90')}
+          >
+            <Download size={15} /> Download CSV
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Customers = () => {
   const { leads } = useLeads();
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
@@ -63,6 +251,7 @@ export const Customers = () => {
   const [agentFilter, setAgentFilter] = useState('');
   const [vendorFilter, setVendorFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [showExport, setShowExport] = useState(false);
 
   // Distinct filter option lists, derived from the leads actually on file —
   // destination and vendor are free text (no canonical list anywhere in the
@@ -132,34 +321,6 @@ export const Customers = () => {
   };
   const hasActiveFilters = !!(searchQuery || destinationFilter || agentFilter || vendorFilter || statusFilter);
 
-  const handleExport = () => {
-    const csvRows = filteredRows.map(({ lead: l, collected, vendor, vendorNames, gst }) => ({
-      'Lead Code': l.leadCode || '',
-      'Customer': l.name,
-      'Phone': l.contact?.phone || '',
-      'Destination': l.tripDetails?.destination || '',
-      'Stage': l.status,
-      'Booking Done Date': l.wonAt ? formatDate(l.wonAt) : '',
-      'Selling Price': l.commercials?.sellingPrice || 0,
-      'Amount Collected': collected,
-      'Vendor(s)': vendorNames,
-      'Amount Paid to Vendor': vendor.paid,
-      'Vendor Owed': vendor.owed,
-      'GST Status': GST_META[gst.status].label,
-      'GST Amount': gst.gstAmount,
-      'GST Invoice No.': gst.invoiceNumbers.join('; '),
-      'Agent': l.assignedTo || 'Unassigned',
-    }));
-    const csv = Papa.unparse(csvRows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tte-accounts-export-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const selectCls = cn('rounded-lg px-3 py-2 text-[12px] font-medium outline-none border transition-all', getInputClass());
 
   return (
@@ -175,7 +336,7 @@ export const Customers = () => {
             </span>
           </div>
           <button
-            onClick={handleExport}
+            onClick={() => setShowExport(true)}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors shrink-0",
               theme === 'light' ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800' : 'bg-white text-slate-900 border-white hover:bg-white/90'
@@ -364,6 +525,8 @@ export const Customers = () => {
           </table>
         </div>
       </Card>
+
+      {showExport && <ExportPanel rows={filteredRows} onClose={() => setShowExport(false)} />}
     </div>
   );
 };
