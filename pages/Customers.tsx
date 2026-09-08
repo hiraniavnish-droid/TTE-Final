@@ -1,509 +1,369 @@
 
 import React, { useState, useMemo } from 'react';
+import Papa from 'papaparse';
 import { useLeads } from '../contexts/LeadContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { usePaymentSummary } from '../hooks/usePaymentSummary';
+import { useDocumentsSummary } from '../hooks/useDocumentsSummary';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { DialButton } from '../components/ui/DialButton';
-import { Lead, LeadStatus, Interaction } from '../types';
-import { cn, formatCurrency, formatDate } from '../utils/helpers';
+import { Lead } from '../types';
+import { STATUS_COLUMNS } from '../constants';
+import { cn, formatDate } from '../utils/helpers';
 import { getAgentColor } from './Leads'; // Import helper
-import { 
-  Search, 
-  User, 
-  Phone, 
-  Mail, 
-  ArrowRight, 
+import {
+  Search,
+  User,
+  Phone,
   X,
-  Briefcase,
-  Calendar,
-  MapPin,
-  TrendingUp,
-  History,
-  Globe,
   UserCheck,
-  MessageSquare,
-  ThumbsUp,
-  ThumbsDown
+  Download,
+  FileCheck2,
+  FileClock,
+  FileX2,
+  ArrowUpRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-// --- Types for Derived Customer ---
-interface Customer {
-  id: string; // Unique (phone or email)
-  name: string;
-  contact: { phone: string; email: string };
-  totalTrips: number;
-  totalValue: number;
-  lastInteraction: string;
-  leads: Lead[];
-  destinations: string[]; // Aggregated unique destinations
-  assignedTo?: string; // Latest Agent
-}
+const vendorTotals = (l: Lead) => {
+  let cost = 0, paid = 0;
+  for (const v of (l.vendors || [])) {
+    cost += v.cost || 0;
+    const vPaid = (v.payments || []).reduce((s, p) => s + (p.amount || 0), 0);
+    paid += Math.min(vPaid, v.cost || vPaid);
+  }
+  if ((!l.vendors || l.vendors.length === 0) && l.commercials) cost = l.commercials.netCost || 0;
+  return { cost, paid, owed: Math.max(cost - paid, 0) };
+};
+
+// Deliberately NOT the shared formatCurrency() — that returns "TBD" for 0,
+// which is right for an undecided budget but wrong here: ₹0 collected/paid
+// is real, known data on an accounts ledger, not something still pending.
+const fmtAmt = (amount: number) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
+
+const vendorNamesOf = (l: Lead): string =>
+  (l.vendors || []).map(v => v.name).join(', ') || l.commercials?.manualVendorName || '';
+
+const GST_META: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
+  issued: { label: 'GST Issued', className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30', icon: <FileCheck2 size={11} strokeWidth={2.5} /> },
+  pending: { label: 'GST Pending', className: 'bg-amber-500/10 text-amber-600 border-amber-500/30', icon: <FileClock size={11} strokeWidth={2.5} /> },
+  none: { label: 'No GST', className: 'bg-slate-500/10 text-slate-400 border-slate-500/20', icon: <FileX2 size={11} strokeWidth={2.5} /> },
+};
 
 export const Customers = () => {
-  const { leads, interactions } = useLeads();
-  const { theme, getTextColor, getSecondaryTextColor, getInputClass, getGlassClass } = useTheme();
-  const { user } = useAuth(); // Access User Context
-  
+  const { leads } = useLeads();
+  const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
+  const { user, users } = useAuth();
+  const { paymentSummary } = usePaymentSummary();
+  const { gstSummary } = useDocumentsSummary();
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [destinationFilter, setDestinationFilter] = useState('');
+  const [agentFilter, setAgentFilter] = useState('');
+  const [vendorFilter, setVendorFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
-  // Merge all interactions across the selected customer's leads
-  const customerInteractions = useMemo((): Interaction[] => {
-    if (!selectedCustomer) return [];
-    const leadIds = new Set(selectedCustomer.leads.map(l => l.id));
-    return interactions
-      .filter(i => leadIds.has(i.leadId))
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 30);
-  }, [selectedCustomer, interactions]);
-
-  // --- 1. Data Aggregation Logic ---
-  const customers = useMemo(() => {
-    const customerMap = new Map<string, Omit<Customer, 'destinations'> & { destinations: Set<string> }>();
-
-    leads.forEach(lead => {
-      // Use Phone as primary key, fallback to email, or use ID if both missing (unlikely)
-      const key = lead.contact.phone || lead.contact.email || lead.id;
-
-      if (!customerMap.has(key)) {
-        customerMap.set(key, {
-          id: key,
-          name: lead.name,
-          contact: lead.contact,
-          totalTrips: 0,
-          totalValue: 0,
-          lastInteraction: lead.createdAt, // Default to created
-          leads: [],
-          destinations: new Set(),
-          assignedTo: lead.assignedTo // Initialize with first lead's agent
-        });
-      }
-
-      const customer = customerMap.get(key)!;
-      
-      customer.leads.push(lead);
-      customer.totalTrips += 1;
-      customer.totalValue += lead.tripDetails.budget;
-      
-      // Aggregate Destinations
-      if (lead.tripDetails.destination) {
-          customer.destinations.add(lead.tripDetails.destination);
-      }
-
-      // Update last interaction if this lead has a more recent update
-      const leadTime = lead.lastStatusUpdate || lead.createdAt;
-      const currentLast = customer.lastInteraction || '';
-      
-      if (new Date(leadTime) > new Date(currentLast)) {
-          customer.lastInteraction = leadTime;
-          // Update assigned agent to the most recent interaction's owner
-          if (lead.assignedTo) {
-              customer.assignedTo = lead.assignedTo;
-          }
-      }
+  // Distinct filter option lists, derived from the leads actually on file —
+  // destination and vendor are free text (no canonical list anywhere in the
+  // app), so these are built the same way Dashboard's destination breakdown is.
+  const destinationOptions = useMemo(() => {
+    const seen = new Map<string, string>(); // lowercased -> original casing
+    leads.forEach(l => {
+      const d = (l.tripDetails?.destination || '').trim();
+      if (d && !seen.has(d.toLowerCase())) seen.set(d.toLowerCase(), d);
     });
-
-    // Convert Set to Array and Sort
-    return Array.from(customerMap.values()).map(c => ({
-        ...c,
-        destinations: Array.from(c.destinations)
-    })).sort((a, b) => 
-        new Date(b.lastInteraction).getTime() - new Date(a.lastInteraction).getTime()
-    );
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
   }, [leads]);
 
-  // --- 2. Filter Logic ---
-  const filteredCustomers = useMemo(() => {
-      const q = searchQuery.toLowerCase().trim();
-      if (!q) return customers;
+  const vendorOptions = useMemo(() => {
+    const seen = new Set<string>();
+    leads.forEach(l => (l.vendors || []).forEach(v => v.name && seen.add(v.name)));
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [leads]);
 
-      return customers.filter(c => 
-        c.name.toLowerCase().includes(q) || 
-        c.contact.phone.includes(q) || 
-        (c.contact.email && c.contact.email.toLowerCase().includes(q)) ||
-        c.destinations.some(d => d.toLowerCase().includes(q)) // Destination Search
-      );
-  }, [customers, searchQuery]);
+  const agentOptions = useMemo(
+    () => users.filter(u => u.role === 'agent').map(u => u.name),
+    [users]);
 
-  const getInitials = (name: string) => {
-      return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  // --- One row per booking (lead), not grouped by customer — accounts care
+  // about each booking's own collection/vendor/GST state, not a relationship
+  // rollup. ---
+  const rows = useMemo(() => {
+    return leads
+      .map(lead => ({
+        lead,
+        collected: paymentSummary[lead.id]?.collected || 0,
+        vendor: vendorTotals(lead),
+        vendorNames: vendorNamesOf(lead),
+        gst: gstSummary[lead.id] || { status: 'none' as const, gstAmount: 0, invoiceNumbers: [] },
+      }))
+      .sort((a, b) => {
+        const at = a.lead.wonAt || a.lead.lastStatusUpdate || a.lead.createdAt;
+        const bt = b.lead.wonAt || b.lead.lastStatusUpdate || b.lead.createdAt;
+        return new Date(bt).getTime() - new Date(at).getTime();
+      });
+  }, [leads, paymentSummary, gstSummary]);
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return rows.filter(r => {
+      const l = r.lead;
+      if (q) {
+        const hit = l.name.toLowerCase().includes(q)
+          || (l.contact?.phone || '').includes(q)
+          || (l.contact?.email || '').toLowerCase().includes(q)
+          || (l.tripDetails?.destination || '').toLowerCase().includes(q);
+        if (!hit) return false;
+      }
+      if (destinationFilter && (l.tripDetails?.destination || '').toLowerCase() !== destinationFilter.toLowerCase()) return false;
+      if (agentFilter && l.assignedTo !== agentFilter) return false;
+      if (vendorFilter && !(l.vendors || []).some(v => v.name === vendorFilter)) return false;
+      if (statusFilter && l.status !== statusFilter) return false;
+      return true;
+    });
+  }, [rows, searchQuery, destinationFilter, agentFilter, vendorFilter, statusFilter]);
+
+  const getInitials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+  const clearFilters = () => {
+    setSearchQuery(''); setDestinationFilter(''); setAgentFilter(''); setVendorFilter(''); setStatusFilter('');
+  };
+  const hasActiveFilters = !!(searchQuery || destinationFilter || agentFilter || vendorFilter || statusFilter);
+
+  const handleExport = () => {
+    const csvRows = filteredRows.map(({ lead: l, collected, vendor, vendorNames, gst }) => ({
+      'Lead Code': l.leadCode || '',
+      'Customer': l.name,
+      'Phone': l.contact?.phone || '',
+      'Destination': l.tripDetails?.destination || '',
+      'Stage': l.status,
+      'Booking Done Date': l.wonAt ? formatDate(l.wonAt) : '',
+      'Selling Price': l.commercials?.sellingPrice || 0,
+      'Amount Collected': collected,
+      'Vendor(s)': vendorNames,
+      'Amount Paid to Vendor': vendor.paid,
+      'Vendor Owed': vendor.owed,
+      'GST Status': GST_META[gst.status].label,
+      'GST Amount': gst.gstAmount,
+      'GST Invoice No.': gst.invoiceNumbers.join('; '),
+      'Agent': l.assignedTo || 'Unassigned',
+    }));
+    const csv = Papa.unparse(csvRows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tte-accounts-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  // Helper to check if a specific destination tag matches current search
-  const isDestMatch = (dest: string) => {
-      if (!searchQuery) return false;
-      return dest.toLowerCase().includes(searchQuery.toLowerCase());
-  };
-
-  const statusColors: Record<string, string> = {
-      'New': 'bg-blue-500',
-      'Contacted': 'bg-amber-500',
-      'Proposal Sent': 'bg-purple-500',
-      'Discussion': 'bg-indigo-500',
-      'Won': 'bg-emerald-500',
-      'Lost': 'bg-rose-500'
-  };
+  const selectCls = cn('rounded-lg px-3 py-2 text-[12px] font-medium outline-none border transition-all', getInputClass());
 
   return (
     <div className="relative min-h-[calc(100vh-100px)]">
-      
-      {/* --- Header & Search Toolbar --- */}
-      <div className="mb-6 space-y-4">
-          <div className="flex items-baseline gap-2.5">
-              <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Customers</h1>
-              <span className={cn("text-sm font-medium", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
-                  {customers.length} {customers.length === 1 ? 'contact' : 'contacts'}
-              </span>
-          </div>
 
-          <div className={cn(
-              "flex items-center px-4 rounded-xl transition-all border focus-within:ring-1",
-              theme === 'light'
-                  ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] focus-within:ring-slate-300 focus-within:border-slate-300'
-                  : 'bg-white/5 border-white/10 focus-within:ring-white/20'
-          )}>
-              <Search size={18} strokeWidth={2} className="opacity-40 shrink-0 mr-3" />
-              <input
-                  type="text"
-                  placeholder="Search by name, mobile, or destination..."
-                  className={cn("w-full py-3 bg-transparent outline-none text-sm", getInputClass(), "border-none focus:ring-0")}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  autoFocus
-              />
-              {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-500/10 rounded-full transition-colors">
-                      <X size={16} strokeWidth={2} />
-                  </button>
-              )}
+      {/* --- Header --- */}
+      <div className="mb-6 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-baseline md:justify-between gap-2">
+          <div className="flex items-baseline gap-2.5">
+            <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Customers</h1>
+            <span className={cn("text-sm font-medium", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+              {filteredRows.length} of {rows.length} booking{rows.length === 1 ? '' : 's'}
+            </span>
           </div>
+          <button
+            onClick={handleExport}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors shrink-0",
+              theme === 'light' ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800' : 'bg-white text-slate-900 border-white hover:bg-white/90'
+            )}
+          >
+            <Download size={15} strokeWidth={2.5} /> Export CSV
+          </button>
+        </div>
+        <p className={cn("text-sm opacity-50 -mt-2", getTextColor())}>
+          Booking-wise collections, vendor payments and GST invoice status.
+        </p>
+
+        {/* Search */}
+        <div className={cn(
+          "flex items-center px-4 rounded-xl transition-all border focus-within:ring-1",
+          theme === 'light'
+            ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] focus-within:ring-slate-300 focus-within:border-slate-300'
+            : 'bg-white/5 border-white/10 focus-within:ring-white/20'
+        )}>
+          <Search size={18} strokeWidth={2} className="opacity-40 shrink-0 mr-3" />
+          <input
+            type="text"
+            placeholder="Search by name, mobile, or destination..."
+            className={cn("w-full py-3 bg-transparent outline-none text-sm", getInputClass(), "border-none focus:ring-0")}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-500/10 rounded-full transition-colors">
+              <X size={16} strokeWidth={2} />
+            </button>
+          )}
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={destinationFilter} onChange={e => setDestinationFilter(e.target.value)} className={selectCls}>
+            <option value="">All destinations</option>
+            {destinationOptions.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          {user?.role === 'admin' && (
+            <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)} className={selectCls}>
+              <option value="">All agents</option>
+              {agentOptions.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
+          <select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className={selectCls}>
+            <option value="">All vendors</option>
+            {vendorOptions.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}>
+            <option value="">All stages</option>
+            {STATUS_COLUMNS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {hasActiveFilters && (
+            <button onClick={clearFilters} className={cn("text-[12px] font-bold underline opacity-60 hover:opacity-100", getTextColor())}>
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* --- Customer List (Table) --- */}
+      {/* --- Accounts Table --- */}
       <Card noPadding className="overflow-hidden shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="overflow-x-auto">
-            <table className={cn("w-full text-left border-collapse", getTextColor())}>
-                <thead>
-                    <tr className={cn(theme === 'light' ? 'bg-slate-50 border-b border-slate-200' : 'bg-white/5 border-b border-white/10')}>
-                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 w-1/3">Customer</th>
-                        {/* Admin Only: Agent Column */}
-                        {user?.role === 'admin' && <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50">Agent</th>}
-                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden md:table-cell">Destinations Visited</th>
-                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden lg:table-cell">Stats</th>
-                        <th className="p-5 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right">Action</th>
-                    </tr>
-                </thead>
-                <tbody className={cn("divide-y", theme === 'light' ? 'divide-slate-100' : 'divide-white/5')}>
-                    {filteredCustomers.length === 0 ? (
-                        <tr>
-                            <td colSpan={user?.role === 'admin' ? 5 : 4} className="p-16">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className={cn(
-                                        "w-14 h-14 rounded-2xl flex items-center justify-center mb-4",
-                                        theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-white/5 text-white/40'
-                                    )}>
-                                        <User size={24} strokeWidth={2} />
-                                    </div>
-                                    <p className={cn("text-base font-semibold", getTextColor())}>
-                                        {searchQuery ? `No customers match "${searchQuery}"` : 'No customers yet'}
-                                    </p>
-                                    <p className={cn("text-sm mt-1", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
-                                        {searchQuery ? 'Try a different search term.' : 'Customers appear here as leads are added.'}
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                    ) : filteredCustomers.map((customer) => (
-                        <tr 
-                            key={customer.id} 
-                            onClick={() => setSelectedCustomer(customer)}
-                            className={cn(
-                                "group relative transition-all duration-500 ease-in-out cursor-pointer",
-                                theme === 'light' 
-                                    ? "hover:bg-gradient-to-r hover:from-transparent hover:via-slate-50 hover:to-transparent" 
-                                    : "hover:bg-gradient-to-r hover:from-transparent hover:via-white/5 hover:to-transparent",
-                                "hover:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:z-10"
-                            )}
-                        >
-                            <td className="p-5 relative">
-                                {/* Cinematic Glow Marker */}
-                                <div className={cn(
-                                    "absolute left-0 top-0 bottom-0 w-[3px] scale-y-0 transition-transform duration-300 origin-center group-hover:scale-y-100",
-                                    theme === 'light' ? "bg-slate-900" : "bg-blue-400"
-                                )} />
+          <table className={cn("w-full text-left border-collapse", getTextColor())}>
+            <thead>
+              <tr className={cn(theme === 'light' ? 'bg-slate-50 border-b border-slate-200' : 'bg-white/5 border-b border-white/10')}>
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50">Customer</th>
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden md:table-cell">Destination</th>
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden lg:table-cell">Booking Done</th>
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right">Collected</th>
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right hidden sm:table-cell">Vendor Paid</th>
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden lg:table-cell">Vendor(s)</th>
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50">GST</th>
+                {user?.role === 'admin' && <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden md:table-cell">Agent</th>}
+                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right">Booking</th>
+              </tr>
+            </thead>
+            <tbody className={cn("divide-y", theme === 'light' ? 'divide-slate-100' : 'divide-white/5')}>
+              {filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-16">
+                    <div className="flex flex-col items-center text-center">
+                      <div className={cn(
+                        "w-14 h-14 rounded-2xl flex items-center justify-center mb-4",
+                        theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-white/5 text-white/40'
+                      )}>
+                        <User size={24} strokeWidth={2} />
+                      </div>
+                      <p className={cn("text-base font-semibold", getTextColor())}>
+                        {hasActiveFilters ? 'No bookings match these filters' : 'No bookings yet'}
+                      </p>
+                      <p className={cn("text-sm mt-1", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+                        {hasActiveFilters ? 'Try clearing a filter.' : 'Bookings appear here as leads are added.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredRows.map(({ lead, collected, vendor, vendorNames, gst }) => {
+                const gstMeta = GST_META[gst.status];
+                return (
+                  <tr
+                    key={lead.id}
+                    className={cn(
+                      "group relative transition-colors",
+                      theme === 'light' ? "hover:bg-slate-50" : "hover:bg-white/5"
+                    )}
+                  >
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
+                          theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10 border border-white/10 text-white'
+                        )}>
+                          {getInitials(lead.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className={cn("font-bold text-sm leading-tight truncate", getTextColor())}>{lead.name}</h3>
+                          <div className={cn("flex items-center gap-1 text-[11px] opacity-70", getSecondaryTextColor())}>
+                            <Phone size={9} /> {lead.contact?.phone || '—'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
 
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-transform duration-300 group-hover:scale-105",
-                                        theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10 border border-white/10 text-white'
-                                    )}>
-                                        {getInitials(customer.name)}
-                                    </div>
-                                    <div>
-                                        <h3 className={cn(
-                                            "font-bold text-base leading-tight transition-colors",
-                                            getTextColor()
-                                        )}>{customer.name}</h3>
-                                        <div className={cn("flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1 text-xs opacity-70 transition-colors group-hover:text-slate-800", getSecondaryTextColor())}>
-                                            <div className="flex items-center gap-1">
-                                                <Phone size={10} /> {customer.contact.phone}
-                                            </div>
-                                            {customer.contact.email && (
-                                                 <div className="flex items-center gap-1">
-                                                    <Mail size={10} /> {customer.contact.email}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            
-                            {/* Admin Only: Agent Cell */}
-                            {user?.role === 'admin' && (
-                                <td className="p-5">
-                                    <span className={cn(
-                                        "px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1 w-fit opacity-70 group-hover:opacity-100 transition-opacity",
-                                        getAgentColor(customer.assignedTo)
-                                    )}>
-                                        <UserCheck size={10} />
-                                        {customer.assignedTo || 'Unassigned'}
-                                    </span>
-                                </td>
-                            )}
+                    <td className="p-4 hidden md:table-cell text-sm opacity-80">
+                      {lead.tripDetails?.destination || <span className="opacity-30 italic">—</span>}
+                    </td>
 
-                            {/* Destinations Column */}
-                            <td className="p-5 hidden md:table-cell align-middle">
-                                <div className="flex flex-wrap gap-1.5 max-w-xs">
-                                    {customer.destinations.length > 0 ? (
-                                        customer.destinations.slice(0, 3).map(dest => {
-                                            const isMatch = isDestMatch(dest);
-                                            return (
-                                                <span key={dest} className={cn(
-                                                    "text-[10px] px-2 py-0.5 rounded-full border transition-all duration-300",
-                                                    isMatch 
-                                                        ? "bg-yellow-500/20 text-yellow-600 border-yellow-500/50 font-bold scale-105" 
-                                                        : (theme === 'light' ? "bg-slate-100 text-slate-500 border-slate-200 group-hover:border-slate-300 group-hover:bg-white" : "bg-white/5 text-slate-400 border-white/10")
-                                                )}>
-                                                    {dest}
-                                                </span>
-                                            );
-                                        })
-                                    ) : (
-                                        <span className="text-xs opacity-30 italic">No trips yet</span>
-                                    )}
-                                    {customer.destinations.length > 3 && (
-                                        <span className="text-[10px] px-1.5 py-0.5 opacity-50">
-                                            +{customer.destinations.length - 3} more
-                                        </span>
-                                    )}
-                                </div>
-                            </td>
+                    <td className="p-4 hidden lg:table-cell text-sm">
+                      {lead.wonAt
+                        ? formatDate(lead.wonAt)
+                        : <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase", theme === 'light' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-white/5 text-white/40 border-white/10')}>{lead.status}</span>}
+                    </td>
 
-                            <td className="p-5 hidden lg:table-cell">
-                                <div className="flex items-center gap-6">
-                                    <div>
-                                        <p className="text-xs opacity-50 uppercase font-bold tracking-wider">Trips</p>
-                                        <p className="font-mono font-bold text-lg group-hover:scale-110 transition-transform origin-left">{customer.totalTrips}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs opacity-50 uppercase font-bold tracking-wider">Value</p>
-                                        <p className="font-mono font-bold text-lg text-emerald-500">{formatCurrency(customer.totalValue)}</p>
-                                    </div>
-                                </div>
-                            </td>
-                            
-                            <td className="p-5 text-right">
-                                <div className="flex flex-col items-end gap-1">
-                                    <Button size="sm" variant="secondary" className="opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                                        View History
-                                    </Button>
-                                    <span className="text-[10px] opacity-40 group-hover:opacity-60 transition-opacity">{formatDate(customer.lastInteraction)}</span>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+                    <td className="p-4 text-right font-mono font-bold text-sm text-emerald-500">
+                      {fmtAmt(collected)}
+                    </td>
+
+                    <td className="p-4 text-right font-mono text-sm hidden sm:table-cell">
+                      {fmtAmt(vendor.paid)}
+                      {vendor.owed > 0 && (
+                        <div className="text-[10px] font-sans font-bold opacity-50 mt-0.5">
+                          {fmtAmt(vendor.owed)} owed
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="p-4 hidden lg:table-cell text-sm opacity-80 max-w-[160px] truncate" title={vendorNames}>
+                      {vendorNames || <span className="opacity-30 italic">—</span>}
+                    </td>
+
+                    <td className="p-4">
+                      <span className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border font-bold uppercase tracking-wide", gstMeta.className)}>
+                        {gstMeta.icon} {gstMeta.label}
+                      </span>
+                    </td>
+
+                    {user?.role === 'admin' && (
+                      <td className="p-4 hidden md:table-cell">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 w-fit",
+                          getAgentColor(lead.assignedTo)
+                        )}>
+                          <UserCheck size={9} /> {lead.assignedTo || 'Unassigned'}
+                        </span>
+                      </td>
+                    )}
+
+                    <td className="p-4 text-right">
+                      <Link
+                        to={`/leads/${lead.id}`}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-lg border transition-colors",
+                          theme === 'light' ? 'border-slate-200 text-slate-600 hover:bg-slate-100' : 'border-white/10 text-white/70 hover:bg-white/10'
+                        )}
+                      >
+                        View <ArrowUpRight size={12} />
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </Card>
-
-      {/* --- Customer Details Drawer (Slide-Over) --- */}
-      {selectedCustomer && (
-          <>
-            {/* Backdrop */}
-            <div 
-                className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity"
-                onClick={() => setSelectedCustomer(null)}
-            />
-            
-            {/* Drawer Panel */}
-            <div className={cn(
-                "fixed inset-y-0 right-0 z-50 w-full max-w-md shadow-2xl transform transition-transform duration-300 ease-in-out border-l",
-                getGlassClass('95'),
-                theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/10'
-            )}>
-                <div className="flex flex-col h-full">
-                    
-                    {/* Drawer Header */}
-                    <div className="p-6 border-b border-gray-500/10 flex items-start justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className={cn(
-                                "w-16 h-16 rounded-full flex items-center justify-center font-bold text-2xl shadow-lg",
-                                theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10 text-white border border-white/20'
-                            )}>
-                                {getInitials(selectedCustomer.name)}
-                            </div>
-                            <div>
-                                <h2 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>{selectedCustomer.name}</h2>
-                                <p className={cn("text-sm opacity-60", getTextColor())}>Customer since {new Date(selectedCustomer.leads[selectedCustomer.leads.length - 1].createdAt).getFullYear()}</p>
-                                {/* Admin Only: Drawer Badge */}
-                                {user?.role === 'admin' && selectedCustomer.assignedTo && (
-                                    <div className={cn("mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 w-fit", getAgentColor(selectedCustomer.assignedTo))}>
-                                        <UserCheck size={10} /> RM: {selectedCustomer.assignedTo}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <button onClick={() => setSelectedCustomer(null)} className="p-2 hover:bg-gray-500/10 rounded-full transition-colors">
-                            <X size={20} className={getTextColor()} />
-                        </button>
-                    </div>
-
-                    {/* Drawer Body (Scrollable) */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                        
-                        {/* Contact Info */}
-                        <div className="space-y-4">
-                             <h3 className={cn("text-xs font-bold uppercase tracking-wider opacity-50", getTextColor())}>Contact Details</h3>
-                             <div className="flex items-center gap-3">
-                                 <DialButton phoneNumber={selectedCustomer.contact.phone} className="w-10 h-10" />
-                                 <div className={getTextColor()}>
-                                     <p className="text-sm font-bold">Mobile</p>
-                                     <p className="text-sm opacity-80">{selectedCustomer.contact.phone}</p>
-                                 </div>
-                             </div>
-                             {selectedCustomer.contact.email && (
-                                 <div className="flex items-center gap-3">
-                                     <a href={`mailto:${selectedCustomer.contact.email}`} className={cn("w-10 h-10 flex items-center justify-center rounded-full border transition-colors", theme === 'light' ? 'border-slate-200 text-slate-500 hover:bg-slate-50' : 'border-white/10 text-white/50 hover:bg-white/10')}>
-                                         <Mail size={18} />
-                                     </a>
-                                     <div className={getTextColor()}>
-                                         <p className="text-sm font-bold">Email</p>
-                                         <p className="text-sm opacity-80">{selectedCustomer.contact.email}</p>
-                                     </div>
-                                 </div>
-                             )}
-                        </div>
-                        
-                        {/* Visited Destinations Summary */}
-                        <div className="space-y-3">
-                             <h3 className={cn("text-xs font-bold uppercase tracking-wider opacity-50 flex items-center gap-2", getTextColor())}>
-                                 <Globe size={14} /> Places Visited
-                             </h3>
-                             <div className="flex flex-wrap gap-2">
-                                 {selectedCustomer.destinations.map(dest => (
-                                     <span key={dest} className={cn(
-                                         "px-3 py-1 rounded-lg text-sm font-medium border",
-                                         theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-700" : "bg-white/5 border-white/10 text-slate-300"
-                                     )}>
-                                         {dest}
-                                     </span>
-                                 ))}
-                                 {selectedCustomer.destinations.length === 0 && (
-                                     <span className="text-sm opacity-50 italic">No recorded destinations yet.</span>
-                                 )}
-                             </div>
-                        </div>
-
-                        {/* Trip History */}
-                        <div className="space-y-4">
-                            <h3 className={cn("text-xs font-bold uppercase tracking-wider opacity-50 flex items-center gap-2", getTextColor())}>
-                                <Briefcase size={14} /> Trip History ({selectedCustomer.totalTrips})
-                            </h3>
-                            
-                            <div className="space-y-3">
-                                {selectedCustomer.leads.map((lead) => (
-                                    <Link 
-                                        key={lead.id}
-                                        to={`/leads/${lead.id}`} 
-                                        className={cn(
-                                            "block p-4 rounded-xl border transition-all hover:scale-[1.02]",
-                                            theme === 'light' ? 'bg-slate-50 border-slate-200 hover:bg-white hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
-                                        )}
-                                    >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h4 className={cn("font-bold text-lg", getTextColor())}>{lead.tripDetails.destination}</h4>
-                                            <span className={cn(
-                                                "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-white",
-                                                statusColors[lead.status] || 'bg-gray-500'
-                                            )}>
-                                                {lead.status}
-                                            </span>
-                                        </div>
-                                        
-                                        <div className={cn("flex items-center gap-4 text-xs opacity-70 mb-3", getSecondaryTextColor())}>
-                                            <span className="flex items-center gap-1"><Calendar size={12}/> {formatDate(lead.tripDetails.startDate)}</span>
-                                            <span className="flex items-center gap-1"><TrendingUp size={12}/> {formatCurrency(lead.tripDetails.budget)}</span>
-                                        </div>
-                                        
-                                        <div className="flex justify-end">
-                                            <span className="text-xs text-blue-500 font-medium flex items-center gap-1">
-                                                View Trip <ArrowRight size={12} />
-                                            </span>
-                                        </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Interaction History */}
-                        <div className="space-y-3">
-                            <h3 className={cn("text-xs font-bold uppercase tracking-wider opacity-50 flex items-center gap-2", getTextColor())}>
-                                <MessageSquare size={14} /> Interaction History ({customerInteractions.length})
-                            </h3>
-                            {customerInteractions.length === 0 ? (
-                                <p className="text-sm opacity-40 italic">No interactions logged yet.</p>
-                            ) : (
-                                <div className="space-y-2 pl-3 border-l-2 border-gray-200/50 ml-1 max-h-72 overflow-y-auto pr-1">
-                                    {customerInteractions.map(interaction => {
-                                        const fromLead = selectedCustomer.leads.find(l => l.id === interaction.leadId);
-                                        return (
-                                            <div key={interaction.id} className={cn("p-2.5 rounded-lg border", theme === 'light' ? 'bg-white border-slate-100' : 'bg-white/5 border-white/10')}>
-                                                <div className="flex items-center justify-between gap-2 mb-1">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span className={cn("text-[9px] font-bold uppercase tracking-wider opacity-60", getTextColor())}>{interaction.type}</span>
-                                                        {interaction.sentiment && interaction.sentiment !== 'Neutral' && (
-                                                            <span className={cn(
-                                                                "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none flex items-center gap-0.5",
-                                                                interaction.sentiment === 'Positive' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'
-                                                            )}>
-                                                                {interaction.sentiment === 'Positive' ? <ThumbsUp size={9} strokeWidth={2.5} /> : <ThumbsDown size={9} strokeWidth={2.5} />}
-                                                            </span>
-                                                        )}
-                                                        {fromLead && (
-                                                            <Link to={`/leads/${fromLead.id}`} onClick={() => setSelectedCustomer(null)} className="text-[9px] text-blue-500 font-medium hover:underline truncate max-w-[100px]">
-                                                                {fromLead.tripDetails.destination || fromLead.name}
-                                                            </Link>
-                                                        )}
-                                                    </div>
-                                                    <span className="text-[9px] opacity-30 shrink-0 font-mono">{formatDate(interaction.timestamp)}</span>
-                                                </div>
-                                                <p className={cn("text-xs line-clamp-2", getTextColor())}>{interaction.content}</p>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-          </>
-      )}
     </div>
   );
 };
