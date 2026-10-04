@@ -1,0 +1,10 @@
+.git
+.claude
+.superpowers
+.env*
+backups
+node_modules
+dist
+*.log
+tmp
+output

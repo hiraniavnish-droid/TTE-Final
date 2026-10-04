@@ -1,6 +1,18 @@
 {
   "crons": [
-    { "path": "/api/team-summary?edition=evening", "schedule": "30 15 * * *" },
-    { "path": "/api/team-summary?edition=morning", "schedule": "30 2 * * *" }
+    {
+      "path": "/api/team-summary?edition=evening",
+      "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/team-summary?edition=morning",
+      "schedule": "30 2 * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "/api/bot?path=:path*"
+    }
   ]
 }
