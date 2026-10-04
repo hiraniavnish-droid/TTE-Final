@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {souCatalog,souItineraryQuote,souHotelRates,souQuote} from '../lib/botSou';
+import {buildInlandWall} from '../services/inlandWall';
+import {catalog} from '../lib/botItinerary';
+assert.equal(souItineraryQuote({nights:1,pax:2}).sellingTotal,1560);
+assert.equal(souItineraryQuote({nights:2,pax:3,include_railway_transfer:true}).sellingTotal,4770);
+for(const input of [{nights:3,pax:2},{nights:1,pax:0},{nights:1,pax:2,include_railway_transfer:'false'}])assert.throws(()=>souItineraryQuote(input));
+const input={check_in:'2026-11-08',nights:2,rooms:1,pax:3,extra_mattresses:1,markup_value:10};
+assert.deepEqual(souHotelRates(input).hotels,buildInlandWall({city:'KEVADIYA (Ekta Nagar)',checkIn:input.check_in,nights:2,rooms:1,pax:3,extraMattress:1,markupMode:'percent',markupValue:10}));
+const q=souQuote({...input,include_itinerary:true,include_railway_transfer:true});
+for(const h of q.hotels)for(const r of h.rows)if(r.quotable)assert.equal(r.package_selling_total,r.hotel_selling_total+q.itinerary.sellingTotal);
+assert.throws(()=>souHotelRates({...input,check_in:'2026-02-30'}));
+assert.throws(()=>souHotelRates({...input,hotel_id:'unknown'}));
+assert.throws(()=>souQuote({...input,include_railway_transfer:true}));
+assert.throws(()=>souQuote({...input,product:'sou-tentcity',include_itinerary:true}));
+const card=souCatalog('tentcity').data;assert.equal(card.seasons[1].extraMattress.MAP,3500);assert.equal(card.peak_windows.length,4);
+assert.equal(souCatalog().hotels.length,11);assert.equal(catalog().modules.length,5);
+console.log('SOU bundle totals, reference transport exclusion, hotel engine parity, validation and existing catalog checks passed.');

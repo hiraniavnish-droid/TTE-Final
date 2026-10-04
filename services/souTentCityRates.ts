@@ -173,3 +173,16 @@ export function quoteVilla(i: VillaInput): QuoteResult | null {
 }
 
 export const fmtINR = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
+
+/** Additive API catalog, sourced from the same constants as the quotation engine. */
+export function souTentCityRateCard() {
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return { currency:'INR', gst_rate:GST_RATE, plans:PLAN_LABEL,
+    seasons:[{from:iso(SEASON_A_RANGE.start),to:iso(SEASON_A_RANGE.end),...SEASON_A},{from:iso(SEASON_B_RANGE.start),to:iso(SEASON_B_RANGE.end),...SEASON_B}],
+    cottage_rate_basis:'per person per night, double sharing; Friday/Saturday weekend',
+    single_occupancy_factor:0.75, children_under_6:'free',
+    peak_windows:PEAK_WINDOWS.map(w=>({label:w.label,from:iso(w.start),to:iso(w.end),surcharge:w.surcharge,basis:'per cottage per night'})),
+    villas:{nightly_rates:VILLA_RATE_PER_NIGHT,included_pax:VILLA_PAX,extra_mattress_per_night:VILLA_EXTRA_MATTRESS,plan:'Experiential'},
+    extra_mattress_basis:'per mattress per night; check-in season; not discountable',
+    availability:'not_checked' };
+}

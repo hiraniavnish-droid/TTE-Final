@@ -1,3 +1,4 @@
+import { souCatalog, souHotelRates, souItineraryQuote, souQuote } from './botSou';
 import {messageInput,quoteInput,settingsInput,MaxInputError,messageTime,dispatchWebhooks} from './maxAutomation';
 import { quoteStorage, QuoteStorageError } from './quoteStorage';
 import { takeIfMatch, tripUpdate, LeadUpdateError } from './botLeadUpdates';
@@ -352,6 +353,16 @@ export default async function handler(req: any, res: any) {
     if(typeof rawIfMatch==='string')res.setHeader('ETag',rawIfMatch);
     const client = authenticate(req); req.crmIfMatch=takeIfMatch(req); const pathname = new URL(req.url || '/', 'https://ttecrm.vercel.app').pathname; const urlParts = pathname.startsWith('/api/v1/') ? pathname.slice(8).split('/').filter(Boolean).map(decodeURIComponent) : []; const segments = urlParts.length ? urlParts : asArray(req.query?.path).flatMap(value => String(value).split('/')).filter(Boolean); const path = `/api/v1/${segments.join('/')}`.replace(/\/$/, ''); const method = String(req.method || 'GET').toUpperCase(); const isWrite = ['POST','PATCH','PUT','DELETE'].includes(method); await consumeRateLimit(client, isWrite);
     const endpoint = segments.join('/');
+    if (method === 'GET' && ['sou/catalog','sou/itineraries','sou/transfers','sou/tentcity','sou/hotels'].includes(endpoint)) {
+      requireScope(client,'itinerary:read'); const data=souCatalog(endpoint.slice(4));
+      return envelope(res,200,rid,{data,rate_version:sha256(JSON.stringify(data))});
+    }
+    if (method === 'POST' && ['sou/hotel-rates','sou/itinerary/quote','sou/quote'].includes(endpoint)) {
+      requireScope(client,'quotes:generate'); const input=jsonBody(req);
+      const data=endpoint==='sou/hotel-rates'?souHotelRates(input):endpoint==='sou/itinerary/quote'?souItineraryQuote(input):souQuote(input);
+      await audit({requestId:rid,client,method,path,action:'sou_quote_calculated',metadata:{input_hash:sha256(JSON.stringify(input))}});
+      return envelope(res,200,rid,{data});
+    }
     if (method === 'GET' && endpoint === 'itinerary/catalog') { requireScope(client, 'itinerary:read'); return envelope(res, 200, rid, {data:catalog()}); }
     if (method === 'GET' && ['itinerary/hotels','itinerary/packages'].includes(endpoint)) {
       requireScope(client, 'itinerary:read');
