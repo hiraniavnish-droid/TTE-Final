@@ -1,6 +1,6 @@
 # Additional SOU API (existing URLs unchanged)
 
-Base: https://ttecrm.vercel.app/api/v1 — same Bearer API key, response envelope, rate limits and scopes as the current API.
+Base: https://ttecrm.vercel.app/api/v1 — same `x-api-key` header, response envelope, rate limits and scopes as the current API.
 
 Read scope `itinerary:read`:
 - GET `/sou/catalog`: complete hotel/ticket bundle/transfer/Tent City rate catalog.
