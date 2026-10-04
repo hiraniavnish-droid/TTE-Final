@@ -70,7 +70,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     source: data.source || 'Other',
     interestedServices: data.interested_services || [],
     referenceName: data.reference_name,
-    assignedTo: data.assigned_to,
+    assignedTo: String(data.assigned_to || '').includes('lead-routing-v1') ? undefined : data.assigned_to,
     tags: data.tags || [],
     createdAt: data.created_at,
     lastStatusUpdate: data.last_status_update,

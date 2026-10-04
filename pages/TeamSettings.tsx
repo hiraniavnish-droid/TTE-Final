@@ -11,42 +11,86 @@ import { cn } from '../utils/helpers';
 import { User as UserType } from '../types';
 import { UserAvatar } from '../components/ui/UserAvatar';
 
-interface AutoAssignSettings {
+interface LeadRoutingRule {
+  source_key: 'rannutsav_website' | 'rannutsav_tickets';
+  source_label: string;
+  enabled: boolean;
+  assign_to: string | null;
+}
+
+interface StoredAutoAssignSettings {
   auto_assign_enabled: boolean;
   auto_assign_to: string | null;
 }
 
-// Auto-assignment for inbound Rann Utsav website/WhatsApp leads (api/leads.ts)
-// used to be hardcoded to one agent in code — this reads/writes the same
-// single-row `app_settings` table that endpoint now checks on every request,
-// so pausing it or handing it to someone else is a Team Settings change, not
-// a code change.
-const AutoAssignCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
+interface LeadRoutingConfig {
+  kind: 'lead-routing-v1';
+  fallback: { enabled: boolean; assignTo: string | null };
+  routes: Record<LeadRoutingRule['source_key'], { enabled: boolean; assignTo: string | null }>;
+}
+
+const WEBSITE_ROUTES: Array<Pick<LeadRoutingRule, 'source_key' | 'source_label'> & { subtitle: string }> = [
+  { source_key: 'rannutsav_website', source_label: 'Rann Utsav website', subtitle: 'Leads submitted on rannutsav.in' },
+  { source_key: 'rannutsav_tickets', source_label: 'Rann Utsav Tickets website', subtitle: 'Leads submitted on rannutsavtickets.in' },
+];
+
+const toConfig = (settings: StoredAutoAssignSettings): LeadRoutingConfig => {
+  const legacy = {
+    enabled: settings.auto_assign_enabled,
+    assignTo: settings.auto_assign_to && !settings.auto_assign_to.trim().startsWith('{') ? settings.auto_assign_to : null,
+  };
+  try {
+    const stored = JSON.parse(settings.auto_assign_to || '');
+    if (stored?.kind !== 'lead-routing-v1') throw new Error('legacy settings');
+    const rule = (key: LeadRoutingRule['source_key']) => ({
+      enabled: typeof stored.routes?.[key]?.enabled === 'boolean' ? stored.routes[key].enabled : legacy.enabled,
+      assignTo: typeof stored.routes?.[key]?.assignTo === 'string' && stored.routes[key].assignTo.trim() ? stored.routes[key].assignTo : null,
+    });
+    return {
+      kind: 'lead-routing-v1',
+      fallback: {
+        enabled: typeof stored.fallback?.enabled === 'boolean' ? stored.fallback.enabled : legacy.enabled,
+        assignTo: typeof stored.fallback?.assignTo === 'string' && stored.fallback.assignTo.trim() ? stored.fallback.assignTo : legacy.assignTo,
+      },
+      routes: { rannutsav_website: rule('rannutsav_website'), rannutsav_tickets: rule('rannutsav_tickets') },
+    };
+  } catch {
+    return { kind: 'lead-routing-v1', fallback: legacy, routes: { rannutsav_website: legacy, rannutsav_tickets: legacy } };
+  }
+};
+
+// Each website keeps its own routing rule. The API reads the exact same source
+// key at lead creation time, so a pause or employee change takes effect on the
+// very next inbound lead without touching either website.
+const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
   const { theme, getTextColor, getInputClass } = useTheme();
-  const [settings, setSettings] = useState<AutoAssignSettings | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [config, setConfig] = useState<LeadRoutingConfig | null>(null);
+  const [savedRule, setSavedRule] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     supabase.from('app_settings').select('auto_assign_enabled, auto_assign_to').eq('id', true).single()
       .then(({ data, error }) => {
         if (cancelled || error || !data) return;
-        setSettings(data as AutoAssignSettings);
+        setConfig(toConfig(data as StoredAutoAssignSettings));
       });
     return () => { cancelled = true; };
   }, []);
 
-  const save = (next: AutoAssignSettings) => {
-    setSettings(next); // optimistic — matches this page's other mutators (see updateUserPasscode)
-    setSaved(false);
-    supabase.from('app_settings').update(next).eq('id', true).then(({ error }) => {
-      if (error) { console.error('Failed to update auto-assign settings:', error); return; }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+  const save = (next: LeadRoutingConfig) => {
+    setConfig(next);
+    setSavedRule(null);
+    supabase.from('app_settings').update({
+      auto_assign_enabled: next.fallback.enabled,
+      auto_assign_to: JSON.stringify(next),
+    }).eq('id', true).then(({ error }) => {
+      if (error) { console.error('Failed to update lead routing rule:', error); return; }
+      setSavedRule('saved');
+      setTimeout(() => setSavedRule(null), 2000);
     });
   };
 
-  if (!settings) return null;
+  if (!config) return null;
 
   return (
     <Card className="space-y-4">
@@ -55,50 +99,66 @@ const AutoAssignCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
           <UserCog size={18} strokeWidth={2} />
         </div>
         <div>
-          <h2 className={cn('font-bold', getTextColor())}>Lead Auto-Assignment</h2>
-          <p className={cn('text-[12px] opacity-60', getTextColor())}>New leads from the Rann Utsav website and WhatsApp bot.</p>
+          <h2 className={cn('font-bold', getTextColor())}>Website Lead Routing</h2>
+          <p className={cn('text-[12px] opacity-60', getTextColor())}>Set a separate owner or pause intake for each website.</p>
         </div>
-        {saved && (
+        {savedRule && (
           <span className="ml-auto flex items-center gap-1 text-[11px] font-bold text-emerald-500">
             <Check size={13} strokeWidth={3} /> Saved
           </span>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
-          <button
-            onClick={() => save({ ...settings, auto_assign_enabled: true })}
-            className={cn('px-4 py-2 text-[12px] font-bold transition',
-              settings.auto_assign_enabled ? 'bg-slate-900 text-white' : (theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}
-          >
-            Enabled
-          </button>
-          <button
-            onClick={() => save({ ...settings, auto_assign_enabled: false })}
-            className={cn('px-4 py-2 text-[12px] font-bold transition',
-              !settings.auto_assign_enabled ? 'bg-slate-900 text-white' : (theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}
-          >
-            Paused
-          </button>
-        </div>
-
-        <select
-          disabled={!settings.auto_assign_enabled}
-          value={settings.auto_assign_to || ''}
-          onChange={e => save({ ...settings, auto_assign_to: e.target.value || null })}
-          className={cn('rounded-lg p-2 text-[13px] outline-none border transition-all disabled:opacity-40', getInputClass())}
-        >
-          <option value="">Nobody selected</option>
-          {agents.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
-        </select>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {WEBSITE_ROUTES.map(route => {
+          const rule = config.routes[route.source_key];
+          const updateRule = (patch: Partial<typeof rule>) => save({
+            ...config,
+            routes: { ...config.routes, [route.source_key]: { ...rule, ...patch } },
+          });
+          return (
+            <div key={route.source_key} className={cn('rounded-xl border p-4 space-y-3', theme === 'light' ? 'border-slate-200 bg-slate-50/60' : 'border-white/10 bg-white/[0.03]')}>
+              <div>
+                <p className={cn('text-[13px] font-bold', getTextColor())}>{route.source_label}</p>
+                <p className={cn('text-[11px] opacity-55 mt-0.5', getTextColor())}>{route.subtitle}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className={cn('flex rounded-lg border overflow-hidden', theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+                  <button
+                    onClick={() => updateRule({ enabled: true })}
+                    className={cn('px-3 py-1.5 text-[11px] font-bold transition', rule.enabled ? 'bg-slate-900 text-white' : (theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}
+                  >
+                    Enabled
+                  </button>
+                  <button
+                    onClick={() => updateRule({ enabled: false })}
+                    className={cn('px-3 py-1.5 text-[11px] font-bold transition', !rule.enabled ? 'bg-slate-900 text-white' : (theme === 'light' ? 'bg-white text-slate-500' : 'bg-white/5 text-white/50'))}
+                  >
+                    Paused
+                  </button>
+                </div>
+                <select
+                  disabled={!rule.enabled}
+                  value={rule.assignTo || ''}
+                  onChange={e => updateRule({ assignTo: e.target.value || null })}
+                  className={cn('min-w-[140px] flex-1 rounded-lg p-1.5 text-[12px] outline-none border transition-all disabled:opacity-40', getInputClass())}
+                  aria-label={`${route.source_label} assignee`}
+                >
+                  <option value="">Leave unassigned</option>
+                  {agents.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                </select>
+              </div>
+              <p className={cn('text-[11px] opacity-55', getTextColor())}>
+                {rule.enabled
+                  ? (rule.assignTo ? `New leads go directly to ${rule.assignTo}.` : 'New leads will remain unassigned.')
+                  : 'Paused — new leads from this website remain unassigned.'}
+              </p>
+            </div>
+          );
+        })}
       </div>
 
-      <p className={cn('text-[11px] opacity-50', getTextColor())}>
-        {settings.auto_assign_enabled
-          ? (settings.auto_assign_to ? `Every new lead is assigned to ${settings.auto_assign_to} automatically.` : 'Enabled, but no one is selected yet — new leads will stay unassigned.')
-          : 'Paused — new leads come in unassigned until you turn this back on.'}
-      </p>
+      <p className={cn('text-[11px] opacity-50', getTextColor())}>A repeat enquiry is never taken away from a team member who already owns it.</p>
     </Card>
   );
 };
@@ -190,7 +250,7 @@ export const TeamSettings = () => {
             </Button>
         </div>
 
-        <AutoAssignCard agents={users.filter(u => u.role === 'agent')} />
+        <LeadRoutingCard agents={users.filter(u => u.role === 'agent')} />
 
         <Card noPadding className="overflow-hidden shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]">
             <div className="overflow-x-auto">

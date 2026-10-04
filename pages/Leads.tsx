@@ -369,6 +369,9 @@ const LeadCard: React.FC<{ lead: Lead; isOverlay?: boolean; isDragging?: boolean
             </div>
           )}
 
+          {!compact && <div className="flex flex-wrap gap-1 mt-1.5">
+            {['rannutsav.in', 'rannutsavtickets.in'].filter(site => lead.tags.includes(site) || lead.source?.includes(site)).map(site => <span key={site} title={lead.source} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md border border-sky-200 text-sky-700 bg-sky-50">{site}</span>)}
+          </div>}
           {/* Payment flag — only rendered once a lead is Won. Realized (collected) is bold; unrealized (still owed) is small & faded. */}
           {!compact && payState && (
             <div className="flex items-center gap-1 mt-1.5 flex-wrap">
@@ -493,6 +496,10 @@ const MobileLeadCard: React.FC<MobileLeadCardProps> = ({ lead, onStatusChange })
           <span>{formatDate(lead.tripDetails.startDate)}</span>
         </div>
       </Link>
+      <div className="flex flex-wrap gap-1.5 mb-3 text-[10px]">
+        {lead.source && <span className="rounded-md border border-slate-200 px-2 py-1">{lead.source}</span>}
+        {['rannutsav.in', 'rannutsavtickets.in'].filter(site => lead.tags.includes(site) && !lead.source?.includes(site)).map(site => <span key={site} className="rounded-md border border-sky-200 px-2 py-1 text-sky-700">{site}</span>)}
+      </div>
       <div className="grid grid-cols-2 gap-3 mt-2">
         <a href={`tel:${lead.contact.phone}`} className={cn('flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-colors border', theme === 'light' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-green-500/10 text-green-400 border-green-500/20')}>
           <Phone size={16} /> Call
@@ -778,6 +785,9 @@ const OverviewLeadCard: React.FC<{
               {lead.source}
             </span>
           )}
+          {['rannutsav.in', 'rannutsavtickets.in'].filter(site => lead.tags.includes(site) && !lead.source?.includes(site)).map(site => (
+            <span key={site} className="text-[9px] font-bold px-2 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200">{site}</span>
+          ))}
           {lead.interestedServices[0] && (
             <span className={cn('text-[9px] font-bold uppercase px-2 py-1 rounded-md', theme === 'light' ? 'bg-indigo-50 text-indigo-500' : 'bg-indigo-500/10 text-indigo-400')}>
               {lead.interestedServices[0].replace(' Package', '').replace(' Booking', '').replace(' Service', '')}
