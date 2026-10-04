@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 // ============================================================
 // Vercel Serverless Function — Razorpay Payment Links + manual payments
 //
@@ -29,6 +30,27 @@ const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const INTERAKT_API_KEY = process.env.INTERAKT_API_KEY || '';
+
+// Corrections require a current staff session; gateway-owned entries are read-only.
+async function paymentEditor(auth: string): Promise<{ name: string } | null> {
+  try {
+    const secret = process.env.SUPABASE_JWT_SECRET;
+    if (!secret || !/^Bearer /i.test(auth)) return null;
+    const [h, p, sig, extra] = auth.replace(/^Bearer\s+/i, '').split('.');
+    if (!h || !p || !sig || extra) return null;
+    if (JSON.parse(Buffer.from(h, 'base64url').toString()).alg !== 'HS256') return null;
+    const expected = crypto.createHmac('sha256', secret).update(`${h}.${p}`).digest();
+    const actual = Buffer.from(sig, 'base64url');
+    if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null;
+    const claims = JSON.parse(Buffer.from(p, 'base64url').toString());
+    if (!(claims.exp * 1000 > Date.now()) || !claims.app_user_id) return null;
+    const res = await sb(`users?id=eq.${encodeURIComponent(claims.app_user_id)}&select=name,role,session_version&limit=1`);
+    const rows = await res.json();
+    const user = rows[0];
+    if (!res.ok || !user || !['admin','agent'].includes(user.role) || Number(user.session_version) !== Number(claims.session_version)) return null;
+    return { name: user.name };
+  } catch { return null; }
+}
 
 // ─── Team WhatsApp notification (fire-and-forget) ──────────────
 // WhatsApp Business API can't post to groups (Meta restriction), so "notify the
@@ -342,7 +364,7 @@ export default async function handler(req: any, res: any) {
   if (allowed) res.setHeader('Access-Control-Allow-Origin', allowed);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
@@ -392,6 +414,44 @@ export default async function handler(req: any, res: any) {
     if (req.method === 'PATCH') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
       if (!body.id) return res.status(400).json({ error: 'Missing payment id.' });
+      if (body.action === 'edit_manual') {
+        const editor = await paymentEditor(String(req.headers.authorization || ''));
+        if (!editor) return res.status(401).json({ error: 'Sign in again before editing a payment.' });
+        const read = await sb(`payments?id=eq.${encodeURIComponent(String(body.id))}&select=*&limit=1`);
+        if (!read.ok) return res.status(500).json({ error: 'Could not load payment.' });
+        const rows = await read.json();
+        const current = rows[0];
+        if (!current) return res.status(404).json({ error: 'Payment not found.' });
+        if (current.source !== 'manual') return res.status(400).json({ error: 'Gateway payments cannot be edited here.' });
+        const amount = Number(body.amount);
+        if (!Number.isFinite(amount) || amount < 1 || amount > MAX_AMOUNT || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) return res.status(400).json({ error: 'Enter a valid payment amount with at most two decimals.' });
+        if (!MANUAL_METHODS.includes(body.method)) return res.status(400).json({ error: 'Pick a valid payment method.' });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.paidAt || '')) || Number.isNaN(Date.parse(body.paidAt)) || new Date(body.paidAt).toISOString().slice(0,10) !== body.paidAt) return res.status(400).json({ error: 'Enter a valid received date.' });
+        if (!String(body.name || '').trim() || String(body.name).length > 120) return res.status(400).json({ error: 'Enter a customer name (up to 120 characters).' });
+        if (String(body.manualReference || '').length > 120 || String(body.notes || '').length > 500 || String(body.phone || '').length > 40 || String(body.email || '').length > 254) return res.status(400).json({ error: 'One of the payment details is too long.' });
+        const patch = { amount, method: body.method, paid_at: String(current.paid_at || '').slice(0,10) === body.paidAt ? current.paid_at : new Date(body.paidAt).toISOString(), manual_reference: String(body.manualReference || ''), notes: String(body.notes || ''), customer_name: String(body.name).trim(), customer_phone: String(body.phone || ''), customer_email: String(body.email || '') };
+        const before = Object.fromEntries(Object.keys(patch).map(key => [key, current[key]]));
+        if (!body.expected || Object.keys(patch).some(key => String(body.expected[key] ?? '') !== String(current[key] ?? ''))) return res.status(409).json({ error: 'This payment changed since you opened it. Refresh and try again.' });
+        // Compare-and-swap on the same fields prevents a concurrent correction
+        // from being overwritten after the read above. Never rewrite linkage or IDs.
+        const query = new URLSearchParams({ id: `eq.${current.id}`, source: 'eq.manual' });
+        for (const key of Object.keys(patch)) {
+          const value = current[key];
+          query.set(key, value == null ? 'is.null' : `eq.${String(value)}`);
+        }
+        const saved = await sb(`payments?${query}`, { method:'PATCH', headers:{Prefer:'return=representation'}, body:JSON.stringify(patch) });
+        if (!saved.ok) return res.status(500).json({ error: 'Could not save payment changes.' });
+        const updated = (await saved.json())[0];
+        if (!updated) return res.status(409).json({ error: 'Another person changed this payment. Refresh and try again.' });
+        let auditOk = false;
+        try {
+        const audit = await sb('activity_logs', { method:'POST', body:JSON.stringify({ id:`payment_edit_${crypto.randomUUID()}`, agent_name:editor.name, action_type:'COMMENT', details:`Payment ${current.reference_id} corrected`, timestamp:new Date().toISOString(), lead_id:current.lead_id, metadata:{kind:'payment_correction',paymentId:current.id,before,after:patch} }) });
+        auditOk = audit.ok;
+        } catch { /* Payment is saved; surface audit failure without retrying it. */ }
+        return res.status(200).json({ record:rowToRecord(updated), ...(!auditOk ? {warning:'Payment updated, but its activity log could not be saved.'} : {}) });
+      }
+
+      if (!Object.prototype.hasOwnProperty.call(body, 'leadId')) return res.status(400).json({ error: 'Specify a lead or use the payment edit action.' });
       const leadId: string | null = body.leadId && LEAD_ID_RE.test(String(body.leadId)) ? String(body.leadId) : null;
       if (body.leadId && !leadId) return res.status(400).json({ error: 'Invalid lead reference.' });
 

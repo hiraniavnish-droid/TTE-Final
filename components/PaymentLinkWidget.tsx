@@ -180,6 +180,10 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
 
   // Manual payment entry (cash/cheque/bank transfer/UPI)
   const [manualOpen, setManualOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
+  const [manualCustomer, setManualCustomer] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
   const [manualAmount, setManualAmount] = useState('');
   const [manualMethod, setManualMethod] = useState<typeof MANUAL_METHODS[number]>('Cash');
   const [manualRef, setManualRef] = useState('');
@@ -286,7 +290,7 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
 
   const handleCreate = async () => {
     const amt = Number(amount);
-    if (!(amt >= 1)) {
+    if (!Number.isFinite(amt) || !(amt >= 1)) {
       toast.error('Enter a valid amount (min ₹1).');
       return;
     }
@@ -332,6 +336,8 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
   };
 
   const openManual = () => {
+    setEditingPayment(null);
+    setManualCustomer(lead.name);setManualPhone(lead.contact?.phone || '');setManualEmail(lead.contact?.email || '');
     const def = lead.tripDetails?.budget && lead.tripDetails.budget > 0 ? String(lead.tripDetails.budget) : '';
     setManualAmount(def);
     setManualMethod('Cash');
@@ -341,25 +347,34 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
     setManualOpen(true);
   };
 
+  const openEditPayment = (record: PaymentRecord) => {
+    setEditingPayment(record);
+    setManualAmount(String(record.amount));setManualMethod((record.method || 'Other') as typeof MANUAL_METHODS[number]);
+    setManualRef(record.manual_reference || '');setManualDate(record.paid_at?.slice(0,10) || '');setManualNotes(record.notes || '');
+    setManualCustomer(record.customer_name);setManualPhone(record.customer_phone || '');setManualEmail(record.customer_email || '');
+    setDetailOpen(false);setManualOpen(true);
+  };
+
   const handleSaveManual = async () => {
     const amt = Number(manualAmount);
-    if (!(amt >= 1)) {
+    if (!Number.isFinite(amt) || !(amt >= 1)) {
       toast.error('Enter a valid amount (min ₹1).');
       return;
     }
     setSavingManual(true);
     try {
       const res = await fetch(`${API_BASE}/api/razorpay-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: editingPayment ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           manual: true,
+          ...(editingPayment ? { action:'edit_manual', id:editingPayment.id, expected:{amount:editingPayment.amount,method:editingPayment.method,paid_at:editingPayment.paid_at,manual_reference:editingPayment.manual_reference,notes:editingPayment.notes,customer_name:editingPayment.customer_name,customer_phone:editingPayment.customer_phone,customer_email:editingPayment.customer_email} } : {}),
           leadId: lead.id,
           leadName: lead.name,
           amount: amt,
-          name: lead.name,
-          phone: lead.contact?.phone || '',
-          email: lead.contact?.email || '',
+          name: manualCustomer,
+          phone: manualPhone,
+          email: manualEmail,
           method: manualMethod,
           manualReference: manualRef,
           paidAt: manualDate,
@@ -369,9 +384,11 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to record payment');
-      setRecords((prev) => [data.record, ...prev]);
+      setRecords((prev) => editingPayment ? prev.map(record => record.id === data.record.id ? data.record : record) : [data.record, ...prev]);
+      window.dispatchEvent(new Event('tte:payments-changed'));
       setManualOpen(false);
-      toast.success('Manual payment recorded!');
+      toast.success(editingPayment ? 'Payment updated!' : 'Manual payment recorded!');
+      if (data.warning) toast.error(data.warning);
       setDetailOpen(true);
     } catch (e: any) {
       toast.error(e?.message || 'Could not record payment.');
@@ -772,6 +789,7 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
                     <span className={cn('text-lg font-mono font-bold', getTextColor())}>{formatCurrency(rec.amount)}</span>
                   </div>
 
+                  {isManual && <button onClick={() => openEditPayment(rec)} className="mb-3 flex items-center gap-1.5 rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-indigo-600"><ClipboardEdit size={13} /> Edit Payment</button>}
                   <div className="space-y-1.5 text-xs">
                     <Row icon={<Hash size={12} />} label="Reference ID" value={rec.reference_id} />
                     {!isManual && <Row icon={<CreditCard size={12} />} label="Link ID" value={rec.id} />}
@@ -888,8 +906,14 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
       </Modal>
 
       {/* ─── Manual Payment Modal ─── */}
-      <Modal isOpen={manualOpen} onClose={() => !savingManual && setManualOpen(false)} title="Record Manual Payment">
+      <Modal isOpen={manualOpen} onClose={() => { if (!savingManual) { setManualOpen(false); if (editingPayment) setDetailOpen(true); } }} title={editingPayment ? 'Edit Recorded Payment' : 'Record Manual Payment'}>
         <div className="space-y-5">
+          {editingPayment && <div className="grid grid-cols-2 gap-3">
+            <label className="col-span-2 text-xs">Customer name<input aria-label="Customer name" value={manualCustomer} onChange={e => setManualCustomer(e.target.value)} className={cn('block w-full rounded-lg border p-2 mt-1',getInputClass())} /></label>
+            <label className="text-xs">Phone<input aria-label="Customer phone" value={manualPhone} onChange={e => setManualPhone(e.target.value)} className={cn('block w-full rounded-lg border p-2 mt-1',getInputClass())} /></label>
+            <label className="text-xs">Email<input aria-label="Customer email" value={manualEmail} onChange={e => setManualEmail(e.target.value)} className={cn('block w-full rounded-lg border p-2 mt-1',getInputClass())} /></label>
+          </div>}
+          {editingPayment && documents.some(doc => doc.payment_id === editingPayment.id && ['pending','issued'].includes(doc.status)) && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Existing receipts and invoices keep their original details. Review those documents after saving this correction.</p>}
           <div className="space-y-1.5">
             <label className={cn('text-xs font-bold uppercase tracking-wider opacity-60', getTextColor())}>Amount received</label>
             <div className="relative">
@@ -957,14 +981,14 @@ export const PaymentLinkWidget: React.FC<PaymentLinkWidgetProps> = ({ lead }) =>
           <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
             <p className="text-xs leading-relaxed">
-              This logs an <b>already-received</b> payment — it doesn't collect money itself. Only record it once you've actually received the {manualMethod.toLowerCase()}.
+              {editingPayment ? 'This corrects the existing payment entry and updates totals.' : <>This logs an <b>already-received</b> payment — it doesn't collect money itself. Only record it once you've actually received the {manualMethod.toLowerCase()}.</>}
             </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-1">
-            <Button variant="secondary" onClick={() => setManualOpen(false)} disabled={savingManual}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setManualOpen(false); if (editingPayment) setDetailOpen(true); }} disabled={savingManual}>Cancel</Button>
             <Button onClick={handleSaveManual} disabled={savingManual} className="min-w-[160px] bg-slate-900 hover:bg-slate-800 border-none text-white">
-              {savingManual ? <><Loader2 size={16} className="animate-spin" /> Saving…</> : <><Banknote size={16} /> Save Entry</>}
+              {savingManual ? <><Loader2 size={16} className="animate-spin" /> Saving…</> : <><Banknote size={16} /> {editingPayment ? 'Save Changes' : 'Save Entry'}</>}
             </Button>
           </div>
         </div>
