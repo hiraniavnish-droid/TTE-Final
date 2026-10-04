@@ -1,3 +1,4 @@
+import { IncrementalList, useDesktopLayout } from '../components/ui/IncrementalList';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -522,11 +523,11 @@ const DraggableCard: React.FC<{ lead: Lead; compact?: boolean; payment?: LeadPay
   );
 };
 
-const DroppableColumn: React.FC<{ status: string; children: React.ReactNode; collapsed?: boolean; onToggle?: () => void }> = ({ status, children, collapsed, onToggle }) => {
+const DroppableColumn: React.FC<{ status: string; children: React.ReactNode; totalCount?: number; collapsed?: boolean; onToggle?: () => void }> = ({ status, children, totalCount, collapsed, onToggle }) => {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const { theme } = useTheme();
   const cs = COLUMN_STYLES[status] || COLUMN_STYLES['New'];
-  const count = React.Children.count(children);
+  const count = totalCount ?? React.Children.count(children);
 
   // ── Collapsed rail (used for the Lost column) ──────────────────────────────
   if (collapsed) {
@@ -1341,14 +1342,14 @@ const OverviewGrid: React.FC<{
               )}
 
               <div className={cn('grid gap-3', selectedLeadId ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3')}>
-                {group.leads.map(lead => (
+                <IncrementalList items={group.leads} batchSize={36} resetKey={`${stageFilter}:${sortBy}:${groupBy}`} renderItem={lead => (
                   <OverviewLeadCard
                     key={lead.id}
                     lead={lead}
                     isSelected={selectedLeadId === lead.id}
                     onSelect={() => setSelectedLeadId(selectedLeadId === lead.id ? null : lead.id)}
                   />
-                ))}
+                )} />
               </div>
             </div>
           ))}
@@ -1591,7 +1592,8 @@ const ExportPanel: React.FC<{
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export const Leads = () => {
-  const { leads, addLead, addLeads, updateLeadStatus, updateLead } = useLeads();
+  const { leads, addLead, addLeads, updateLeadStatus, updateLead, isLoading, loadError, retryLoad } = useLeads();
+  const isDesktop = useDesktopLayout();
   const { user, users } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { theme, getTextColor, getInputClass, getBorderClass, getSecondaryTextColor } = useTheme();
@@ -1599,7 +1601,7 @@ export const Leads = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [view, setView] = useState<'kanban' | 'overview'>(
-    searchParams.get('status') || searchParams.get('from') ? 'overview' : 'kanban'
+    searchParams.get('view') === 'overview' || searchParams.get('status') || searchParams.get('from') ? 'overview' : 'kanban'
   );
   const [stageFilter, setStageFilter] = useState(searchParams.get('status') || '');
   const [createdFrom, setCreatedFrom] = useState(searchParams.get('from') || '');
@@ -1613,6 +1615,7 @@ export const Leads = () => {
   const [newLeadPrefs, setNewLeadPrefs] = useState<TravelPreferencesType>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasInitialized = useRef(false);
+  const lastWrittenSearch = useRef(searchParams.toString());
   const filterScrollRef = useRef<HTMLDivElement>(null);
   const scrollFilters = (dir: 'left' | 'right') => {
     filterScrollRef.current?.scrollBy({ left: dir === 'left' ? -220 : 220, behavior: 'smooth' });
@@ -1633,11 +1636,14 @@ export const Leads = () => {
     if (filters.paymentStatus) next.set('pay', filters.paymentStatus);
     if (createdFrom) next.set('from', createdFrom);
     if (createdTo) next.set('to', createdTo);
-    setSearchParams(next, { replace: true });
+    lastWrittenSearch.current = next.toString();
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
   }, [view, stageFilter, filters.assignedTo, filters.paymentStatus, createdFrom, createdTo]);
 
   // Sync URL → state when browser back/forward changes searchParams
   useEffect(() => {
+    if (searchParams.toString() === lastWrittenSearch.current) return;
+    lastWrittenSearch.current = searchParams.toString();
     const s = searchParams.get('status') || '';
     const f = searchParams.get('from') || '';
     const t = searchParams.get('to') || '';
@@ -1670,7 +1676,7 @@ export const Leads = () => {
     }
   };
 
-  const filteredLeads = leads.filter(l => {
+  const filteredLeads = useMemo(() => leads.filter(l => {
     if (filters.assignedTo) {
       if (filters.assignedTo === 'Unassigned') {
         if (l.assignedTo) return false;
@@ -1687,7 +1693,8 @@ export const Leads = () => {
       if (createdTo && t > new Date(createdTo + 'T23:59:59').getTime()) return false;
     }
     return true;
-  });
+  }), [leads, filters.assignedTo, filters.paymentStatus, paymentSummary, paymentSummaryLoaded, createdFrom, createdTo]);
+  const renderKey = `${filters.assignedTo}:${filters.paymentStatus}:${createdFrom}:${createdTo}`;
 
   const hasActiveFilters = !!(filters.assignedTo || filters.paymentStatus || createdFrom || createdTo);
 
@@ -1862,7 +1869,7 @@ export const Leads = () => {
       )}
 
       {/* Header — compact single toolbar row: title | filter chips | buttons */}
-      <div className={cn('flex flex-col md:flex-row md:items-center gap-3', view === 'overview' && 'shrink-0')}>
+      <div className={cn('flex flex-col md:flex-row md:items-center gap-3 shrink-0')}>
         {/* Title block */}
         <div className="shrink-0 flex items-baseline gap-2.5">
           <h1 className={cn('text-2xl font-bold tracking-tight leading-none', getTextColor())}>Leads</h1>
@@ -2015,6 +2022,8 @@ export const Leads = () => {
             </button>
           </div>
           <button
+            disabled={isLoading || !!loadError}
+            title={isLoading ? 'Wait for all leads to load before exporting' : undefined}
             onClick={() => setShowExport(true)}
             className={cn(
               'hidden md:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all',
@@ -2042,7 +2051,11 @@ export const Leads = () => {
       </div>
 
       {/* Content */}
-      {filteredLeads.length === 0 ? (
+      {(isLoading || loadError) && <div role="status" className="shrink-0 flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-xs mb-2">
+        {loadError || (leads.length ? `Loaded ${leads.length} leads. Loading older leads; counts and filters will update…` : 'Loading your leads…')}
+        {loadError && <button className="font-bold underline" onClick={retryLoad}>Retry</button>}
+      </div>}
+      {isLoading && filteredLeads.length === 0 ? <div className="flex-1 flex items-center justify-center" role="status">Loading leads…</div> : loadError && leads.length === 0 ? <div className="flex-1 flex items-center justify-center">Unable to load leads. Use Retry above.</div> : filteredLeads.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] animate-in fade-in zoom-in-95 duration-500">
           <div className={cn('w-24 h-24 rounded-full flex items-center justify-center mb-6', theme === 'light' ? 'bg-blue-50 text-blue-400' : 'bg-white/5 text-white/30')}>
             {hasActiveFilters ? <SearchX size={48} /> : <Users size={48} />}
@@ -2071,35 +2084,36 @@ export const Leads = () => {
       ) : (
         <>
           {/* Desktop Kanban */}
-          <div className="hidden md:flex flex-col flex-1 overflow-hidden min-h-0">
+          {isDesktop && <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               <div className="flex gap-3 overflow-x-auto flex-1 items-stretch min-h-0 snap-x pb-1">
                 {ACTIVE_COLUMNS.map(status => (
-                  <DroppableColumn key={status} status={status}>
-                    {filteredLeads.filter(l => l.status === status).map(lead => (
+                  <DroppableColumn key={status} status={status} totalCount={filteredLeads.filter(l => l.status === status).length}>
+                    <IncrementalList items={filteredLeads.filter(l => l.status === status)} resetKey={renderKey} renderItem={lead => (
                       <DraggableCard key={lead.id} lead={lead} payment={paymentSummary[lead.id]} paymentLoaded={paymentSummaryLoaded} />
-                    ))}
+                    )} />
                   </DroppableColumn>
                 ))}
                 {/* Lost — collapsible rail with compact cards */}
                 <DroppableColumn
                   status="Lost"
+                  totalCount={filteredLeads.filter(l => l.status === 'Lost').length}
                   collapsed={!lostExpanded}
                   onToggle={() => setLostExpanded(v => !v)}
                 >
-                  {filteredLeads.filter(l => l.status === 'Lost').map(lead => (
+                  {lostExpanded && <IncrementalList items={filteredLeads.filter(l => l.status === 'Lost')} resetKey={renderKey} renderItem={lead => (
                     <DraggableCard key={lead.id} lead={lead} compact />
-                  ))}
+                  )} />}
                 </DroppableColumn>
               </div>
               <DragOverlay dropAnimation={dropAnimation}>
                 {activeLead ? <LeadCard lead={activeLead} isOverlay payment={paymentSummary[activeLead.id]} paymentLoaded={paymentSummaryLoaded} /> : null}
               </DragOverlay>
             </DndContext>
-          </div>
+          </div>}
 
           {/* Mobile Kanban */}
-          <div className="md:hidden flex flex-col h-full">
+          {!isDesktop && <div className="flex flex-col flex-1 min-h-0">
             <div className="flex gap-2 overflow-x-auto pb-4 px-1 no-scrollbar">
               {STATUS_COLUMNS.map(status => (
                 <button
@@ -2115,10 +2129,10 @@ export const Leads = () => {
                 </button>
               ))}
             </div>
-            <div className="flex-1 space-y-4 pb-20">
-              {filteredLeads.filter(l => l.status === activeMobileStatus).map(lead => (
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pb-20">
+              <IncrementalList items={filteredLeads.filter(l => l.status === activeMobileStatus)} resetKey={`${renderKey}:${activeMobileStatus}`} renderItem={lead => (
                 <MobileLeadCard key={lead.id} lead={lead} onStatusChange={updateLeadStatus} />
-              ))}
+              )} />
               {filteredLeads.filter(l => l.status === activeMobileStatus).length === 0 && (
                 <div className="text-center opacity-50 py-10 flex flex-col items-center gap-2">
                   <div className={cn('w-12 h-12 rounded-full flex items-center justify-center', theme === 'light' ? 'bg-slate-100' : 'bg-white/5')}>
@@ -2128,7 +2142,7 @@ export const Leads = () => {
                 </div>
               )}
             </div>
-          </div>
+          </div>}
         </>
       )}
 

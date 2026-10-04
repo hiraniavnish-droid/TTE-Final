@@ -36,9 +36,20 @@ const ProtectedRoute = () => {
   return <Outlet />;
 };
 
-const ErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return <>{children}</>;
-};
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  declare readonly props: { children: React.ReactNode };
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: Error) { console.error('CRM page failed to render:', error); }
+  render() {
+    if (this.state.failed) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center bg-slate-50 text-slate-800">
+      <h1 className="text-xl font-bold">This page could not load</h1>
+      <p>Reload to get the latest CRM version. Your saved data is safe.</p>
+      <button className="rounded-lg bg-blue-600 px-5 py-3 text-white" onClick={() => window.location.reload()}>Reload CRM</button>
+    </div>;
+    return this.props.children;
+  }
+}
 
 function App() {
   return (

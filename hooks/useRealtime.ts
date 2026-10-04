@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
-export const useRealtime = (tableName: string, callback: (payload: RealtimePostgresChangesPayload<any>) => void) => {
+export const useRealtime = (tableName: string, callback: (payload: RealtimePostgresChangesPayload<any>) => void, enabled = true) => {
   // 1. Use a Ref to hold the latest callback function.
   // This is the "Crash-Proof" pattern: it allows the callback to access the latest state
   // WITHOUT forcing the subscription effect (below) to restart.
@@ -14,6 +14,7 @@ export const useRealtime = (tableName: string, callback: (payload: RealtimePostg
   }, [callback]);
 
   useEffect(() => {
+    if (!enabled) return;
     // 2. Static Channel Name. 
     // CRITICAL: Do NOT use Date.now() or random IDs here. 
     // Using a static name ensures we don't open 100s of channels if the component re-renders.
@@ -47,5 +48,5 @@ export const useRealtime = (tableName: string, callback: (payload: RealtimePostg
     };
     // 5. CRITICAL: Dependency array is strictly [tableName]. 
     // This effect will NEVER re-run when your state updates.
-  }, [tableName]);
+  }, [tableName, enabled]);
 };

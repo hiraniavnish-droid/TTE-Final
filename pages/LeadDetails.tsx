@@ -449,7 +449,7 @@ const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads,
 export const LeadDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { leads, allLeads, updateLead, updateLeadStatus, deleteLead, getLeadInteractions, getLeadReminders, addInteraction, addReminder, suppliers } = useLeads();
+  const { leads, allLeads, updateLead, updateLeadStatus, deleteLead, getLeadInteractions, getLeadReminders, addInteraction, addReminder, suppliers, isLoading, loadError, retryLoad } = useLeads();
   const { user, users } = useAuth();
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
 
@@ -471,6 +471,8 @@ export const LeadDetails = () => {
     if (lead) setFormData(lead);
   }, [lead]);
 
+  if (!lead && isLoading) return <div className="p-8 text-center" role="status">Loading lead details…</div>;
+  if (!lead && loadError) return <div className="p-8 text-center">{loadError} <button onClick={retryLoad} className="underline">Retry</button></div>;
   if (!lead || !formData) return <div className={cn("p-8 text-center opacity-50 font-mono", getTextColor())}>Lead not found</div>;
 
   const interactions = getLeadInteractions(lead.id);

@@ -25,6 +25,14 @@ export interface RawPaymentRecord {
 // reduces it to a per-lead summary, used to flag "Won but not (fully) paid" leads
 // on the Kanban board without an API call per card. Also exposes the raw records
 // for cash-basis (paid-date-scoped) reporting on the Dashboard.
+let pendingSummary: Promise<any> | null = null;
+function fetchSummary() {
+  if (!pendingSummary) pendingSummary = fetch(`${API_BASE}/api/razorpay-link?skipRefresh=1`, { signal: AbortSignal.timeout(20_000) })
+    .then(response => { if (!response.ok) throw new Error('Payment summary unavailable'); return response.json(); })
+    .finally(() => { pendingSummary = null; });
+  return pendingSummary;
+}
+
 export function usePaymentSummary() {
   const [map, setMap] = useState<Record<string, LeadPaymentSummary>>({});
   const [records, setRecords] = useState<RawPaymentRecord[]>([]);
@@ -34,8 +42,7 @@ export function usePaymentSummary() {
     let cancelled = false;
     // skipRefresh: this is a read-only summary, not the Payments page — don't pay for a
     // live Razorpay poll (up to 60 sequential external calls) just to paint the Dashboard.
-    fetch(`${API_BASE}/api/razorpay-link?skipRefresh=1`)
-      .then(r => r.json())
+    fetchSummary()
       .then(data => {
         if (cancelled) return;
         const raw: any[] = data.records || [];
@@ -56,7 +63,7 @@ export function usePaymentSummary() {
         setRecords(raw.map(r => ({ leadId: r.leadId || null, amount: Number(r.amount) || 0, status: r.status, paidAt: r.paid_at || null, createdAt: r.created_at || null })));
         setLoaded(true);
       })
-      .catch(() => setLoaded(true));
+      .catch(() => { if (!cancelled) setLoaded(false); });
     return () => { cancelled = true; };
   }, []);
 

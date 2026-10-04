@@ -240,7 +240,8 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
 };
 
 export const Customers = () => {
-  const { leads } = useLeads();
+  const { leads, isLoading, loadError } = useLeads();
+  const [visibleRows, setVisibleRows] = useState(50);
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
   const { user, users } = useAuth();
   const { paymentSummary } = usePaymentSummary();
@@ -336,6 +337,8 @@ export const Customers = () => {
             </span>
           </div>
           <button
+            disabled={isLoading || !!loadError}
+            title={isLoading ? 'Wait for all bookings to load before exporting' : undefined}
             onClick={() => setShowExport(true)}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors shrink-0",
@@ -436,7 +439,7 @@ export const Customers = () => {
                     </div>
                   </td>
                 </tr>
-              ) : filteredRows.map(({ lead, collected, vendor, vendorNames, gst }) => {
+              ) : filteredRows.slice(0, visibleRows).map(({ lead, collected, vendor, vendorNames, gst }) => {
                 const gstMeta = GST_META[gst.status];
                 return (
                   <tr
@@ -526,7 +529,8 @@ export const Customers = () => {
         </div>
       </Card>
 
-      {showExport && <ExportPanel rows={filteredRows} onClose={() => setShowExport(false)} />}
+      {visibleRows < filteredRows.length && <button className="w-full rounded-lg border border-slate-300 p-3 text-sm font-semibold" onClick={() => setVisibleRows(n => n + 50)}>Show more bookings ({filteredRows.length - visibleRows} remaining)</button>}
+      {showExport && !isLoading && !loadError && <ExportPanel rows={filteredRows} onClose={() => setShowExport(false)} />}
     </div>
   );
 };

@@ -847,13 +847,13 @@ const getOperationalLeads = (leads: Lead[], tab: OpTab) => {
 // --- Main Page Component ---
 
 export const Dashboard = () => {
-  const { leads, allLeads, reminders, activityLogs, isLoading: leadsLoading } = useLeads();
+  const { leads, allLeads, reminders, activityLogs, isLoading: leadsLoading, loadError } = useLeads();
   const { user, users } = useAuth();
   const { paymentSummary, paymentSummaryLoaded } = usePaymentSummary();
   // Only the Revenue/Net Profit cards depend on payment data — everything else on the page
   // only needs `leads`, so gating the WHOLE page on payments too just makes it feel slow.
   // Skeleton the page on leads only; the two payment-dependent cards skeleton independently.
-  const dataReady = !leadsLoading;
+  const dataReady = !leadsLoading && !loadError;
   const cashDataReady = paymentSummaryLoaded;
   const { theme, getTextColor, getSecondaryTextColor, getGlassClass } = useTheme();
   const navigate = useNavigate();

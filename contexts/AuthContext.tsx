@@ -46,7 +46,8 @@ const getStoredUser = (): User | null => {
     const storedUser = localStorage.getItem('voyageos_user');
     const expiry = localStorage.getItem('auth_expiry');
     const now = new Date().getTime();
-    if (token && isAuth && storedUser && expiry && parseInt(expiry) > now) {
+    const claims = token ? decodeJwtPayload(token) : null;
+    if (token && claims?.exp && claims.exp * 1000 > now && isAuth && storedUser && expiry && parseInt(expiry) > now) {
       return JSON.parse(storedUser);
     }
   } catch {}
@@ -83,6 +84,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const checkSession = async () => {
       const token = localStorage.getItem(TTE_TOKEN_KEY);
       const claims = token ? decodeJwtPayload(token) : null;
+      if (!claims?.exp || claims.exp * 1000 <= Date.now()) { logout(); return; }
       // Tokens minted before this feature existed carry no claim — nothing to compare, leave them be.
       if (!claims || claims.session_version == null) return;
       const { data, error } = await supabase.from('users').select('session_version').eq('id', user.id).single();
@@ -92,7 +94,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     checkSession();
     const interval = setInterval(checkSession, 30_000);
-    const onFocus = () => checkSession();
+    const onFocus = () => { if (document.visibilityState === 'visible') checkSession(); };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onFocus);
 
@@ -110,6 +112,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passcode }),
+        signal: AbortSignal.timeout(20_000),
       });
       if (!res.ok) return false;
       const { user: u, token } = await res.json();
@@ -140,6 +143,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     window.location.hash = '#/login';
     window.location.reload();
   };
+
+  useEffect(() => {
+    const onExpired = () => logout();
+    window.addEventListener('tte:session-expired', onExpired);
+    return () => window.removeEventListener('tte:session-expired', onExpired);
+  }, []);
 
   const addUser = (name: string, passcode: string) => {
     if (users.some(u => u.name.toLowerCase() === name.toLowerCase())) {

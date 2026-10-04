@@ -16,7 +16,15 @@ const storedToken = (() => {
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false, autoRefreshToken: false },
-  global: storedToken ? { headers: { Authorization: `Bearer ${storedToken}` } } : {},
+  global: {
+    headers: storedToken ? { Authorization: `Bearer ${storedToken}` } : {},
+    fetch: async (input, init) => {
+      const timeout = AbortSignal.timeout(25_000);
+      const response = await fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+      if (storedToken && response.status === 401) window.dispatchEvent(new Event('tte:session-expired'));
+      return response;
+    },
+  },
 });
 
 // Authenticate realtime with the same token so subscriptions pass RLS.

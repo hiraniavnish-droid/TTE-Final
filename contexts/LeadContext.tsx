@@ -4,6 +4,7 @@ import { Lead, Interaction, Reminder, LeadStatus, Supplier, ActivityLog } from '
 import { generateId } from '../utils/helpers';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
+import { normalizeLeadTripDetails } from '../lib/leadTripDetails';
 import { useRealtime } from '../hooks/useRealtime';
 
 interface LeadContextType {
@@ -14,6 +15,8 @@ interface LeadContextType {
   suppliers: Supplier[];
   activityLogs: ActivityLog[];
   isLoading: boolean;
+  loadError: string | null;
+  retryLoad: () => void;
   addLead: (lead: Lead) => Promise<void>;
   addLeads: (leads: Lead[]) => Promise<void>;
   updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
@@ -46,20 +49,19 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const retryLoad = () => setLoadAttempt(v => v + 1);
+
   // -- UI States --
   const [isAddLeadModalOpen, setAddLeadModalOpen] = useState(false);
 
   // --- Helpers: Data Mapping (App <-> DB) ---
   const mapLeadFromDB = (data: any): Lead => ({
     id: data.id,
-    name: data.name,
-    contact: data.contact || { phone: data.phone || '', email: data.email || '' },
-    tripDetails: data.trip_details || {
-        destination: data.destination || '',
-        budget: data.budget || 0,
-        startDate: data.travel_date || new Date().toISOString(),
-        paxConfig: { adults: data.pax || 2, children: 0, childAges: [] }
-    },
+    name: String(data.name || 'Unnamed lead'),
+    contact: { ...data.contact, phone: String(data.contact?.phone ?? data.phone ?? ''), email: String(data.contact?.email ?? data.email ?? '') },
+    tripDetails: normalizeLeadTripDetails(data),
     preferences: data.preferences || {},
     commercials: data.commercials,
     vendors: data.vendors || [],
@@ -121,7 +123,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const mapSupplierFromDB = (data: any): Supplier => ({
     id: data.id,
-    name: data.name,
+    name: String(data.name || 'Unnamed supplier'),
     contactPerson: data.contact_person || '',
     phone: data.phone || '',
     email: data.email || '',
@@ -140,43 +142,52 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     metadata: data.metadata || {},
   });
 
-  // --- Initial Data Fetch ---
+  // Each table loads independently. Lead batches paint immediately; the full
+  // index continues in the background so filters, exports and reports stay complete.
   useEffect(() => {
-    const fetchAll = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch critical data first — UI unblocks as soon as these resolve
-        const [leadsRes, interactionsRes, remindersRes, suppliersRes] = await Promise.all([
-          supabase.from('leads').select('*').order('created_at', { ascending: false }),
-          supabase.from('interactions').select('*').order('timestamp', { ascending: false }),
-          supabase.from('reminders').select('*').order('due_date', { ascending: true }),
-          supabase.from('suppliers').select('*').order('name', { ascending: true }),
-        ]);
-
-        if (leadsRes.data) setInternalLeads(leadsRes.data.map(mapLeadFromDB));
-        if (interactionsRes.data) setInteractions(interactionsRes.data.map(mapInteractionFromDB));
-        if (remindersRes.data) setReminders(remindersRes.data.map(mapReminderFromDB));
-        if (suppliersRes.data) setSuppliers(suppliersRes.data.map(mapSupplierFromDB));
-      } catch (err) {
-        console.error('Failed to fetch initial data:', err);
-      } finally {
-        setIsLoading(false);
-      }
-
-      // Fetch activity logs in background — doesn't block the UI
-      try {
-        const logsRes = await supabase
-          .from('activity_logs')
-          .select('*')
-          .order('timestamp', { ascending: false })
-          .limit(200);
-        if (logsRes.data) setActivityLogs(logsRes.data.map(mapActivityLogFromDB));
-      } catch (err) {
-        console.error('Failed to fetch activity logs:', err);
+    if (!user) { setIsLoading(false); return; }
+    const controller = new AbortController();
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+    const loadTable = async (table: string, order: string, ascending: boolean, map: (row: any) => any, set: any) => {
+      const pageSize = table === 'leads' ? 100 : 500;
+      for (let offset = 0; !cancelled; offset += pageSize) {
+        const { data, error } = await supabase.from(table).select('*')
+          .order(order, { ascending }).order('id', { ascending: true })
+          .range(offset, offset + pageSize - 1).abortSignal(controller.signal);
+        if (cancelled) return;
+        if (error) throw error;
+        const batch = (data || []).map(map);
+        // Preserve edits and realtime events arriving while later pages load.
+        set((current: any[]) => {
+          const known = new Set(current.map(row => row.id));
+          return [...current, ...batch.filter(row => !known.has(row.id))];
+        });
+        if (batch.length < pageSize) break;
+        // Yield between requests so typing/scrolling has priority over the next batch.
+        await new Promise(resolve => setTimeout(resolve, 25));
       }
     };
-    fetchAll();
-  }, []);
+    loadTable('leads', 'created_at', false, mapLeadFromDB, setInternalLeads)
+      .catch(() => { if (!cancelled) setLoadError('Unable to load all leads. Check your connection and retry.'); })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    // Supporting data must never hold up the lead board.
+    for (const [table, order, ascending, map, set] of [
+      ['interactions', 'timestamp', false, mapInteractionFromDB, setInteractions],
+      ['reminders', 'due_date', true, mapReminderFromDB, setReminders],
+      ['suppliers', 'name', true, mapSupplierFromDB, setSuppliers],
+    ] as const) {
+      loadTable(table, order, ascending, map, set).catch(() => {
+        if (!cancelled) setLoadError('Some CRM data could not load. Check your connection and retry.');
+      });
+    }
+    supabase.from('activity_logs').select('*').order('timestamp', { ascending: false })
+      .limit(200).abortSignal(controller.signal).then(({ data }) => {
+        if (!cancelled && data) setActivityLogs(data.map(mapActivityLogFromDB));
+      });
+    return () => { cancelled = true; controller.abort(); };
+  }, [user?.id, loadAttempt]);
 
   // --- REALTIME SUBSCRIPTION (interactions) — powers live WhatsApp chat updates ---
   useRealtime('interactions', (payload) => {
@@ -190,7 +201,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else if (eventType === 'DELETE') {
       setInteractions(prev => prev.filter(i => i.id !== oldRecord.id));
     }
-  });
+  }, !!user);
 
   // --- REALTIME SUBSCRIPTION (leads) ---
   useRealtime('leads', (payload) => {
@@ -211,7 +222,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     else if (eventType === 'DELETE') {
       setInternalLeads(prev => prev.filter(l => l.id !== oldRecord.id));
     }
-  });
+  }, !!user);
 
   const visibleLeads = useMemo(() => {
       if (!user) return [];
@@ -630,6 +641,8 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       suppliers,
       activityLogs,
       isLoading,
+      loadError,
+      retryLoad,
       addLead,
       addLeads,
       updateLead,

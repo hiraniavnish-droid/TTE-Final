@@ -11,6 +11,7 @@ export function generateId() {
 }
 
 export function formatDate(dateStr: string) {
+  if (!dateStr || Number.isNaN(new Date(dateStr).getTime())) return 'Date not set';
   const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
   return new Date(dateStr).toLocaleDateString(undefined, options);
 }

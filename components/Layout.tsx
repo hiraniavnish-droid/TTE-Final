@@ -39,7 +39,7 @@ import { NavigationBar } from './ui/PageLoader';
 export const Layout = () => {
   const { theme, setTheme, getTextColor } = useTheme();
   const { user, logout, logoutAllDevices } = useAuth();
-  const { reminders } = useLeads();
+  const { reminders, loadError, retryLoad, isLoading } = useLeads();
   const navigate = useNavigate();
   useReminderNotifications();
   const location = useLocation();
@@ -393,12 +393,12 @@ export const Layout = () => {
           cap, no page scroll) so all pipeline columns are visible and each column
           scrolls internally. Every other route keeps the centered, scrollable layout. */}
       <main ref={mainRef} className={cn(
-        'flex-1 overflow-x-hidden h-[calc(100vh-64px)] md:h-screen relative z-10 scroll-smooth',
-        isBoard ? 'overflow-y-auto md:overflow-hidden pb-24 md:pb-0' : 'overflow-y-auto pb-24 md:pb-12'
+        'flex-none md:flex-1 min-h-0 overflow-x-hidden h-[calc(100dvh-64px)] md:h-dvh relative z-10 scroll-smooth',
+        isBoard ? 'overflow-hidden pb-24 md:pb-0' : 'overflow-y-auto pb-24 md:pb-12'
       )}>
         <div className={cn(
           'text-sm md:text-base',
-          isBoard ? 'p-3 md:px-6 md:py-5 md:h-full'
+          isBoard ? 'p-3 md:px-6 md:py-5 h-full'
             : isFullBleed ? ''
             : isWide ? 'p-3 md:px-6 md:py-5 space-y-6 md:space-y-8'
             : 'p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8'
@@ -410,8 +410,12 @@ export const Layout = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className={isBoard ? 'md:h-full' : ''}
+              className={isBoard ? 'h-full' : ''}
             >
+              {!isBoard && (loadError || isLoading) && <div role="status" className="mb-3 rounded-lg border border-slate-300 p-3 text-sm">
+                {loadError || 'Loading complete CRM data. Figures will update when loading finishes…'}
+                {loadError && <button className="ml-3 font-semibold underline" onClick={retryLoad}>Retry</button>}
+              </div>}
               <Outlet />
             </MotionDiv>
           </AnimatePresence>
