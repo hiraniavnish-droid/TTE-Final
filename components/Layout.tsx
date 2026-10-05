@@ -50,7 +50,7 @@ export const Layout = () => {
   // any screen wider than ~1280px the page sat in a fixed-width column with
   // large dead margins either side. These two routes get the full viewport
   // width instead, same as the Kanban board does.
-  const isWide = location.pathname === '/rajarshi-builder' || location.pathname === '/inland-builder' || location.pathname === '/sou-hotels-builder'
+  const isWide = location.pathname === '/rajarshi-builder/hotels' || location.pathname === '/inland-builder' || location.pathname === '/sou-hotels-builder'
     || location.pathname.startsWith('/leads/'); // lead detail page — needs its own width, not the 7xl cap other pages use
   // The quote trainer manages its own spacing (a quiz screen, not a form
   // stack) — Layout's default padding + max-w-7xl cap just wasted the sides
@@ -71,7 +71,7 @@ export const Layout = () => {
   }, [reminders]);
 
   useEffect(() => {
-    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    if (location.pathname !== '/leads') mainRef.current?.scrollTo({ top: 0, behavior: 'instant' });
     // Show progress bar briefly on every route change
     setIsNavigating(true);
     if (navTimer.current) clearTimeout(navTimer.current);
@@ -398,12 +398,12 @@ export const Layout = () => {
           cap, no page scroll) so all pipeline columns are visible and each column
           scrolls internally. Every other route keeps the centered, scrollable layout. */}
       <main ref={mainRef} className={cn(
-        'flex-none md:flex-1 min-h-0 overflow-x-hidden h-[calc(100dvh-64px)] md:h-dvh relative z-10 scroll-smooth',
-        isBoard ? 'overflow-hidden pb-24 md:pb-0' : 'overflow-y-auto pb-24 md:pb-12'
+        'flex-none md:flex-1 min-h-0 overflow-x-hidden h-[calc(100dvh-64px)] md:h-dvh relative z-10',
+        isBoard ? 'overflow-y-auto md:overflow-hidden scroll-auto pb-24 md:pb-0' : 'overflow-y-auto scroll-smooth pb-24 md:pb-12'
       )}>
         <div className={cn(
           'text-sm md:text-base',
-          isBoard ? 'p-3 md:px-6 md:py-5 h-full'
+          isBoard ? 'p-3 md:px-6 md:py-5 md:h-full'
             : isFullBleed ? ''
             : isWide ? 'p-3 md:px-6 md:py-5 space-y-6 md:space-y-8'
             : 'p-3 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8'
@@ -415,7 +415,7 @@ export const Layout = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className={isBoard ? 'h-full' : ''}
+              className={isBoard ? 'md:h-full' : ''}
             >
               {!isBoard && (loadError || isLoading) && <div role="status" className="mb-3 rounded-lg border border-slate-300 p-3 text-sm">
                 {loadError || 'Loading complete CRM data. Figures will update when loading finishes…'}

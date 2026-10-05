@@ -182,10 +182,8 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!cancelled) setLoadError('Some CRM data could not load. Check your connection and retry.');
       });
     }
-    supabase.from('activity_logs').select('*').order('timestamp', { ascending: false })
-      .limit(200).abortSignal(controller.signal).then(({ data }) => {
-        if (!cancelled && data) setActivityLogs(data.map(mapActivityLogFromDB));
-      });
+    loadTable('activity_logs', 'timestamp', false, mapActivityLogFromDB, setActivityLogs)
+      .catch(() => { if (!cancelled) console.error('Activity history could not fully load.'); });
     return () => { cancelled = true; controller.abort(); };
   }, [user?.id, loadAttempt]);
 

@@ -32,6 +32,11 @@ export interface TripDetails {
   budget: number;
   startDate: string;
   nights?: number;
+  rooms?: number;
+  accommodation?: string;
+  // The complete user-facing website form payload. Kept alongside the
+  // normalised CRM fields so future form changes cannot lose enquiry data.
+  websiteFields?: Record<string, string>;
 }
 
 export interface TravelPreferences {

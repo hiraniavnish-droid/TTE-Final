@@ -61,9 +61,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Lead, ActivityLog } from '../types';
 import { getAgentColor } from './Leads';
 
+import { getPeriodRange, businessDate, dateBoundary, validDateRange, type DashboardPeriod } from '../lib/dashboardPeriods';
+
 // --- Shared Helpers ---
 
-type TimeFilter = 'Today' | 'This Week' | 'This Month' | 'Last Quarter' | 'All Time';
+type TimeFilter = DashboardPeriod;
 type OpTab = 'Ongoing Now' | 'Starts Tomorrow' | 'This Week' | 'Next Week' | 'This Month';
 type ActivityRange = 'Today' | 'Yesterday' | 'This Week' | 'Custom Range';
 
@@ -84,35 +86,6 @@ const pickQuoteForToday = (): string => {
 };
 
 // Compute [start, end] for a TimeFilter and the prior comparable window
-const getPeriodRange = (tf: TimeFilter, ref: Date = new Date()): { start: Date | null; end: Date | null; prevStart: Date | null; prevEnd: Date | null; label: string } => {
-    const start = new Date(ref); start.setHours(0,0,0,0);
-    const end = new Date(ref); end.setHours(23,59,59,999);
-    if (tf === 'Today') {
-        const ps = new Date(start); ps.setDate(ps.getDate() - 1);
-        const pe = new Date(end);   pe.setDate(pe.getDate() - 1);
-        return { start, end, prevStart: ps, prevEnd: pe, label: 'yesterday' };
-    }
-    if (tf === 'This Week') {
-        const day = ref.getDay() || 7; // Mon=1
-        const s = new Date(start); s.setDate(start.getDate() - (day - 1));
-        const ps = new Date(s); ps.setDate(ps.getDate() - 7);
-        const pe = new Date(s); pe.setDate(pe.getDate() - 1); pe.setHours(23,59,59,999);
-        return { start: s, end, prevStart: ps, prevEnd: pe, label: 'last week' };
-    }
-    if (tf === 'This Month') {
-        const s = new Date(ref.getFullYear(), ref.getMonth(), 1);
-        const ps = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
-        const pe = new Date(ref.getFullYear(), ref.getMonth(), 0, 23, 59, 59, 999);
-        return { start: s, end, prevStart: ps, prevEnd: pe, label: 'last month' };
-    }
-    if (tf === 'Last Quarter') {
-        const s = new Date(ref); s.setMonth(s.getMonth() - 3); s.setHours(0,0,0,0);
-        const ps = new Date(s); ps.setMonth(ps.getMonth() - 3);
-        const pe = new Date(s); pe.setDate(pe.getDate() - 1); pe.setHours(23,59,59,999);
-        return { start: s, end, prevStart: ps, prevEnd: pe, label: 'prior 3 months' };
-    }
-    return { start: null, end: null, prevStart: null, prevEnd: null, label: '' };
-};
 
 const formatDelta = (curr: number, prev: number): { text: string; isUp: boolean | null } => {
     if (prev === 0) {
@@ -261,9 +234,9 @@ const ActivityMonitor = ({ logs }: { logs: ActivityLog[] }) => {
                         <tr className={cn("border-b border-gray-500/10 text-xs uppercase tracking-wider", theme === 'light' ? 'opacity-50' : 'opacity-75')}>
                             <th className="pb-3 pl-2">Agent</th>
                             <th className="pb-3 text-center">Created</th>
-                            <th className="pb-3 text-center">Proposals</th>
-                            <th className="pb-3 text-center">Deals Won</th>
-                            <th className="pb-3 text-right pr-2">Efficiency</th>
+                            <th className="pb-3 text-center">Proposal moves</th>
+                            <th className="pb-3 text-center">Won moves</th>
+                            <th className="pb-3 text-right pr-2">Won / proposal moves</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-500/10">
@@ -551,7 +524,7 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
 
 // --- Standard Agent Dashboard Components ---
 
-const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick, delta, deltaLabel, emptyHint, extraFaded, collected, pending, loading }: any) => {
+const KPICard = ({ collectedLabel = 'Collected', pendingLabel = 'Pending', title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick, delta, deltaLabel, emptyHint, extraFaded, collected, pending, loading }: any) => {
     const { getTextColor, theme } = useTheme();
     const animated = useCountUp(typeof rawValue === 'number' ? rawValue : 0, 1200);
     const displayValue = (typeof rawValue === 'number' && formatFn)
@@ -632,11 +605,11 @@ const KPICard = ({ title, value, rawValue, formatFn, subtext, breakdown, icon: I
                     {typeof collected === 'number' && !isEmpty && (
                         <div className="flex items-center gap-3 mt-2">
                             <div>
-                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>Collected</p>
+                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>{collectedLabel}</p>
                                 <p className={cn("text-sm font-extrabold tabular-nums", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>{collected === 0 ? '₹0' : formatCurrency(collected)}</p>
                             </div>
                             <div>
-                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>Pending</p>
+                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>{pendingLabel}</p>
                                 <p className={cn("text-sm font-bold tabular-nums opacity-60", getTextColor())}>{pending === 0 ? '₹0' : formatCurrency(pending)}</p>
                             </div>
                         </div>
@@ -859,7 +832,8 @@ export const Dashboard = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const initialTf = (searchParams.get('period') as TimeFilter) || 'This Month';
+  const requestedPeriod = searchParams.get('period');
+  const initialTf: TimeFilter = requestedPeriod === 'Last Month' || requestedPeriod === 'All Time' ? requestedPeriod : 'This Month';
   const initialAgent = searchParams.get('as') || 'all';
   const initialCompare = searchParams.get('compare') === '1';
 
@@ -868,14 +842,14 @@ export const Dashboard = () => {
   const [viewAsAgent, setViewAsAgent] = useState<string>(initialAgent);
   const [compareMode, setCompareMode] = useState<boolean>(initialCompare);
   const [mobileAnalyticsTab, setMobileAnalyticsTab] = useState<'pipeline' | 'funnel' | 'sources'>('pipeline');
-  const [showCustomRange, setShowCustomRange] = useState(false);
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
+  const [showCustomRange, setShowCustomRange] = useState(searchParams.get('period') === 'Custom' && validDateRange(searchParams.get('from') || '', searchParams.get('to') || ''));
+  const [customStart, setCustomStart] = useState(searchParams.get('from') || '');
+  const [customEnd, setCustomEnd] = useState(searchParams.get('to') || '');
   const [summarySending, setSummarySending] = useState(false);
 
   // Derived: are custom dates fully filled in?
-  const customOverride = (showCustomRange && customStart && customEnd)
-    ? { start: new Date(customStart), end: new Date(customEnd + 'T23:59:59') }
+  const customOverride = (showCustomRange && validDateRange(customStart, customEnd))
+    ? { start: dateBoundary(customStart), end: dateBoundary(customEnd, true) }
     : null;
 
   // Sticky quote — same all day
@@ -884,12 +858,13 @@ export const Dashboard = () => {
   // Sync state -> URL
   useEffect(() => {
       const next = new URLSearchParams(searchParams);
-      if (timeFilter !== 'This Month') next.set('period', timeFilter); else next.delete('period');
+      if (showCustomRange) { next.set('period', 'Custom'); next.set('from', customStart); next.set('to', customEnd); }
+      else { if (timeFilter !== 'This Month') next.set('period', timeFilter); else next.delete('period'); next.delete('from'); next.delete('to'); }
       if (viewAsAgent !== 'all') next.set('as', viewAsAgent); else next.delete('as');
       if (compareMode) next.set('compare', '1'); else next.delete('compare');
       setSearchParams(next, { replace: true });
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeFilter, viewAsAgent, compareMode]);
+  }, [timeFilter, viewAsAgent, compareMode, showCustomRange, customStart, customEnd]);
 
   const dashboardLeads = useMemo(() => {
       if (user?.role !== 'admin') return leads;
@@ -900,10 +875,11 @@ export const Dashboard = () => {
   const stats = useMemo(() => getDashboardStats(dashboardLeads, timeFilter, customOverride ?? undefined, paymentSummary), [dashboardLeads, timeFilter, customOverride, paymentSummary]);
 
   const prevStats = useMemo(() => {
+      if (showCustomRange) return null;
       const r = getPeriodRange(timeFilter);
       if (!r.prevStart || !r.prevEnd) return null;
       return getDashboardStats(dashboardLeads, timeFilter, { start: r.prevStart, end: r.prevEnd }, paymentSummary);
-  }, [dashboardLeads, timeFilter, paymentSummary]);
+  }, [dashboardLeads, timeFilter, paymentSummary, showCustomRange]);
 
   const periodLabel = useMemo(() => getPeriodRange(timeFilter).label, [timeFilter]);
 
@@ -913,8 +889,8 @@ export const Dashboard = () => {
     // Append the active date range so Leads pre-filters to the same period
     const range = customOverride ?? getPeriodRange(timeFilter);
     if (range.start) {
-      const from = range.start.toISOString().split('T')[0];
-      const to = range.end ? range.end.toISOString().split('T')[0] : '';
+      const from = businessDate(range.start);
+      const to = range.end ? businessDate(range.end) : '';
       const sep = path.includes('?') ? '&' : '?';
       path = path + sep + `from=${from}` + (to ? `&to=${to}` : '');
     }
@@ -1164,7 +1140,7 @@ export const Dashboard = () => {
                 value={formatCurrency(stats.totalRevenue)}
                 rawValue={stats.totalRevenue}
                 formatFn={formatCurrency}
-                subtext="Closed Won Deals"
+                subtext="Won in period · lifetime collections"
                 breakdown={revenueBreakdown}
                 collected={stats.revenueCollected}
                 pending={stats.revenuePending}
@@ -1188,7 +1164,9 @@ export const Dashboard = () => {
                 value={formatCurrency(stats.netProfit)}
                 rawValue={stats.netProfit}
                 formatFn={formatCurrency}
-                subtext="Revenue - Net Cost"
+                subtext="Recorded revenue − vendor cost"
+                collectedLabel="Margin covered"
+                pendingLabel={stats.profitPending < 0 ? 'Loss adjustment' : 'Remaining margin'}
                 collected={stats.profitCollected}
                 pending={stats.profitPending}
                 extraFaded={user?.role === 'admin' && stats.costPending > 0 ? `${formatCompactCurrency(stats.costPending)} owed to vendors` : null}
@@ -1208,7 +1186,7 @@ export const Dashboard = () => {
             onClick={() => handleNav('/leads?status=Won,Lost')}
             className="cursor-pointer h-full"
         >
-            <RadialGauge value={stats.winRate} label="Win Rate" subtext={deltas?.winRate ? `${deltas.winRate.text} vs ${periodLabel}` : "Won vs Total Closed"} />
+            <RadialGauge value={stats.winRate} label="Win Rate" subtext={deltas?.winRate ? `${deltas.winRate.text} vs ${periodLabel}` : "Won / closed leads created in period"} />
         </motion.div>
         <motion.div
             className="h-full"
@@ -1217,7 +1195,7 @@ export const Dashboard = () => {
             transition={{ duration: 0.6, delay: 0.21, ease: [0.32, 0.72, 0, 1] }}
         >
             <KPICard
-                title="New Leads"
+                title="New-stage Leads"
                 value={stats.pendingCount}
                 rawValue={stats.pendingCount}
                 formatFn={(n: number) => String(n)}
@@ -1461,7 +1439,7 @@ export const Dashboard = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button onClick={() => navigate('/attendance')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold shadow-sm">Attendance &amp; leave</button>
+            <button onClick={() => navigate('/attendance')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold shadow-sm">Attendance & leave</button>
             {/* CEO Mode Switcher */}
             {user?.role === 'admin' && (
               <div className={cn(
@@ -1539,9 +1517,11 @@ export const Dashboard = () => {
                 "relative p-1 rounded-lg flex gap-0.5",
                 theme === 'light' ? "bg-slate-100 border border-slate-200/60" : theme === 'ocean' ? "bg-blue-950/50 border border-blue-800/40" : "bg-slate-800/60 border border-slate-700/50"
               )}>
-                {(['Today', 'This Week', 'This Month', 'Last Quarter', 'All Time'] as TimeFilter[]).map((tf) => (
+                {(['This Month', 'Last Month', 'All Time'] as TimeFilter[]).map((tf) => (
                   <button
                     key={tf}
+                    style={{ order: tf === 'All Time' ? 3 : 0 }}
+                    aria-pressed={timeFilter === tf && !showCustomRange}
                     onClick={() => { setTimeFilter(tf); setShowCustomRange(false); }}
                     className={cn(
                       "px-2 md:px-2.5 py-1.5 rounded-md text-[10px] md:text-[11px] font-bold transition-all active:scale-[0.97] whitespace-nowrap",
@@ -1556,7 +1536,9 @@ export const Dashboard = () => {
 
                 {/* Custom Range toggle */}
                 <button
-                  onClick={() => setShowCustomRange(p => !p)}
+                  style={{ order: 2 }}
+                  aria-pressed={showCustomRange}
+                  onClick={() => { if (!validDateRange(customStart, customEnd)) { const r = getPeriodRange(timeFilter === 'All Time' ? 'This Month' : timeFilter); setCustomStart(businessDate(r.start!)); setCustomEnd(businessDate(r.end!)); } setShowCustomRange(true); }}
                   className={cn(
                     "px-2 md:px-2.5 py-1.5 rounded-md text-[10px] md:text-[11px] font-bold transition-all active:scale-[0.97] whitespace-nowrap",
                     showCustomRange
@@ -1577,20 +1559,24 @@ export const Dashboard = () => {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">From</span>
                   <input
                     type="date"
+                    aria-label="Start date"
+                    max={customEnd || undefined}
                     value={customStart}
-                    onChange={e => setCustomStart(e.target.value)}
+                    onChange={e => { setCustomStart(e.target.value); if (e.target.value > customEnd) setCustomEnd(e.target.value); }}
                     className={cn(
-                      "text-[11px] font-bold outline-none bg-transparent cursor-pointer",
+                      "text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 bg-transparent cursor-pointer",
                       theme === 'light' ? "text-slate-800" : "text-white"
                     )}
                   />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</span>
                   <input
                     type="date"
+                    aria-label="End date"
+                    min={customStart || undefined}
                     value={customEnd}
-                    onChange={e => setCustomEnd(e.target.value)}
+                    onChange={e => { setCustomEnd(e.target.value); if (e.target.value < customStart) setCustomStart(e.target.value); }}
                     className={cn(
-                      "text-[11px] font-bold outline-none bg-transparent cursor-pointer",
+                      "text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 bg-transparent cursor-pointer",
                       theme === 'light' ? "text-slate-800" : "text-white"
                     )}
                   />

@@ -81,7 +81,7 @@ export const RadialGauge: React.FC<RadialGaugeProps> = ({
             />
           </svg>
           {/* Center value */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ transform: `rotate(-${rotation}deg)` }}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={cn("text-base font-bold tabular-nums leading-none", getTextColor())}>{displayValue}%</span>
           </div>
         </div>

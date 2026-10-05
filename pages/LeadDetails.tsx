@@ -446,8 +446,9 @@ const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads,
     );
 };
 
-export const LeadDetails = () => {
-  const { id } = useParams<{ id: string }>();
+export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }: {leadId?:string;embedded?:boolean;onClose?:()=>void;onDirtyChange?:(dirty:boolean)=>void} = {}) => {
+  const { id: routeId } = useParams<{ id: string }>();
+  const id=leadId || routeId;
   const navigate = useNavigate();
   const { leads, allLeads, updateLead, updateLeadStatus, deleteLead, getLeadInteractions, getLeadReminders, addInteraction, addReminder, suppliers, isLoading, loadError, retryLoad } = useLeads();
   const { user, users } = useAuth();
@@ -471,8 +472,10 @@ export const LeadDetails = () => {
     if (lead) setFormData(lead);
   }, [lead]);
 
+  useEffect(() => { onDirtyChange?.(isEditing && !!lead && !!formData && JSON.stringify(formData)!==JSON.stringify(lead)); }, [isEditing,formData,lead,onDirtyChange]);
+
   if (!lead && isLoading) return <div className="p-8 text-center" role="status">Loading lead details…</div>;
-  if (!lead && loadError) return <div className="p-8 text-center">{loadError} <button onClick={retryLoad} className="underline">Retry</button></div>;
+  if (!lead && loadError) return <div className="p-8 text-center">{loadError} <button onClick={retryLoad}>Retry</button></div>;
   if (!lead || !formData) return <div className={cn("p-8 text-center opacity-50 font-mono", getTextColor())}>Lead not found</div>;
 
   const interactions = getLeadInteractions(lead.id);
@@ -608,7 +611,7 @@ export const LeadDetails = () => {
           // this (lead has payments or an issued invoice). Navigating away first
           // would show the user a success-looking redirect on a failed delete.
           await deleteLead(lead.id);
-          navigate('/leads');
+          if(embedded) onClose?.(); else navigate('/leads');
       } catch (err: any) {
           toast.error(err?.message || 'Could not delete this lead.', { duration: 6000 });
       }
@@ -630,7 +633,7 @@ export const LeadDetails = () => {
   );
 
   return (
-    <div className="animate-in fade-in slide-in-from-right-8 duration-500 max-w-[1680px] mx-auto relative pb-10">
+    <div className={cn("max-w-[1680px] mx-auto relative pb-10", !embedded && "animate-in fade-in slide-in-from-right-8 duration-500")}>
       
 
       {/* --- Gatekeeper Modal --- */}
@@ -645,7 +648,7 @@ export const LeadDetails = () => {
       <div className="flex flex-col lg:flex-row justify-between items-start gap-3 mb-3">
           <div>
               <div className="flex items-center gap-2.5 mb-2">
-                  <Button variant="ghost" onClick={() => navigate('/leads')} className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
+                  <Button variant="ghost" onClick={() => { if(embedded){onClose?.();return;} const target=sessionStorage.getItem(`tte-lead-workspace:${user?.id || 'anonymous'}:return`); navigate(target?.startsWith('/leads?') ? target : '/leads'); }} aria-label="Back to lead workspace" className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
                       <ArrowLeft size={20} strokeWidth={2.5} />
                   </Button>
                   <h1 className={cn("text-xl md:text-2xl font-bold font-serif tracking-tight", getTextColor())}>{lead.name}</h1>
@@ -802,6 +805,10 @@ export const LeadDetails = () => {
                                       <span className="text-sm font-medium">{(!lead.assignedTo || lead.assignedTo === 'System' || lead.assignedTo === 'Unassigned') ? 'Admin' : lead.assignedTo}</span>
                                   )}
                               </div>
+                              <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Lead Source</label>
+                                  <span className="text-sm font-medium">{lead.source || 'Manual CRM entry'}</span>
+                              </div>
                           </div>
                       </div>
 
@@ -887,6 +894,20 @@ export const LeadDetails = () => {
                           </div>
                       </div>
                   </div>
+
+                  {Object.keys(lead.tripDetails.websiteFields || {}).length > 0 && (
+                      <div className="mt-6 pt-5 border-t border-gray-500/10">
+                          <p className={cn("text-xs font-bold uppercase tracking-wider opacity-50 mb-3", getTextColor())}>Website Enquiry Details</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+                              {Object.entries(lead.tripDetails.websiteFields || {}).map(([label, value]) => (
+                                  <div key={label} className="min-w-0">
+                                      <p className="text-[10px] uppercase tracking-wide opacity-45 mb-0.5">{label}</p>
+                                      <p className="text-sm font-medium break-words">{value}</p>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
               </Card>
 
               {/* Commercials Section (Modified to open Vendor Modal) */}

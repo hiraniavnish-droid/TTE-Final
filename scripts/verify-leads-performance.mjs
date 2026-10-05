@@ -37,7 +37,7 @@ console.log('PASS scrolling mounts next batch');
 await page.getByRole('button',{name:/Overview/}).click();await page.waitForURL('**/leads?view=overview');await page.getByText('Test traveller 0',{exact:true}).waitFor();
 mounted=await page.getByText(/^Test traveller \d+$/).count();assert(mounted<=72,`overview mounted ${mounted}`);console.log('PASS overview bounded cards: '+mounted);
 if (process.env.CRM_TEST_SCREENSHOTS) await page.screenshot({path:process.env.CRM_TEST_SCREENSHOTS+'/desktop.png'});
-await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:/Kanban/}).click();await page.waitForURL('**/leads');await page.getByText('Test traveller 0',{exact:true}).waitFor();
+await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:/Kanban/}).click();await page.waitForURL('**/leads?view=kanban');await page.getByText('Test traveller 0',{exact:true}).waitFor();
 mounted=await page.getByText(/^Test traveller \d+$/).count();assert(mounted<=60,`mobile duplicate ${mounted}`);if (process.env.CRM_TEST_SCREENSHOTS) await page.screenshot({path:process.env.CRM_TEST_SCREENSHOTS+'/mobile.png'});console.log('PASS mobile mounts one list: '+mounted);
 await page.goto(`${base}/#/leads/fixture-2406`);await page.getByText('Test traveller 2406',{exact:true}).first().waitFor();console.log('PASS older lead direct link');
 assert.equal(await page.getByText('Invalid Date',{exact:true}).count(),0);assert.deepEqual(errors,[]);console.log('PASS no runtime render errors');

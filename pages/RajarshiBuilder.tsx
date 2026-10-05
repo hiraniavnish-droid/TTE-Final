@@ -295,7 +295,7 @@ export const RajarshiBuilder: React.FC = () => {
   return (
     <div className="animate-in fade-in duration-500 pb-16">
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-        <button onClick={() => navigate('/builder')} title="Back to the builder list" className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
+        <button onClick={() => navigate('/rajarshi-builder')} title="Back to Rajarshi Travels" className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
         <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Building2 size={16} /></div>
         <div className="mr-1">
           <h1 className={cn('text-[17px] font-bold tracking-tight leading-none', getTextColor())}>{RAJARSHI_SUPPLIER.name}</h1>

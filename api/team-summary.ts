@@ -79,8 +79,20 @@ async function sendWhatsApp(fullPhoneNumber: string, message: string): Promise<b
       body: JSON.stringify({ fullPhoneNumber, type: 'Text', data: { message } }),
     });
     const data = await res.json().catch(() => ({}));
-    return res.ok && data?.result !== false;
-  } catch { return false; }
+    const ok = res.ok && data?.result !== false;
+    if (!ok) {
+      // Keep provider feedback available in Vercel logs without emitting a recipient
+      // number, API credential, or message content.
+      console.warn('[team-summary] WhatsApp delivery rejected', JSON.stringify({
+        status: res.status,
+        error: String(data?.message || data?.error || data?.detail || 'No provider error returned.').slice(0, 300),
+      }));
+    }
+    return ok;
+  } catch (e: any) {
+    console.warn('[team-summary] WhatsApp delivery request failed', String(e?.message || 'Unknown network error').slice(0, 300));
+    return false;
+  }
 }
 
 function toFullPhone(raw: string): string | null {
