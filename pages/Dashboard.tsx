@@ -1461,6 +1461,7 @@ export const Dashboard = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button onClick={() => navigate('/attendance')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold shadow-sm">Attendance &amp; leave</button>
             {/* CEO Mode Switcher */}
             {user?.role === 'admin' && (
               <div className={cn(

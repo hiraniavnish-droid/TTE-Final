@@ -28,6 +28,8 @@ const InlandBuilder = React.lazy(() => import('./pages/InlandBuilder').then(modu
 const Payments = React.lazy(() => import('./pages/Payments').then(module => ({ default: module.Payments })));
 const QuoteTrainerPractice = React.lazy(() => import('./pages/QuoteTrainerPractice').then(module => ({ default: module.QuoteTrainerPractice })));
 
+const Attendance = React.lazy(() => import('./pages/Attendance').then(module => ({ default: module.Attendance })));
+
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
@@ -82,6 +84,7 @@ function App() {
                       <Route path="sou-hotels-builder" element={<SouHotelsBuilder />} />
                       <Route path="rajarshi-builder" element={<RajarshiBuilder />} />
                       <Route path="inland-builder" element={<InlandBuilder />} />
+                      <Route path="attendance" element={<Attendance />} />
                       <Route path="payments" element={<Payments />} />
                       <Route path="blocked-rates" element={<BlockedRates />} />
                       <Route path="suppliers" element={<Suppliers />} />
