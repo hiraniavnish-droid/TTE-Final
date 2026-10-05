@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 // Public intake adapter for soubooking.in. The browser never receives the
 // CRM webhook secret; this route validates and rate-limits the request, then
-// forwards a narrow payload to the existing deduplicating /api/leads handler.
+// forwards a narrow payload to the /api/leads handler, which creates a fresh lead for each enquiry.
 
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

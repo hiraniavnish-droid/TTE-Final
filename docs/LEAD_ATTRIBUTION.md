@@ -2,7 +2,7 @@
 
 Inbound `/api/leads` stores a human-readable source (channel + domain) and canonical domain tags. The Rann Utsav Tickets sender's existing `website_form`, `whatsapp_click`, `whatsapp_bot`, and `email` keys map to `rannutsavtickets.in`. Main-site `tte_website_form`, `tte_whatsapp_click`, `tte_whatsapp_bot`, and `tte_email` map to `rannutsav.in`. Explicit `tickets_*` aliases remain supported. A recognized page URL/website identifies the site; a distinct `WEBSITE_LEADS_WEBHOOK_SECRET` also identifies the main site when its form builder sends only a generic channel. Unknown domains cannot impersonate either site by substring matching.
 
-Repeat submissions retain the original lead and staff assignment, append deduplicated source/domain tags, and record a new enquiry note. Both website tags can appear when a guest contacts both sites.
+Each accepted website enquiry creates a new lead, even for a phone number already present. The old lead and assignment are unchanged; source/domain tags and routing are applied independently to the new enquiry. WhatsApp conversation message processing remains separate.
 
 The API and Team Settings both parse `lead-routing-v1` stored in `app_settings.auto_assign_to`, alongside legacy plain staff names. Explicit null assignees mean unassigned; routing JSON must never be written to `leads.assigned_to`. The UI also suppresses corrupted routing objects in that field while stored records are repaired.
 

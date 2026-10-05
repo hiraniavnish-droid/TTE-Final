@@ -3,12 +3,8 @@
 // website (form submits + gated WhatsApp-click popup) and its WhatsApp bot.
 // Self-contained (Vercel bundles each api/*.ts alone — no cross-file imports).
 //
-// De-duplicates by phone number: the same guest often submits the form AND
-// messages on WhatsApp, and that must land as ONE lead, not two. Matching is
-// on the last 10 digits (India mobile length) via `ilike`, same approach
-// already proven in api/whatsapp-webhook.ts — phone numbers already in this
-// table are stored in mixed formats (+91XXXXXXXXXX, plain, etc.), so an
-// exact-string match would silently miss real duplicates.
+// Each accepted enquiry creates a new lead, even when the phone already exists.
+// Existing leads and their assignments/history are never merged by this intake.
 //
 // AUTH: Authorization: Bearer <LEADS_WEBHOOK_SECRET> — shared secret, set as
 // a Vercel env var, held by the sending (Rann Utsav Tickets) project too.
@@ -22,9 +18,6 @@
 // or pause either source separately, without a deployment. This deliberately
 // keeps the settings in the already-live table, so no database migration can
 // interrupt inbound leads.
-// On a repeat touch to an existing lead, assignment only fills in if it's
-// still unset, same "never overwrite a real value" rule as every other
-// merged field — a lead someone has already claimed/reassigned is left alone.
 // ============================================================
 
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
@@ -273,15 +266,6 @@ async function getAutoAssignee(sourceKey: string): Promise<string | null> {
   }
 }
 
-async function findExistingLead(phone10: string): Promise<any | null> {
-  // Most recently created first — if a phone genuinely maps to more than one
-  // lead (rare, but possible with seed/legacy data), attach the new touch to
-  // the freshest one rather than an old closed-out lead.
-  const res = await sb(`leads?select=*&phone=ilike.*${phone10}&order=created_at.desc&limit=1`);
-  const rows = await res.json().catch(() => []);
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-}
-
 async function insertNote(leadId: string, content: string) {
   const row = {
     id: `web_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
@@ -326,63 +310,7 @@ export default async function handler(req: any, res: any) {
   const timestamp = body.timestamp || new Date().toISOString();
 
   try {
-    const [existing, autoAssignee] = await Promise.all([findExistingLead(phone10), getAutoAssignee(sourceKey)]);
-
-    if (existing) {
-      // Fill in previously-null fields only — never overwrite a real value
-      // with null/blank.
-      const patch: Record<string, unknown> = {};
-      if (!existing.name && body.name) patch.name = body.name;
-      if (!existing.email && body.email) patch.email = body.email;
-      if (String(existing.assigned_to || '').includes('lead-routing-v1')) patch.assigned_to = autoAssignee;
-      else if (!existing.assigned_to && autoAssignee) patch.assigned_to = autoAssignee;
-      if (!existing.destination && body.destination) patch.destination = destination;
-
-      const existingTripDetails = existing.trip_details || {};
-      const tripPatch: Record<string, unknown> = {};
-      if (existingTripDetails.nights == null && body.nights != null) tripPatch.nights = body.nights;
-      if (!existingTripDetails.startDate && body.travelDate) tripPatch.startDate = body.travelDate;
-      if (!existingTripDetails.packageSlug && body.packageSlug) tripPatch.packageSlug = body.packageSlug;
-      if (!existingTripDetails.city && body.city) tripPatch.city = body.city;
-      if (existingTripDetails.rooms == null && body.rooms != null) tripPatch.rooms = body.rooms;
-      if (!existingTripDetails.accommodation && body.accommodation) tripPatch.accommodation = body.accommodation;
-      if (existingTripDetails.paxConfig == null && body.guests != null) {
-        tripPatch.paxConfig = { adults: body.guests, children: 0, childAges: [] };
-      }
-      if (Object.keys(body.submittedFields || {}).length > 0) {
-        tripPatch.websiteFields = { ...(existingTripDetails.websiteFields || {}), ...body.submittedFields };
-      }
-      if (Object.keys(tripPatch).length > 0) {
-        patch.trip_details = { ...existingTripDetails, ...tripPatch };
-      }
-
-      // Multi-channel touch tracking — dedup so the same source tag isn't
-      // added twice across repeat visits.
-      const existingTags: string[] = Array.isArray(existing.tags) ? existing.tags : [];
-      const mergedTags = [...new Set([...existingTags, ...sourceTags])];
-      if (mergedTags.length !== existingTags.length) patch.tags = mergedTags;
-
-      if (Object.keys(patch).length > 0) {
-        await sb(`leads?id=eq.${existing.id}`, {
-          method: 'PATCH',
-          headers: { Prefer: 'return=minimal' },
-          body: JSON.stringify(patch),
-        });
-      }
-
-      const noteParts = [`Also came in via ${source} at ${timestamp}`];
-      if (body.message) noteParts.push(`Message: ${body.message}`);
-      if (body.packageSlug) noteParts.push(`Package: ${body.packageSlug}`);
-      if (body.nights != null) noteParts.push(`Nights: ${body.nights}`);
-      if (body.guests != null) noteParts.push(`Guests: ${body.guests}`);
-      if (body.rooms != null) noteParts.push(`Rooms: ${body.rooms}`);
-      if (body.accommodation) noteParts.push(`Accommodation: ${body.accommodation}`);
-      const allSubmittedDetails = formDetailsText(body.submittedFields);
-      if (allSubmittedDetails) noteParts.push(`Form details: ${allSubmittedDetails}`);
-      await insertNote(existing.id, noteParts.join(' · '));
-
-      return res.status(200).json({ ok: true, leadId: existing.id, created: false });
-    }
+    const autoAssignee = await getAutoAssignee(sourceKey);
 
     const row = {
       name: body.name || `Rann Utsav Lead (${phone10})`,

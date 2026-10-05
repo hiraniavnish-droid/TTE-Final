@@ -24,14 +24,14 @@ try {
  assert.equal(parseLeadRouting({auto_assign_enabled:true,auto_assign_to:'Legacy Agent'}).routes.rannutsav_website.assignTo,'Legacy Agent');
  assert.equal(parseLeadRouting({auto_assign_enabled:true,auto_assign_to:'{broken-json'}).fallback.assignTo,null);
  assert.equal(normalizeWebsitePayload({form_fields:{phone:{value:'9000000000'},page_url:{value:'https://rannutsav.in/'},travel_date:{value:'28/12/2026'}}},{source:'tte_website_form'}).travelDate,'2026-12-28');
- let existing=null;let inserted=null;let patch=null;
+ let existing=null;let inserted=null;let patch=null;let inserts=0;let leadLookups=0;
  globalThis.fetch=async (url,init={})=>{
   const u = new URL(url);
   if (u.pathname.endsWith('/app_settings')) return Response.json([{auto_assign_enabled:true,auto_assign_to:JSON.stringify(routing)}]);
   if (u.pathname.endsWith('/leads')) {
-   if (init.method==='POST') { inserted=JSON.parse(init.body)[0];return Response.json([{...inserted,id:'fixture-lead'}]); }
+   if (init.method==='POST') { inserted=JSON.parse(init.body)[0];inserts++;return Response.json([{...inserted,id:'fixture-lead-'+inserts}]); }
    if (init.method==='PATCH') { patch=JSON.parse(init.body);return new Response(null,{status:204}); }
-   return Response.json(existing?[existing]:[]);
+   leadLookups++;return Response.json(existing?[existing]:[]);
   }
   return new Response(null,{status:201});
  };
@@ -42,9 +42,11 @@ try {
  assert.equal((await send('whatsapp_click')).code,200);assert.equal(inserted.assigned_to,null);assert(inserted.tags.includes('rannutsavtickets.in'));
  assert.equal((await send('tte_website_form','fixture-website')).code,200);assert.equal(inserted.assigned_to,'Main Agent');assert(inserted.tags.includes('rannutsav.in'));
  assert.equal((await send('website_form','fixture-website')).code,200);assert.equal(inserted.source,'Website - rannutsav.in');
- existing={...inserted,id:'fixture-lead',assigned_to:JSON.stringify(routing)};
- assert.equal((await send('whatsapp_click')).code,200);assert.equal(patch.assigned_to,null);assert(patch.tags.includes('rannutsav.in'));assert(patch.tags.includes('rannutsavtickets.in'));
- existing={...existing,assigned_to:'Staff choice'};patch=null;await send('whatsapp_click');assert(!('assigned_to' in (patch||{})));
+ existing={...inserted,id:'old-lead',status:'Won',assigned_to:'Staff choice'};
+ const before=JSON.stringify(existing),first=await send('website_form'),second=await send('website_form');
+ assert.equal(first.code,200);assert.equal(second.code,200);assert.equal(first.body.created,true);assert.equal(second.body.created,true);assert.notEqual(first.body.leadId,second.body.leadId);assert.notEqual(second.body.leadId,existing.id);
+ assert.equal(patch,null);assert.equal(leadLookups,0);assert.equal(JSON.stringify(existing),before);assert(inserted.tags.includes('rannutsavtickets.in'));assert(!inserted.tags.includes('rannutsav.in'));assert.equal(inserted.status,'New');
+ for(const status of ['New','Lost','Won']){existing.status=status;assert.equal((await send('tte_website_form','fixture-website')).body.created,true);assert.equal(patch,null);assert.equal(inserted.assigned_to,'Main Agent');}
  assert.equal((await send('website_form','wrong')).code,401);
- console.log('PASS: two-site/channel attribution, hostname checks, legacy/structured routing, null assignees, form payloads, corrupt-assignee repair, repeat touches, manual assignments, and webhook authentication');
+ console.log('PASS: two-site/channel attribution, hostname checks, legacy/structured routing, null assignees, form payloads, fresh repeated enquiries, preserved old leads, independent assignments, and webhook authentication');
 } finally { await rm(dir,{recursive:true,force:true}); }
