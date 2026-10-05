@@ -1,3 +1,4 @@
+import { RannPdfOptions } from './RannPdfOptions';
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn, generateId } from '../../utils/helpers';
@@ -57,6 +58,9 @@ export const QuoteEngineCostingPanel: React.FC<Props> = ({ lead, onSaveVendor, o
   const [customDiscountOpen, setCustomDiscountOpen] = useState(false);
   const [customDiscountStr, setCustomDiscountStr] = useState('');
   const isCustomDiscount = customDiscountOpen || !DISCOUNTS.includes(discount);
+  const [multiplePdf, setMultiplePdf] = useState(false);
+  const [extraPdfCategories, setExtraPdfCategories] = useState<TCTentType[]>([]);
+  const shareCategories = [tent, ...extraPdfCategories.filter(category => category !== tent)];
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const checkIn = useMemo(() => new Date(checkInStr + 'T00:00:00'), [checkInStr]);
@@ -171,9 +175,20 @@ export const QuoteEngineCostingPanel: React.FC<Props> = ({ lead, onSaveVendor, o
   };
 
   const downloadPdf = async () => {
+    const multiple = multiplePdf && !isSuite(tent) && shareCategories.length > 1;
     if (!costing || pdfBusy) return;
     setPdfBusy(true);
     try {
+      if (source === 'rann-utsav' && rannProduct === 'tentcity') {
+        const { downloadRannQuotationPdf, downloadRannOptionsPdf } = await import('../../services/rannQuotationPdf');
+        await (multiple ? (input: Parameters<typeof downloadRannQuotationPdf>[0]) => downloadRannOptionsPdf(input, shareCategories) : downloadRannQuotationPdf)({
+          guestName: lead.name, reference: lead.leadCode, checkIn, nights: nightsUsed as 1 | 2 | 3,
+          category: tent, rooms, single: occupancy === 'single', extraMattresses: extraCount,
+          discountPct: discount,
+        });
+        toast.success('Quotation brochure downloaded');
+        return;
+      }
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
       const W = 210; let y = 0;
@@ -203,7 +218,7 @@ export const QuoteEngineCostingPanel: React.FC<Props> = ({ lead, onSaveVendor, o
       y += 5;
 
       doc.setDrawColor(226, 232, 240); doc.line(14, y, W - 14, y); y += 9;
-      const row = (label: string, value: string, bold = false, color = slate) => {
+      const row = (label: string, value: string, bold = false, color: readonly [number, number, number] = slate) => {
         doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...color); doc.setFontSize(10);
         doc.text(label, 14, y); doc.text(value, W - 14, y, { align: 'right' }); y += 7;
       };
@@ -228,7 +243,7 @@ export const QuoteEngineCostingPanel: React.FC<Props> = ({ lead, onSaveVendor, o
     }
   };
 
-  const inputCls = cn('w-full px-3 py-2 rounded-lg border outline-none text-sm', getInputClass());
+  const inputCls = cn('w-full px-3 py-2 rounded-lg border outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 text-sm', getInputClass());
   const labelCls = cn('text-[10.5px] font-bold uppercase tracking-wider mb-1 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
 
   const Stepper: React.FC<{ value: number; set: (n: number) => void; min?: number; max?: number }> = ({ value, set, min = 0, max = 20 }) => (
@@ -449,10 +464,15 @@ export const QuoteEngineCostingPanel: React.FC<Props> = ({ lead, onSaveVendor, o
                 Save to Costing Sheet
               </button>
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button onClick={downloadPdf} disabled={pdfBusy}
+              {source === 'rann-utsav' && rannProduct === 'tentcity' && (
+                  <RannPdfOptions tent={tent} multiple={multiplePdf} extraCategories={extraPdfCategories}
+                    onMultipleChange={value => { setMultiplePdf(value); if (!value) setExtraPdfCategories([]); }}
+                    onExtraCategoriesChange={setExtraPdfCategories} />
+                )}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                <button onClick={() => downloadPdf()} disabled={pdfBusy}
                   className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-900 text-white text-[12px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
-                  {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF
+                  {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download PDF
                 </button>
                 <button onClick={copyText}
                   className={cn('flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-bold border active:scale-[0.97] transition',

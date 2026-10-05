@@ -1,3 +1,4 @@
+import { RannPdfOptions } from '../components/leads/RannPdfOptions';
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -51,6 +52,9 @@ export const RannUtsavBuilder: React.FC = () => {
   const [customDiscountOpen, setCustomDiscountOpen] = useState(false);
   const [customDiscountStr, setCustomDiscountStr] = useState('');
   const isCustomDiscount = customDiscountOpen || !DISCOUNTS.includes(discount);
+  const [multiplePdf, setMultiplePdf] = useState(false);
+  const [extraPdfCategories, setExtraPdfCategories] = useState<TCTentType[]>([]);
+  const shareCategories = [tent, ...extraPdfCategories.filter(category => category !== tent)];
   const [pdfBusy, setPdfBusy] = useState(false);
 
   // ─── Compare Options tab ───
@@ -177,11 +181,13 @@ export const RannUtsavBuilder: React.FC = () => {
   const buildText = (): string => {
     if (!quote) return '';
     const L: string[] = [];
-    const titleLabel = product === 'resort' ? 'Rann Utsav Tent Resort' : 'Rann Utsav Tent City';
+    const titleLabel = product === 'resort'
+      ? 'Rann Tent Resort 2026-2027'
+      : 'Rann Utsav Tent City 2026-27 Quotation';
     const baseAdults = suite ? TC_SUITE[tent].pax * rooms : rooms * (occupancy === 'single' ? 1 : 2);
     const totalAdults = baseAdults + extraPersons;
 
-    L.push(`*${titleLabel} 2026-27 Quotation*`);
+    L.push(`*${titleLabel}*`);
     L.push('');
     L.push('Please find your detailed quotation below.');
     L.push('');
@@ -225,9 +231,20 @@ export const RannUtsavBuilder: React.FC = () => {
 
   // ─── PDF ───
   const downloadPdf = async () => {
+    const multiple = multiplePdf && !isSuite(tent) && shareCategories.length > 1;
     if (!quote || pdfBusy) return;
     setPdfBusy(true);
     try {
+      if (product === 'tentcity') {
+        const { downloadRannQuotationPdf, downloadRannOptionsPdf } = await import('../services/rannQuotationPdf');
+        await (multiple ? (input: Parameters<typeof downloadRannQuotationPdf>[0]) => downloadRannOptionsPdf(input, shareCategories) : downloadRannQuotationPdf)({
+          guestName: clientName, checkIn, nights: effNights as 1 | 2 | 3,
+          category: tent, rooms, single: occupancy === 'single', extraMattresses: extraPersons,
+          childrenUnder6: children, discountPct: discount,
+        });
+        toast.success('Quotation brochure downloaded');
+        return;
+      }
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
       const W = 210; let y = 0;
@@ -382,7 +399,7 @@ export const RannUtsavBuilder: React.FC = () => {
     }
   };
 
-  const inputCls = cn('w-full px-2.5 py-2 rounded-lg border outline-none text-[13px]', getInputClass());
+  const inputCls = cn('w-full px-2.5 py-2 rounded-lg border outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 text-[13px]', getInputClass());
   const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-1 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
 
   const Stepper: React.FC<{ value: number; set: (n: number) => void; min?: number; max?: number }> = ({ value, set, min = 0, max = 20 }) => (
@@ -572,10 +589,15 @@ export const RannUtsavBuilder: React.FC = () => {
                   <span className="text-lg font-bold font-mono">{fmtINR(quote.sellingPrice)}</span>
                 </div>
 
+                {product === 'tentcity' && (
+                  <RannPdfOptions tent={tent} multiple={multiplePdf} extraCategories={extraPdfCategories}
+                    onMultipleChange={value => { setMultiplePdf(value); if (!value) setExtraPdfCategories([]); }}
+                    onExtraCategoriesChange={setExtraPdfCategories} />
+                )}
                 <div className="grid grid-cols-2 gap-2 pt-2.5">
-                  <button onClick={downloadPdf} disabled={pdfBusy}
+                  <button onClick={() => downloadPdf()} disabled={pdfBusy}
                     className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-900 text-white text-[12.5px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
-                    {pdfBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} PDF
+                    {pdfBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Download PDF
                   </button>
                   <button onClick={copyText}
                     className={cn('flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12.5px] font-bold border active:scale-[0.97] transition',
@@ -788,7 +810,7 @@ export const RannUtsavBuilder: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2 pt-3">
                   <button onClick={downloadComparePdf} disabled={comparePdfBusy}
                     className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-slate-900 text-white text-[13px] font-bold hover:bg-slate-800 active:scale-[0.97] transition disabled:opacity-60">
-                    {comparePdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} PDF
+                    {comparePdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download PDF
                   </button>
                   <button onClick={copyCompare}
                     className={cn('flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold border active:scale-[0.97] transition',

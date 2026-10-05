@@ -1,3 +1,4 @@
+import MaxAutomationSettings from '../components/MaxAutomationSettings';
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
@@ -251,6 +252,7 @@ export const TeamSettings = () => {
         </div>
 
         <LeadRoutingCard agents={users.filter(u => u.role === 'agent')} />
+        {user?.role === 'admin' && <MaxAutomationSettings />}
 
         <Card noPadding className="overflow-hidden shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]">
             <div className="overflow-x-auto">

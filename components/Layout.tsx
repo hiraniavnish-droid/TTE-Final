@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
+  CalendarRange,
   Moon,
   Sun,
   Droplets,
@@ -104,6 +105,7 @@ export const Layout = () => {
       { path: '/leads',         label: 'Leads',        icon: Users },
       { path: '/builder',       label: 'Itinerary Hub',icon: Map },
       { path: '/blocked-rates', label: 'Blocked Rates',icon: Building2 },
+      { path: '/availability', label: 'Availability', icon: CalendarRange },
       { path: '/attendance', label: 'Attendance', icon: CalendarCheck },
       { path: '/reminders',     label: 'Tasks',        icon: CalendarCheck },
       { path: '/payments',      label: 'Payments',     icon: CreditCard },
@@ -145,6 +147,7 @@ export const Layout = () => {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Link to="/availability" aria-label="Open availability" title="Availability" className="p-2 rounded-lg text-indigo-500"><CalendarRange size={19}/></Link>
           <Link to="/attendance" aria-label="Open attendance" title="Attendance" className="p-2 rounded-lg text-indigo-500"><CalendarCheck size={19}/></Link>
           <button onClick={handleMobileThemeToggle} className={cn("p-2 rounded-lg", theme === 'light' ? 'text-slate-500 hover:bg-slate-100' : 'text-slate-400 hover:bg-slate-700/50')}>
             <MobileThemeIcon size={18} />

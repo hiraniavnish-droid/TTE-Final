@@ -28,6 +28,9 @@ const InlandBuilder = React.lazy(() => import('./pages/InlandBuilder').then(modu
 const Payments = React.lazy(() => import('./pages/Payments').then(module => ({ default: module.Payments })));
 const QuoteTrainerPractice = React.lazy(() => import('./pages/QuoteTrainerPractice').then(module => ({ default: module.QuoteTrainerPractice })));
 
+const Availability = React.lazy(() => import('./pages/Availability').then(module => ({ default: module.Availability })));
+const RajarshiHub = React.lazy(() => import('./pages/RajarshiHub').then(module => ({ default: module.RajarshiHub })));
+const RajarshiReadyPackages = React.lazy(() => import('./pages/RajarshiReadyPackages').then(module => ({ default: module.RajarshiReadyPackages })));
 const Attendance = React.lazy(() => import('./pages/Attendance').then(module => ({ default: module.Attendance })));
 
 const ProtectedRoute = () => {
@@ -82,8 +85,11 @@ function App() {
                       <Route path="rann-utsav-builder" element={<RannUtsavBuilder />} />
                       <Route path="sou-tent-city-builder" element={<SouTentCityBuilder />} />
                       <Route path="sou-hotels-builder" element={<SouHotelsBuilder />} />
-                      <Route path="rajarshi-builder" element={<RajarshiBuilder />} />
+                      <Route path="rajarshi-builder" element={<RajarshiHub />} />
+                      <Route path="rajarshi-builder/hotels" element={<RajarshiBuilder />} />
+                      <Route path="rajarshi-builder/packages" element={<RajarshiReadyPackages />} />
                       <Route path="inland-builder" element={<InlandBuilder />} />
+                      <Route path="availability" element={<Availability />} />
                       <Route path="attendance" element={<Attendance />} />
                       <Route path="payments" element={<Payments />} />
                       <Route path="blocked-rates" element={<BlockedRates />} />
