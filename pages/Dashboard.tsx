@@ -1,3 +1,4 @@
+import { isFinancialLead } from '../lib/financialLeadFilter';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useCountUp } from '../hooks/useCountUp';
@@ -660,10 +661,7 @@ const getDashboardStats = (leads: Lead[], timeFilter: TimeFilter, override?: { s
     let totalRevenue = 0, revenueCollected = 0, totalCost = 0, costPaid = 0, profitCollected = 0;
     const revenueByAgent: Record<string, number> = {};
     for (const l of leads) {
-        if (l.status !== 'Won') continue;
-        if (l.legacy) continue; // old-company / handled-differently deals never enter financial figures
-        const wonDate = l.wonAt || l.createdAt;
-        if (!inPeriod(new Date(wonDate).getTime())) continue;
+        if (!isFinancialLead(l, range.start, range.end)) continue;
 
         const rev = l.commercials?.sellingPrice || 0;
         const cost = l.commercials?.netCost || 0;
@@ -893,6 +891,9 @@ export const Dashboard = () => {
       const to = range.end ? businessDate(range.end) : '';
       const sep = path.includes('?') ? '&' : '?';
       path = path + sep + `from=${from}` + (to ? `&to=${to}` : '');
+    }
+    if (user?.role === 'admin' && viewAsAgent !== 'all') {
+      path += (path.includes('?') ? '&' : '?') + `agent=${encodeURIComponent(viewAsAgent || 'Unassigned')}`;
     }
     navigate(path);
   };
@@ -1149,7 +1150,7 @@ export const Dashboard = () => {
                 delta={deltas?.revenue}
                 deltaLabel={periodLabel}
                 emptyHint="Add a lead and close it to start tracking revenue"
-                onClick={() => handleNav('/leads?status=Won')}
+                onClick={() => handleNav('/leads?status=Won&report=financial')}
                 loading={!cashDataReady}
             />
         </motion.div>
@@ -1175,7 +1176,7 @@ export const Dashboard = () => {
                 delta={deltas?.profit}
                 deltaLabel={periodLabel}
                 emptyHint="No cash movement in this period yet"
-                onClick={() => handleNav('/leads?status=Won')}
+                onClick={() => handleNav('/leads?status=Won&report=financial')}
                 loading={!cashDataReady}
             />
         </motion.div>

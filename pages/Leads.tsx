@@ -1,3 +1,4 @@
+import { isFinancialLead } from '../lib/financialLeadFilter';
 import { IncrementalList, useDesktopLayout } from '../components/ui/IncrementalList';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
@@ -1257,6 +1258,7 @@ export const Leads = () => {
   const setView = (value: 'kanban' | 'overview') => changeQuery({view:value});
   const stageFilter = searchParams.get('status') || '';
   const setStageFilter = (value:string) => changeQuery({status:value});
+  const financialReport = searchParams.get('report') === 'financial';
   const createdFrom = searchParams.get('from') || '';
   const createdTo = searchParams.get('to') || '';
   const setCreatedFrom = (value:string) => changeQuery({from:value});
@@ -1324,7 +1326,7 @@ export const Leads = () => {
     document.addEventListener('keydown',onKey);
     return()=>document.removeEventListener('keydown',onKey);
   },[panelId]);
-  const clearFilters = () => { changeQuery({agent:'',pay:'',from:'',to:'',status:'',q:'',destination:'',temperature:''}); setCustomDates(false); };
+  const clearFilters = () => { changeQuery({agent:'',pay:'',from:'',to:'',status:'',q:'',destination:'',temperature:'',report:''}); setCustomDates(false); };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1355,8 +1357,10 @@ export const Leads = () => {
     if (filters.paymentStatus) {
       if (getPayState(l, paymentSummary[l.id], paymentSummaryLoaded) !== filters.paymentStatus) return false;
     }
-    // Date range filter on createdAt (manual picker or quick month/time chip)
-    if (createdFrom || createdTo) {
+    // Financial drill-down uses the same cohort and Won date as the dashboard.
+    if (financialReport) {
+      if (!isFinancialLead(l, createdFrom ? dateBoundary(createdFrom) : null, createdTo ? dateBoundary(createdTo,true) : null)) return false;
+    } else if (createdFrom || createdTo) {
       const t = new Date(l.createdAt).getTime();
       if (createdFrom && t < dateBoundary(createdFrom).getTime()) return false;
       if (createdTo && t > dateBoundary(createdTo,true).getTime()) return false;
@@ -1364,7 +1368,7 @@ export const Leads = () => {
     return true;
   });
 
-  const hasActiveFilters = !!(filters.assignedTo || filters.paymentStatus || createdFrom || createdTo || search || stageFilter || destination || temperature);
+  const hasActiveFilters = !!(financialReport || filters.assignedTo || filters.paymentStatus || createdFrom || createdTo || search || stageFilter || destination || temperature);
 
   const applyTimePreset = (preset:string) => {
     setCustomDates(false);
@@ -1580,13 +1584,13 @@ export const Leads = () => {
             <span className="relative block"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/><input aria-label="Search leads" placeholder="Name, phone or lead ID…" value={search} onChange={e=>changeQuery({q:e.target.value})} className={cn(filterControlClass,'pl-9 pr-8')}/>{search && <button type="button" aria-label="Clear search" onClick={()=>changeQuery({q:''})} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-600 focus-visible:ring-2 rounded"><X size={13}/></button>}</span>
           </label>
           {isAdmin && <label className="w-full sm:w-[168px] space-y-1.5"><span className={filterLabelClass}>Lead owner</span><span className="relative block"><Users size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/><select aria-label="Employee" value={filters.assignedTo} onChange={e=>changeQuery({agent:e.target.value})} className={cn(filterControlClass,'pl-9 pr-7 appearance-none')}><option value="">All employees</option><option value="Unassigned">Unassigned</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select><ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/></span></label>}
-          <div className="space-y-1.5 max-w-full"><span className={filterLabelClass}>Created date</span><div className={cn('flex items-center gap-1 p-1 rounded-xl h-10 border',theme==='light'?'bg-slate-100/80 border-slate-200/60':'bg-slate-800 border-slate-700')} role="group" aria-label="Lead creation period">
+          <div className="space-y-1.5 max-w-full"><span className={filterLabelClass}>{financialReport ? 'Won date' : 'Created date'}</span><div className={cn('flex items-center gap-1 p-1 rounded-xl h-10 border',theme==='light'?'bg-slate-100/80 border-slate-200/60':'bg-slate-800 border-slate-700')} role="group" aria-label={financialReport ? 'Lead won period' : 'Lead creation period'}>
             {['This Month','Last Month','Custom','All Time'].map(label=>{const selected=label==='Custom'?customDates || activeTimePreset==='Custom':!customDates && activeTimePreset===label;return <button key={label} aria-pressed={selected} onClick={()=>label==='Custom'?setCustomDates(true):applyTimePreset(label)} className={cn('px-2.5 md:px-3 h-8 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',selected?(theme==='light'?'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/60':'bg-indigo-600 text-white shadow-sm'):(theme==='light'?'text-slate-500 hover:text-slate-800 hover:bg-white/50':'text-slate-400 hover:text-white'))}>{label}</button>})}
           </div></div>
           <div className="space-y-1.5"><span className={filterLabelClass}>Refine</span><Button variant="secondary" onClick={()=>setMoreFilters(v=>!v)} aria-expanded={moreFilters} aria-controls="advanced-lead-filters" className={cn('h-10 rounded-xl px-3 text-xs focus-visible:ring-2 focus-visible:ring-indigo-500',moreFilters?(theme==='light'?'bg-indigo-50 border-indigo-200 text-indigo-700':'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'):(theme==='light'?'border-slate-200 text-slate-600 shadow-none':'border-slate-700 text-slate-200 shadow-none'))}><Filter size={15}/> More filters {advancedFilterCount>0 && <span className="rounded-full bg-indigo-600 text-white px-1.5 py-0.5 text-[10px]">{advancedFilterCount}</span>}<ChevronDown size={13} className={moreFilters?'rotate-180':''}/></Button></div>
 
         </div>
-        {(customDates || activeTimePreset==='Custom') && <div className={cn('mx-3 md:mx-4 mb-3 rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-3 text-xs',theme==='light'?'bg-indigo-50/60 text-slate-600':'bg-slate-800 text-slate-300')}><Calendar size={16} className="text-indigo-500"/><span className="font-semibold">Custom creation dates</span><label className="flex items-center gap-2">From<input aria-label="Lead start date" type="date" value={createdFrom} onChange={e=>changeQuery({from:e.target.value,to:createdTo && e.target.value>createdTo?e.target.value:createdTo})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label><label className="flex items-center gap-2">To<input aria-label="Lead end date" type="date" value={createdTo} onChange={e=>changeQuery({to:e.target.value,from:createdFrom && e.target.value<createdFrom?e.target.value:createdFrom})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label></div>}
+        {(customDates || activeTimePreset==='Custom') && <div className={cn('mx-3 md:mx-4 mb-3 rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-3 text-xs',theme==='light'?'bg-indigo-50/60 text-slate-600':'bg-slate-800 text-slate-300')}><Calendar size={16} className="text-indigo-500"/><span className="font-semibold">{financialReport ? 'Custom won dates' : 'Custom creation dates'}</span><label className="flex items-center gap-2">From<input aria-label="Lead start date" type="date" value={createdFrom} onChange={e=>changeQuery({from:e.target.value,to:createdTo && e.target.value>createdTo?e.target.value:createdTo})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label><label className="flex items-center gap-2">To<input aria-label="Lead end date" type="date" value={createdTo} onChange={e=>changeQuery({to:e.target.value,from:createdFrom && e.target.value<createdFrom?e.target.value:createdFrom})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label></div>}
         {moreFilters && <div id="advanced-lead-filters" className={cn('px-3 md:px-4 py-3 border-t',theme==='light'?'bg-slate-50/60 border-slate-100':'bg-slate-800/40 border-slate-700')}>
           <div className="flex items-center justify-between mb-2.5"><span className={cn('text-xs font-semibold',getTextColor())}>Refine your results</span>{advancedFilterCount>0 && <button onClick={()=>changeQuery({status:'',pay:'',destination:'',temperature:''})} className="text-xs text-indigo-600 font-semibold focus-visible:ring-2 rounded">Reset advanced</button>}</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr_1fr] gap-3">
@@ -1598,7 +1602,7 @@ export const Leads = () => {
         </div>}
         {hasActiveFilters && <div className={cn('flex flex-wrap items-center gap-2 px-3 md:px-4 py-2.5 border-t text-xs',theme==='light'?'border-slate-100':'border-slate-700')} aria-label="Active filters">
           <span className={cn('font-semibold mr-1',getSecondaryTextColor())}>{filteredLeads.length} results</span>
-          {[[search,'Search: '+search,'q'],[filters.assignedTo,filters.assignedTo,'agent'],[dateLabel,dateLabel,'dates'],[stageFilter,stageFilter,'status'],[filters.paymentStatus,'Payment: '+filters.paymentStatus,'pay'],[destination,destination,'destination'],[temperature,temperature,'temperature']].filter(v=>v[0]).map(([value,label,key])=><button key={key} aria-label={`Remove ${label} filter`} onClick={()=>{if(key==='dates'){setCustomDates(false);changeQuery({from:'',to:''});}else changeQuery({[key]:''});}} className={cn('flex items-center gap-1.5 rounded-lg px-2 py-1 border max-w-full focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors',theme==='light'?'bg-indigo-50/60 border-indigo-100 text-indigo-700 hover:bg-indigo-100':'bg-indigo-500/10 border-indigo-500/20 text-indigo-300')}><span className="truncate max-w-[220px]">{label}</span><X size={12} className="shrink-0"/></button>)}
+          {[[financialReport ? 'financial' : '', 'Financial report · Won date', 'report'],[search,'Search: '+search,'q'],[filters.assignedTo,filters.assignedTo,'agent'],[dateLabel,dateLabel,'dates'],[stageFilter,stageFilter,'status'],[filters.paymentStatus,'Payment: '+filters.paymentStatus,'pay'],[destination,destination,'destination'],[temperature,temperature,'temperature']].filter(v=>v[0]).map(([value,label,key])=><button key={key} aria-label={`Remove ${label} filter`} onClick={()=>{if(key==='dates'){setCustomDates(false);changeQuery({from:'',to:''});}else changeQuery({[key]:''});}} className={cn('flex items-center gap-1.5 rounded-lg px-2 py-1 border max-w-full focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors',theme==='light'?'bg-indigo-50/60 border-indigo-100 text-indigo-700 hover:bg-indigo-100':'bg-indigo-500/10 border-indigo-500/20 text-indigo-300')}><span className="truncate max-w-[220px]">{label}</span><X size={12} className="shrink-0"/></button>)}
           <button onClick={clearFilters} className="ml-auto text-slate-500 hover:text-rose-600 font-semibold px-2 py-1 focus-visible:ring-2 rounded">Clear filters</button>
         </div>}
       </section>
