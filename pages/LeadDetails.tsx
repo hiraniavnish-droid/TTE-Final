@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,7 +19,7 @@ import { DocumentsPanel } from '../components/leads/DocumentsPanel';
 import { LeadCodeChip } from '../components/ui/LeadCodeChip';
 import { PaymentLinkWidget } from '../components/PaymentLinkWidget';
 import { WhatsAppChatWidget } from '../components/WhatsAppChatWidget';
-import { InteractionType, Interaction, Reminder, LeadStatus, Supplier, Commercials, Lead, VendorDetail, VendorPayment, Sentiment } from '../types';
+import { InteractionType, Interaction, Reminder, LeadStatus, Commercials, Lead, VendorDetail, VendorPayment, Sentiment } from '../types';
 import { formatCurrency, formatCompactCurrency, formatDate, generateId, cn } from '../utils/helpers';
 import { triggerConfetti } from '../utils/celebration';
 import toast from 'react-hot-toast';
@@ -47,9 +47,6 @@ import {
   AlertTriangle,
   Briefcase,
   Copy,
-  ChevronDown,
-  ChevronUp,
-  Handshake,
   Calculator,
   TrendingUp,
   TrendingDown,
@@ -285,175 +282,11 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
     );
 };
 
-// ... (SuggestedSuppliers component remains unchanged) ...
-interface SuggestedSuppliersProps {
-    lead: Lead;
-    allLeads: Lead[];
-    suppliers: Supplier[];
-}
-
-const SuggestedSuppliers: React.FC<SuggestedSuppliersProps> = ({ lead, allLeads, suppliers }) => {
-    // ... (Keep existing implementation logic) ...
-    const { theme, getTextColor, getSecondaryTextColor } = useTheme();
-    const [isExpanded, setIsExpanded] = useState(true);
-    const [selectedVendor, setSelectedVendor] = useState<Supplier | null>(null);
-
-    const relevantSuppliers = useMemo(() => {
-        if (!lead.tripDetails.destination) return [];
-        const leadDest = lead.tripDetails.destination.toLowerCase().trim();
-
-        return suppliers.filter(supplier => {
-            if (!supplier.destinations) return false;
-            
-            if (Array.isArray(supplier.destinations)) {
-                return supplier.destinations.some(d => {
-                    const supplierDest = d.toLowerCase().trim();
-                    return supplierDest.includes(leadDest) || leadDest.includes(supplierDest);
-                });
-            }
-            if (typeof supplier.destinations === 'string') {
-                // @ts-ignore
-                return supplier.destinations.toLowerCase().includes(leadDest);
-            }
-            return false;
-        });
-    }, [lead.tripDetails.destination, suppliers]);
-
-    const vendorStats = useMemo(() => {
-        if (!selectedVendor) return null;
-        let quotesRequested = 0;
-        let bookings = 0;
-        let totalVolume = 0;
-        allLeads.forEach(l => {
-            if (l.commercials?.vendorId === selectedVendor.id) {
-                quotesRequested++;
-                if (l.status === 'Won') {
-                    bookings++;
-                    totalVolume += (l.commercials.netCost || 0);
-                }
-            }
-        });
-        const conversionRate = quotesRequested > 0 ? (bookings / quotesRequested) * 100 : 0;
-        return { quotesRequested, bookings, totalVolume, conversionRate };
-    }, [selectedVendor, allLeads]);
-
-    const handleWhatsApp = (e: React.MouseEvent, supplier: Supplier) => {
-        e.stopPropagation();
-        const brief = generateVendorBrief(lead);
-        const phoneClean = supplier.phone.replace(/[^0-9]/g, '');
-        const url = `https://wa.me/${phoneClean}?text=${encodeURIComponent(brief)}`;
-        window.open(url, '_blank');
-    };
-
-    if (!lead.tripDetails.destination) return null;
-
-    return (
-        <>
-            <Card noPadding className="mb-3 overflow-hidden">
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className={cn(
-                        "w-full flex items-center justify-between p-4 transition-colors",
-                        theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5'
-                    )}
-                >
-                    <div className="flex items-center gap-2">
-                        <div className={cn("p-1.5 rounded-md", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
-                            <Handshake size={16} strokeWidth={2.5} />
-                        </div>
-                        <span className={cn("font-bold text-sm", getTextColor())}>
-                            Suggested Partners
-                        </span>
-                        <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-mono", theme === 'light' ? "bg-gray-100" : "bg-white/10", getTextColor())}>
-                            {relevantSuppliers.length}
-                        </span>
-                    </div>
-                    {isExpanded ? <ChevronUp size={16} className="opacity-50" /> : <ChevronDown size={16} className="opacity-50" />}
-                </button>
-
-                {isExpanded && (
-                    <div className={cn("px-4 pb-4 animate-in slide-in-from-top-2 duration-300")}>
-                        <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                            {relevantSuppliers.length === 0 ? (
-                                <div className="text-center py-6 opacity-50 text-xs italic">
-                                    No partners found for "{lead.tripDetails.destination}". <br/>
-                                    Check the Suppliers directory.
-                                </div>
-                            ) : (
-                                relevantSuppliers.map(supplier => (
-                                    <div 
-                                        key={supplier.id} 
-                                        onClick={() => setSelectedVendor(supplier)}
-                                        className={cn(
-                                            "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer group",
-                                            theme === 'light' ? 'bg-slate-50 border-slate-100 hover:bg-white hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/10'
-                                        )}
-                                    >
-                                        <div className="min-w-0 flex-1 mr-3">
-                                            <div className="flex items-center gap-2">
-                                                <h4 className={cn("font-bold text-xs truncate transition-colors", getTextColor())}>{supplier.name}</h4>
-                                                <span className="text-[9px] px-1 rounded border opacity-70 uppercase">{supplier.category}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1 mt-0.5">
-                                                <User size={10} className="opacity-50" />
-                                                <span className={cn("text-[10px] truncate", getSecondaryTextColor())}>{supplier.contactPerson}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-2 shrink-0">
-                                            <button 
-                                                onClick={(e) => handleWhatsApp(e, supplier)}
-                                                className={cn(
-                                                    "p-2 rounded-lg transition-all border shadow-sm active:scale-90",
-                                                    theme === 'light'
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
-                                                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-                                                )}
-                                                title="WhatsApp Rate Request"
-                                            >
-                                                <MessageCircle size={14} strokeWidth={2.5} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                )}
-            </Card>
-            <Modal isOpen={!!selectedVendor} onClose={() => setSelectedVendor(null)} title="Vendor Insights">
-                {selectedVendor && vendorStats && (
-                    <div className="space-y-6">
-                        <div className={cn("p-4 rounded-xl flex items-start gap-4 border", theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-white/5 border-white/10')}>
-                            <div className={cn("w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0", theme === 'light' ? 'bg-white shadow text-slate-700' : 'bg-white/10 text-white')}>
-                                {selectedVendor.name.charAt(0)}
-                            </div>
-                            <div className="flex-1">
-                                <h3 className={cn("text-xl font-bold font-serif", getTextColor())}>{selectedVendor.name}</h3>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm opacity-70">
-                                    <span className="flex items-center gap-1"><User size={12}/> {selectedVendor.contactPerson}</span>
-                                    <span className="flex items-center gap-1"><Phone size={12}/> {selectedVendor.phone}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-3 pt-2">
-                             <Button variant="secondary" onClick={() => setSelectedVendor(null)}>Close</Button>
-                             <Button onClick={(e) => handleWhatsApp(e, selectedVendor!)} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">
-                                 <MessageCircle size={16} /> WhatsApp Request
-                             </Button>
-                        </div>
-                    </div>
-                )}
-            </Modal>
-        </>
-    );
-};
-
 export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }: {leadId?:string;embedded?:boolean;onClose?:()=>void;onDirtyChange?:(dirty:boolean)=>void} = {}) => {
   const { id: routeId } = useParams<{ id: string }>();
   const id=leadId || routeId;
   const navigate = useNavigate();
-  const { leads, allLeads, updateLead, updateLeadStatus, deleteLead, getLeadInteractions, getLeadReminders, addInteraction, addReminder, suppliers, isLoading, loadError, retryLoad } = useLeads();
+  const { leads, updateLead, updateLeadStatus, deleteLead, getLeadInteractions, getLeadReminders, addInteraction, addReminder, isLoading, loadError, retryLoad } = useLeads();
   const { user, users } = useAuth();
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
 
@@ -945,9 +778,6 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
                       <Mail size={16} /> Email
                   </Button>
               </div>
-
-              {/* Suggested Suppliers Widget */}
-              <SuggestedSuppliers lead={lead} allLeads={allLeads} suppliers={suppliers} />
 
               {/* Documents — hotel vouchers, payment bills, etc. */}
               <DocumentsPanel leadId={lead.id} uploadedBy={user?.name || 'Unknown'} />
