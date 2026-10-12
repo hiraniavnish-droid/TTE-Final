@@ -19,13 +19,15 @@ Only `lead.created` and `lead.assigned_to_admin` with a case-insensitive trimmed
 
 Apply `supabase/migrations/024_interakt_relay.sql`, then deploy the app. It preserves the live same-day nudge preflight and adds a separate outbox insertion trigger; it does not replace lead-change or follow-up scheduling triggers.
 
-In Interakt Settings → Developer / Webhooks, replace the **direct MAX URL** with the relay URL above and use the same existing `INTERAKT_WEBHOOK_SECRET` value for Interakt's secret. Select incoming customer messages if event selection is offered. Test the signed status event and fake-number burst before switching live traffic. Keep the old endpoint for rollback; do not run a second parallel direct-to-MAX subscription or each customer message may wake MAX twice.
+On inspection on 12 October 2026, Interakt points to `https://www.rannutsavtickets.in/api/whatsapp-webhook`. That website route mirrors all events to MAX, forwards inbound text to Hermes, and runs an allowlisted test bot. Cutover is pending the owner’s choice between replacing that full flow and preserving it while changing only its MAX mirror. Do not silently bypass the additional consumers.
+
+After that choice, in Interakt Settings → Developer / Webhooks, replace the current URL with the relay URL above if a full cutover was selected and use the same existing `INTERAKT_WEBHOOK_SECRET` value for Interakt's secret. Select incoming customer messages if event selection is offered. Test the signed status event and fake-number burst before switching live traffic. Keep the old endpoint for rollback; do not run a second parallel direct-to-MAX subscription or each customer message may wake MAX twice.
 
 ## Verification
 
 - `node scripts/test-interakt-relay.mjs`
 - `node scripts/test-max-automation.mjs`
-- Run migration + `scripts/verify-interakt-relay-db.sql` in a transaction ending **ROLLBACK**, not commit. These create disposable fixtures and must never dispatch HTTP.
+- In staging or before cutover with an empty relay queue, run migration + `scripts/verify-interakt-relay-db.sql` in a transaction ending **ROLLBACK**, not commit. These create disposable fixtures and must never dispatch HTTP.
 - For real delivery testing, use only synthetic numbers with no matching customer leads, and inspect worker status plus the queued batch. Never send test messages to an actual customer's WhatsApp account.
 
 ## Operations / rollback
