@@ -90,7 +90,7 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
     }
 
     if (leadId) {
-        onSave(leadId, vendors, manualTotalPrice !== null ? (Number(manualTotalPrice) || 0) : undefined);
+        onSave(leadId, vendors.map(v => ({ ...v, serviceDetails: v.serviceDetails?.trim() || undefined })), manualTotalPrice !== null ? (Number(manualTotalPrice) || 0) : undefined);
         onClose();
     }
   };
@@ -103,7 +103,7 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
   const supplierNames = suppliers.map(s => s.name);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Enter Vendor & Pricing Details">
+    <Modal isOpen={isOpen} onClose={onClose} title="Enter Vendor & Pricing Details" size="wide">
       <div className="space-y-6">
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 text-amber-800 text-xs">
             <AlertCircle size={16} className="mt-0.5 shrink-0" />
@@ -112,24 +112,29 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
 
         <div className="space-y-3">
             {/* Headers */}
-            <div className="grid grid-cols-12 gap-2 text-[10px] uppercase font-bold tracking-wider opacity-60 px-1">
-                <div className="col-span-5">Vendor Name <span className="text-red-500">*</span></div>
-                <div className="col-span-3 text-right">Buying (Net)</div>
-                <div className="col-span-3 text-right">Selling (Quote)</div>
+            <div className="hidden md:grid grid-cols-12 gap-2 text-[10px] uppercase font-bold tracking-wider opacity-60 px-1">
+                <div className="col-span-3">Vendor Name <span className="text-red-500">*</span></div>
+                <div className="col-span-4">Service / Details</div>
+                <div className="col-span-2 text-right">Buying (Net)</div>
+                <div className="col-span-2 text-right">Selling (Quote)</div>
                 <div className="col-span-1"></div>
             </div>
 
             {/* Rows */}
-            {vendors.map((vendor) => (
-                <div key={vendor.id} className="grid grid-cols-12 gap-2 items-center animate-in fade-in slide-in-from-left-2 duration-300">
-                    <div className="col-span-5 relative group">
+            {vendors.map((vendor, index) => (
+                <div key={vendor.id} className={cn("relative grid grid-cols-2 md:grid-cols-12 gap-2 items-start p-3 md:p-0 rounded-lg border md:border-0 animate-in fade-in slide-in-from-left-2 duration-300", theme === 'light' ? 'border-slate-200' : 'border-white/10')}>
+                    <div className="col-span-2 md:col-span-3 min-w-0 pr-9 md:pr-0">
+                        <label htmlFor={`vendor-name-${vendor.id}`} className="block md:sr-only text-[10px] uppercase font-bold opacity-60 mb-1">Vendor Name *</label>
                         <input 
+                            id={`vendor-name-${vendor.id}`}
+                            aria-label={`Vendor name ${index + 1}`}
+                            aria-invalid={!!errors[vendor.id]}
                             list={`suppliers-${vendor.id}`}
                             value={vendor.name}
                             onChange={(e) => handleUpdate(vendor.id, 'name', e.target.value)}
                             placeholder="e.g. Falcon DMC"
                             className={cn(
-                                "w-full p-2 rounded-lg border outline-none text-sm transition-all",
+                                "w-full p-2 rounded-lg border outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm transition-all",
                                 getInputClass(),
                                 errors[vendor.id] ? "border-red-500 bg-red-50 focus:border-red-500" : ""
                             )}
@@ -139,33 +144,52 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
                             {supplierNames.map(name => <option key={name} value={name} />)}
                         </datalist>
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-2 md:col-span-4 min-w-0">
+                        <label htmlFor={`vendor-service-${vendor.id}`} className="block md:sr-only text-[10px] uppercase font-bold opacity-60 mb-1">Service / Details (optional)</label>
+                        <textarea
+                            id={`vendor-service-${vendor.id}`}
+                            aria-label={`Service / Details ${index + 1}`}
+                            rows={1}
+                            value={vendor.serviceDetails || ''}
+                            onChange={(e) => handleUpdate(vendor.id, 'serviceDetails', e.target.value)}
+                            placeholder="Flights, cabs, hotel or other details"
+                            className={cn("block w-full min-h-[38px] p-2 rounded-lg border outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm resize-y", getInputClass())}
+                        />
+                    </div>
+                    <div className="md:col-span-2 min-w-0">
+                        <label htmlFor={`vendor-cost-${vendor.id}`} className="block md:sr-only text-[10px] uppercase font-bold opacity-60 mb-1">Buying (Net)</label>
                         <input 
+                            id={`vendor-cost-${vendor.id}`}
+                            aria-label={`Buying (Net) ${index + 1}`}
                             type="number"
                             value={vendor.cost || ''}
                             onChange={(e) => handleUpdate(vendor.id, 'cost', parseFloat(e.target.value))}
                             placeholder="0"
                             className={cn(
-                                "w-full p-2 rounded-lg border outline-none text-sm font-mono text-right",
+                                "w-full p-2 rounded-lg border outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm font-mono text-right",
                                 getInputClass()
                             )}
                         />
                     </div>
-                    <div className="col-span-3">
+                    <div className="md:col-span-2 min-w-0">
+                        <label htmlFor={`vendor-price-${vendor.id}`} className="block md:sr-only text-[10px] uppercase font-bold opacity-60 mb-1">Selling (Quote)</label>
                         <input 
+                            id={`vendor-price-${vendor.id}`}
+                            aria-label={`Selling (Quote) ${index + 1}`}
                             type="number"
                             value={vendor.price || ''}
                             onChange={(e) => handleUpdate(vendor.id, 'price', parseFloat(e.target.value))}
                             placeholder="0"
                             className={cn(
-                                "w-full p-2 rounded-lg border outline-none text-sm font-mono text-right font-bold",
+                                "w-full p-2 rounded-lg border outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm font-mono text-right font-bold",
                                 getInputClass()
                             )}
                         />
                     </div>
-                    <div className="col-span-1 flex justify-center">
+                    <div className="absolute top-3 right-2 md:static md:col-span-1 flex justify-center">
                         <button 
                             onClick={() => handleRemoveRow(vendor.id)}
+                            aria-label={`Remove vendor ${index + 1}`}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         >
                             <Trash2 size={16} />
@@ -173,6 +197,7 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
                     </div>
                 </div>
             ))}
+            <p className="text-[11px] opacity-60">Service / Details is optional. Use separate rows for different services from the same vendor.</p>
         </div>
 
         <Button variant="secondary" onClick={handleAddRow} className="w-full border-dashed border-2">
@@ -199,12 +224,13 @@ export const VendorManagementModal: React.FC<VendorManagementModalProps> = ({
                 <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-mono font-bold">₹</span>
                     <input
+                        aria-label="Total Quoted Price"
                         type="number"
                         value={manualTotalPrice ?? String(autoTotalPrice || '')}
                         onChange={(e) => setManualTotalPrice(e.target.value)}
                         placeholder="0"
                         className={cn(
-                            "w-40 pl-6 pr-3 py-2 rounded-lg border outline-none text-lg font-mono font-bold text-right text-emerald-600",
+                            "w-40 pl-6 pr-3 py-2 rounded-lg border outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-lg font-mono font-bold text-right text-emerald-600",
                             getInputClass()
                         )}
                     />

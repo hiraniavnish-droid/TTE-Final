@@ -9,9 +9,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'default' | 'wide';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'default' }) => {
   const { getTextColor, theme } = useTheme();
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -21,11 +22,13 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     if (isOpen) {
         setShouldRender(true);
         // Small delay to allow render before animating in
-        setTimeout(() => setIsVisible(true), 10);
+        const timer = setTimeout(() => setIsVisible(true), 10);
+        return () => clearTimeout(timer);
     } else {
         setIsVisible(false);
         // Wait for animation to finish before unmounting
-        setTimeout(() => setShouldRender(false), 300); 
+        const timer = setTimeout(() => setShouldRender(false), 300);
+        return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
@@ -52,15 +55,17 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
       
       {/* Modal Content - Spring/Bouncy Animation */}
       <div className={cn(
-        "relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden bg-white transform transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+        "relative flex flex-col w-full max-h-[calc(100dvh-2rem)] rounded-2xl shadow-2xl overflow-hidden bg-white transform transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+        size === 'wide' ? 'max-w-4xl' : 'max-w-lg',
         isVisible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8",
         theme === 'dark' ? 'bg-slate-900 border border-white/10' : 'bg-white'
       )}>
         {/* Header */}
-        <div className={cn("flex items-center justify-between px-4 py-4 md:px-6 md:py-5 border-b", theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
+        <div className={cn("flex shrink-0 items-center justify-between px-4 py-4 md:px-6 md:py-5 border-b", theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
           <h2 className={cn("text-xl font-bold tracking-tight font-serif", getTextColor())}>{title}</h2>
           <button 
             onClick={onClose}
+            aria-label={`Close ${title}`}
             className={cn(
                 "p-2 rounded-full transition-colors active:scale-90 hover:rotate-90 duration-300", 
                 theme === 'light' ? 'hover:bg-slate-100 text-slate-400 hover:text-slate-600' : 'hover:bg-white/10 text-white/70'
@@ -71,7 +76,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         </div>
         
         {/* Body */}
-        <div className={cn("p-4 md:p-6 max-h-[85dvh] overflow-y-auto scrollbar-hide", getTextColor())}>
+        <div className={cn("min-h-0 p-4 md:p-6 max-h-[85dvh] overflow-y-auto scrollbar-hide", getTextColor())}>
           {children}
         </div>
       </div>

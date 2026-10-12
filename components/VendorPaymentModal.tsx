@@ -123,6 +123,7 @@ export const VendorPaymentModal: React.FC<VendorPaymentModalProps> = ({ isOpen, 
   return (
     <Modal isOpen={isOpen} onClose={() => !saving && onClose()} title={`Payments — ${vendor?.name || 'Vendor'}`}>
       <div className="space-y-5">
+        {vendor?.serviceDetails && <p className={cn('text-sm whitespace-pre-wrap break-words', getSecondaryTextColor())}>{vendor.serviceDetails}</p>}
         <div className={cn('rounded-xl border p-3.5 space-y-1.5 text-sm', theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-white/5 border-white/10')}>
           <div className="flex justify-between"><span className="opacity-60">Buying cost</span><span className={cn('font-mono font-bold', getTextColor())}>{formatCurrency(vendor?.cost || 0)}</span></div>
           <div className="flex justify-between"><span className="opacity-60">Paid so far</span><span className="font-mono text-emerald-600">₹{paidSoFar.toLocaleString('en-IN')}</span></div>

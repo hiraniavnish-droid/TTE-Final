@@ -184,7 +184,10 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
                                     theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-white/5 border-white/10'
                                 )}>
                                     <div className="flex justify-between items-center text-sm">
-                                        <span className={cn("font-semibold", getTextColor())}>{v.name}</span>
+                                        <div className="min-w-0 flex-1 pr-3">
+                                            <span className={cn("font-semibold", getTextColor())}>{v.name}</span>
+                                            {v.serviceDetails && <p className={cn("text-xs mt-0.5 whitespace-pre-wrap break-words", getSecondaryTextColor())}>{v.serviceDetails}</p>}
+                                        </div>
                                         <div className="flex gap-4 font-mono text-xs">
                                             <span className={cn(getSecondaryTextColor())}>Buy: {formatCompactCurrency(v.cost)}</span>
                                             <span className={cn("font-bold", getTextColor())}>Sell: {formatCompactCurrency(v.price)}</span>

@@ -59,6 +59,7 @@ export interface VendorPayment {
 export interface VendorDetail {
   id: string;
   name: string; // Mandatory
+  serviceDetails?: string; // Optional service or notes for this specific vendor entry
   cost: number; // Buying Price
   price: number; // Selling Price
   category?: string; // e.g., Hotel, Transport
