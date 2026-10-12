@@ -100,6 +100,35 @@ async function dispatchWebhooks(db, request = safeWebhookRequest) {
   return { claimed: (jobs || []).length, delivered, failed, skipped };
 }
 
+// lib/interaktRelay.ts
+async function dispatchInteraktRelay(db = maxDb, request = safeWebhookRequest) {
+  const target = process.env.MAX_WEBHOOK_AUTH_TARGET_URL, authorization = process.env.MAX_WEBHOOK_AUTHORIZATION;
+  if (!target || !authorization) return { claimed: 0, delivered: 0, failed: 0, disabled: true };
+  const settings = (await db("crm_max_settings?select=enabled,target_url&limit=1"))?.[0];
+  if (!settings?.enabled || settings.target_url !== target) return { claimed: 0, delivered: 0, failed: 0, disabled: true };
+  const validated = await validateTarget(target);
+  const jobs = await db("rpc/crm_interakt_claim", { method: "POST", body: JSON.stringify({ p_limit: 20 }) });
+  let delivered = 0, failed = 0;
+  await Promise.all((jobs || []).map(async (job) => {
+    let status = 0, error = "";
+    try {
+      const response = await request(validated, { method: "POST", headers: { "Content-Type": "application/json", Authorization: authorization, "X-Relay": "interakt" }, body: JSON.stringify({ ...job.body, relay: { bundled: job.messages.length, first_at: job.first_at, last_at: job.last_at, messages: job.messages } }), redirect: "error", signal: AbortSignal.timeout(1e4) });
+      status = response.status;
+      if (response.body) await response.body.cancel();
+      if (status < 200 || status >= 300) error = `Receiver returned HTTP ${status}`;
+    } catch {
+      error = "MAX request failed or timed out";
+    }
+    await db("rpc/crm_interakt_finish", { method: "POST", body: JSON.stringify({ p_phone: job.phone, p_lease: job.lease_token, p_status: status, p_error: error }) });
+    if (status >= 200 && status < 300) delivered++;
+    else {
+      failed++;
+      if (job.attempts >= 10) console.error("Interakt relay exhausted retry limit; retained for review");
+    }
+  }));
+  return { claimed: jobs?.length || 0, delivered, failed };
+}
+
 // lib/maxWorker.ts
 async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -108,7 +137,9 @@ async function handler(req, res) {
   const expected = "Bearer " + secret;
   if (!secret || given.length !== expected.length || !crypto2.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return res.status(401).json({ error: { code: "unauthorized" } });
   try {
-    return res.status(200).json(await dispatchWebhooks(maxDb));
+    const [outbox, relay] = await Promise.allSettled([dispatchWebhooks(maxDb), dispatchInteraktRelay(maxDb)]);
+    if (outbox.status === "rejected" || relay.status === "rejected") throw Error("Queue failed");
+    return res.status(200).json({ ...outbox.value, relay: relay.value });
   } catch {
     return res.status(503).json({ error: { code: "worker_unavailable", message: "MAX queue could not be processed." } });
   }
