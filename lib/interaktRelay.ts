@@ -6,8 +6,8 @@ export function validInteraktSignature(raw: Buffer, signature: unknown, secret: 
   if (!secret || typeof signature !== 'string' || !/^sha256=[a-fA-F0-9]{64}$/.test(signature)) return false;
   return crypto.timingSafeEqual(crypto.createHmac('sha256',secret).update(raw).digest(),Buffer.from(signature.slice(7),'hex'));
 }
-export async function relayRequest(raw: Buffer, signature: unknown, db=maxDb, secret=process.env.INTERAKT_WEBHOOK_SECRET || '') {
-  if (!validInteraktSignature(raw,signature,secret)) return {status:401,body:{error:'Invalid Interakt signature'}};
+export async function relayRequest(raw: Buffer, signature: unknown, db=maxDb, secret=process.env.INTERAKT_WEBHOOK_SECRET || '', forwardSecret=process.env.CRM_INTERAKT_RELAY_SECRET || '') {
+  if (!validInteraktSignature(raw,signature,secret) && !validInteraktSignature(raw,signature,forwardSecret)) return {status:401,body:{error:'Invalid Interakt signature'}};
   let body:any;
   try {body=JSON.parse(raw.toString('utf8'));} catch {return {status:400,body:{error:'Invalid JSON'}};}
   if (body?.type !== 'message_received' || body?.data?.message?.chat_message_type !== 'CustomerMessage') return {status:200,body:{dropped:typeof body?.type === 'string' ? body.type : 'unknown'}};

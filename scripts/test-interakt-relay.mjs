@@ -7,6 +7,10 @@ let count=0;const noDb=async()=>{throw Error('Dropped event touched DB');};
 for(const type of ['message_api_sent','message_api_delivered','message_api_read','message_api_failed','message_echo','message_campaign_sent','message_campaign_delivered','message_campaign_read','message_campaign_failed','message_campaign_clicked','message_template_status_update','Webhook Test']){
  const raw=Buffer.from(JSON.stringify({...payload('status'),type}));assert.deepEqual(await relayRequest(raw,sign(raw),noDb,secret),{status:200,body:{dropped:type}});
 }
+const forwarded=Buffer.from(JSON.stringify({...payload('forwarded'),type:'message_api_read'}));
+const forwardSecret='fixture-website-hop';
+const forwardSignature='sha256='+crypto.createHmac('sha256',forwardSecret).update(forwarded).digest('hex');
+assert.equal((await relayRequest(forwarded,forwardSignature,noDb,'different-interakt-secret',forwardSecret)).body.dropped,'message_api_read');
 let raw=Buffer.from(JSON.stringify(payload('one')));
 assert.equal(validInteraktSignature(raw,sign(raw),secret),true);assert.equal(validInteraktSignature(Buffer.from(raw+' '),sign(raw),secret),false);
 for(const signature of ['',sign(raw).slice(0,-1),'sha256='+'a'.repeat(64)])assert.equal((await relayRequest(raw,signature,noDb,secret)).status,401);

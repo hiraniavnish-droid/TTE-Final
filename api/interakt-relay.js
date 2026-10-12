@@ -18,8 +18,8 @@ function validInteraktSignature(raw, signature, secret) {
   if (!secret || typeof signature !== "string" || !/^sha256=[a-fA-F0-9]{64}$/.test(signature)) return false;
   return crypto.timingSafeEqual(crypto.createHmac("sha256", secret).update(raw).digest(), Buffer.from(signature.slice(7), "hex"));
 }
-async function relayRequest(raw, signature, db = maxDb, secret = process.env.INTERAKT_WEBHOOK_SECRET || "") {
-  if (!validInteraktSignature(raw, signature, secret)) return { status: 401, body: { error: "Invalid Interakt signature" } };
+async function relayRequest(raw, signature, db = maxDb, secret = process.env.INTERAKT_WEBHOOK_SECRET || "", forwardSecret = process.env.CRM_INTERAKT_RELAY_SECRET || "") {
+  if (!validInteraktSignature(raw, signature, secret) && !validInteraktSignature(raw, signature, forwardSecret)) return { status: 401, body: { error: "Invalid Interakt signature" } };
   let body;
   try {
     body = JSON.parse(raw.toString("utf8"));
