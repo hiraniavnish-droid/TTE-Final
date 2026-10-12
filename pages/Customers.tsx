@@ -236,13 +236,16 @@ export const Customers = () => {
 
   useEffect(() => { setVisibleRows(50); }, [searchQuery, destinationFilter, agentFilter, vendorFilter, statusFilter, paymentFilter, collectionFilter, from, to, sort, view]);
 
-  const rows = useMemo<AccountRow[]>(() => leads.map(lead => {
+  // Historical sales before the current banking setup are outside this ledger.
+  // Exclude them before deriving rows, options, totals, vendor groups or exports.
+  const accountLeads = useMemo(() => leads.filter(lead => !lead.legacy), [leads]);
+  const rows = useMemo<AccountRow[]>(() => accountLeads.map(lead => {
     const vendorEntries = bookingVendors(lead, suppliers);
     return { lead, collected: paymentSummary[lead.id]?.collected || 0, vendorEntries, vendor: totalVendors(vendorEntries), vendorNames: [...new Set(vendorEntries.map(v => v.name))].join(', ') };
-  }), [leads, suppliers, paymentSummary]);
-  const destinationOptions = useMemo(() => [...new Set<string>(leads.map(l => l.tripDetails?.destination?.trim()).filter((d): d is string => !!d))].sort((a, b) => a.localeCompare(b)), [leads]);
+  }), [accountLeads, suppliers, paymentSummary]);
+  const destinationOptions = useMemo(() => [...new Set<string>(accountLeads.map(l => l.tripDetails?.destination?.trim()).filter((d): d is string => !!d))].sort((a, b) => a.localeCompare(b)), [accountLeads]);
   const vendorOptions = useMemo(() => groupVendorBalances(rows).sort((a, b) => a.name.localeCompare(b.name)), [rows]);
-  const agentOptions = useMemo(() => [...new Set([...users.map(u => u.name), ...leads.map(l => l.assignedTo).filter(Boolean)])].sort(), [users, leads]);
+  const agentOptions = useMemo(() => [...new Set([...users.map(u => u.name), ...accountLeads.map(l => l.assignedTo).filter(Boolean)])].sort(), [users, accountLeads]);
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -294,7 +297,7 @@ export const Customers = () => {
 
   return <div className={cn('relative min-h-[calc(100vh-100px)] space-y-4', getTextColor())}>
     <div className="flex items-center justify-between gap-3 flex-wrap">
-      <div><h1 className="text-2xl font-bold tracking-tight">Customers <span className={cn('text-sm font-medium ml-2', muted)}>{filteredRows.length} of {rows.length} bookings</span></h1><p className={cn('text-sm mt-1', muted)}>Booking-wise collections and vendor payments.</p></div>
+      <div><h1 className="text-2xl font-bold tracking-tight">Customers <span className={cn('text-sm font-medium ml-2', muted)}>{filteredRows.length} of {rows.length} bookings</span></h1><p className={cn('text-sm mt-1', muted)}>Booking-wise collections and vendor payments. Legacy sales excluded.</p></div>
       <button disabled={!ready || !paymentSummaryLoaded || invalidDates} onClick={() => view === 'vendors' ? exportVendors() : setShowExport(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold disabled:opacity-40"><Download size={15} />{view === 'vendors' ? 'Export vendor balances' : 'Export CSV'}</button>
     </div>
 
