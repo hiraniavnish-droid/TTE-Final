@@ -15,13 +15,17 @@ POST `https://ttecrm.vercel.app/api/interakt-relay` replaces the direct Interakt
 
 Only `lead.created` and `lead.assigned_to_admin` with a case-insensitive trimmed source starting `WhatsApp Click` get a five-minute queue delay. At the existing preflight, cancel with `customer_already_messaged` when the lead has a customer timestamp later than creation minus three hours, a bot timestamp, or the same last-ten-digit phone has relay/inbound history from the last three hours. Website form introductions and follow-up event rules remain unchanged.
 
-## Deployment and Interakt cutover
+## Live routing: preserve the website flow
 
-Apply `supabase/migrations/024_interakt_relay.sql`, then deploy the app. It preserves the live same-day nudge preflight and adds a separate outbox insertion trigger; it does not replace lead-change or follow-up scheduling triggers.
+The owner selected **preserve website flow; relay MAX only** on 12 October 2026. Interakt remains pointed at `https://www.rannutsavtickets.in/api/whatsapp-webhook`, with its existing secret and event settings.
 
-On inspection on 12 October 2026, Interakt points to `https://www.rannutsavtickets.in/api/whatsapp-webhook`. That website route mirrors all events to MAX, forwards inbound text to Hermes, and runs an allowlisted test bot. Cutover is pending the owner’s choice between replacing that full flow and preserving it while changing only its MAX mirror. Do not silently bypass the additional consumers.
+That route verifies the original Interakt signature first. Its new `src/lib/max-relay.mjs` helper forwards only CustomerMessage events (including media) to the CRM relay, signing the exact raw bytes with the dedicated production `CRM_INTERAKT_RELAY_SECRET`. The CRM accepts either its original Interakt secret or this separate server-hop secret. No Interakt or MAX credential was replaced or sent to a new destination.
 
-After that choice, in Interakt Settings → Developer / Webhooks, replace the current URL with the relay URL above if a full cutover was selected and use the same existing `INTERAKT_WEBHOOK_SECRET` value for Interakt's secret. Select incoming customer messages if event selection is offered. Test the signed status event and fake-number burst before switching live traffic. Keep the old endpoint for rollback; do not run a second parallel direct-to-MAX subscription or each customer message may wake MAX twice.
+The website's existing Hermes forwarding and allowlisted bot flow remain in place. The direct website-to-MAX mirror was removed, so MAX gets its Interakt wakes through the CRM bundle worker. Website forwarding runs in `waitUntil`, retries a transient relay failure once, and never delays or changes the primary bot response. Its two-attempt mirror is best effort if the CRM remains unavailable; monitor failure logs. Status and echo events are dropped on the website before any relay HTTP request.
+
+Both Vercel projects have the same dedicated sensitive server-hop secret. Deploy the CRM's accepting handler before deploying the website sender when changing that key.
+
+The website change was deployed from an isolated copy of the previous production source: all 331 existing files matched the deployment hashes. Only the webhook route and new relay helper/test changed. Deployment `dpl_JBNrStVcyK2iAnZ9BP1Y5GKiu3FV` is aliased to `www.rannutsavtickets.in`; the three changed files were also synced back to its original local workspace. Its existing Git remote predates the production source, so this was a targeted Vercel CLI deployment rather than replacing production from that older remote branch.
 
 ## Verification
 
@@ -34,4 +38,4 @@ After that choice, in Interakt Settings → Developer / Webhooks, replace the cu
 
 Inspect `crm_interakt_relay` rows with `attempts >= 10` and `last_error`. After fixing the receiver, reset the chosen row's attempts and next_attempt_at to retry. Do not delete a retained batch unless intentionally discarding those messages.
 
-To roll back routing, point Interakt back at the previous direct MAX webhook. To remove the introduction delay, drop trigger `crm_max_click_delay` on `crm_max_outbox`; use `scripts/rollback-interakt-click.sql` to restore the previous preflight if cancellation is also to be removed. Already-delayed pending introductions retain their due dates. Leave relay tables intact until any queued messages have been accounted for.
+To roll back this preserved-flow routing, restore the website webhook route from its previous deployment (`dpl_334H8PrB3cWAtFw1jzPm772KqhWn`) and redeploy it; Interakt itself remains unchanged. Account for any pending CRM relay messages before restoring the direct mirror to avoid duplicate delivery. To remove the introduction delay, drop trigger `crm_max_click_delay` on `crm_max_outbox`; use `scripts/rollback-interakt-click.sql` to restore the previous preflight if cancellation is also to be removed. Already-delayed pending introductions retain their due dates. Leave relay tables intact until any queued messages have been accounted for.
