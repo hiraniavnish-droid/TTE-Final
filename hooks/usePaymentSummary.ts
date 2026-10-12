@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const API_BASE = (import.meta as any).env?.DEV ? 'https://ttecrm.vercel.app' : '';
 
@@ -37,9 +37,14 @@ export function usePaymentSummary() {
   const [map, setMap] = useState<Record<string, LeadPaymentSummary>>({});
   const [records, setRecords] = useState<RawPaymentRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const refreshPaymentSummary = useCallback(() => setAttempt(n => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
+    setLoaded(false);
+    setError(false);
     // skipRefresh: this is a read-only summary, not the Payments page — don't pay for a
     // live Razorpay poll (up to 60 sequential external calls) just to paint the Dashboard.
     fetchSummary()
@@ -63,9 +68,9 @@ export function usePaymentSummary() {
         setRecords(raw.map(r => ({ leadId: r.leadId || null, amount: Number(r.amount) || 0, status: r.status, paidAt: r.paid_at || null, createdAt: r.created_at || null })));
         setLoaded(true);
       })
-      .catch(() => { if (!cancelled) setLoaded(false); });
+      .catch(() => { if (!cancelled) { setLoaded(false); setError(true); } });
     return () => { cancelled = true; };
-  }, []);
+  }, [attempt]);
 
-  return { paymentSummary: map, paymentSummaryLoaded: loaded, paymentRecords: records };
+  return { paymentSummary: map, paymentSummaryLoaded: loaded, paymentSummaryError: error, refreshPaymentSummary, paymentRecords: records };
 }

@@ -1,11 +1,14 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Papa from 'papaparse';
 import { useLeads } from '../contexts/LeadContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePaymentSummary } from '../hooks/usePaymentSummary';
-import { useDocumentsSummary, LeadGstSummary } from '../hooks/useDocumentsSummary';
+import { LeadCodeChip } from '../components/ui/LeadCodeChip';
+import { BookingDetailsDialog } from '../components/BookingDetailsDialog';
+import { bookingVendors, totalVendors, matchesPayment, groupVendorBalances, PaymentState, VendorBalance } from '../lib/customerAccounts';
 import { Card } from '../components/ui/Card';
 import { Lead } from '../types';
 import { STATUS_COLUMNS } from '../constants';
@@ -18,25 +21,9 @@ import {
   X,
   UserCheck,
   Download,
-  FileCheck2,
-  FileClock,
-  FileX2,
-  ArrowUpRight,
   Copy,
   Check,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-
-const vendorTotals = (l: Lead) => {
-  let cost = 0, paid = 0;
-  for (const v of (l.vendors || [])) {
-    cost += v.cost || 0;
-    const vPaid = (v.payments || []).reduce((s, p) => s + (p.amount || 0), 0);
-    paid += Math.min(vPaid, v.cost || vPaid);
-  }
-  if ((!l.vendors || l.vendors.length === 0) && l.commercials) cost = l.commercials.netCost || 0;
-  return { cost, paid, owed: Math.max(cost - paid, 0) };
-};
 
 // Deliberately NOT the shared formatCurrency() — that returns "TBD" for 0,
 // which is right for an undecided budget but wrong here: ₹0 collected/paid
@@ -44,21 +31,12 @@ const vendorTotals = (l: Lead) => {
 const fmtAmt = (amount: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
 
-const vendorNamesOf = (l: Lead): string =>
-  (l.vendors || []).map(v => v.name).join(', ') || l.commercials?.manualVendorName || '';
-
-const GST_META: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
-  issued: { label: 'GST Issued', className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30', icon: <FileCheck2 size={11} strokeWidth={2.5} /> },
-  pending: { label: 'GST Pending', className: 'bg-amber-500/10 text-amber-600 border-amber-500/30', icon: <FileClock size={11} strokeWidth={2.5} /> },
-  none: { label: 'No GST', className: 'bg-slate-500/10 text-slate-400 border-slate-500/20', icon: <FileX2 size={11} strokeWidth={2.5} /> },
-};
-
 interface AccountRow {
   lead: Lead;
   collected: number;
   vendor: { cost: number; paid: number; owed: number };
   vendorNames: string;
-  gst: LeadGstSummary;
+  vendorEntries: VendorBalance[];
 }
 
 // Same shape as pages/Leads.tsx's export (ExportColumn/ExportPanel) — kept as
@@ -69,7 +47,7 @@ type ExportRow = Record<string, string | number>;
 interface ExportColumn { key: string; label: string; get: (r: AccountRow) => string | number; }
 
 const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: 'leadCode', label: 'Lead Code', get: r => r.lead.leadCode || '' },
+  { key: 'leadCode', label: 'TTE ID', get: r => r.lead.leadCode || '' },
   { key: 'name', label: 'Customer', get: r => r.lead.name },
   { key: 'phone', label: 'Phone', get: r => r.lead.contact?.phone || '' },
   { key: 'email', label: 'Email', get: r => r.lead.contact?.email || '' },
@@ -83,16 +61,12 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'vendorCost', label: 'Vendor Cost', get: r => r.vendor.cost },
   { key: 'vendorPaid', label: 'Amount Paid to Vendor', get: r => r.vendor.paid },
   { key: 'vendorOwed', label: 'Vendor Owed', get: r => r.vendor.owed },
-  { key: 'gstStatus', label: 'GST Status', get: r => GST_META[r.gst.status].label },
-  { key: 'gstAmount', label: 'GST Amount', get: r => r.gst.gstAmount },
-  { key: 'gstInvoiceNumbers', label: 'GST Invoice No.', get: r => r.gst.invoiceNumbers.join('; ') },
   { key: 'assignedTo', label: 'Agent', get: r => r.lead.assignedTo || 'Unassigned' },
   { key: 'createdAt', label: 'Created', get: r => r.lead.createdAt ? formatDate(r.lead.createdAt) : '' },
 ];
 
 const EXPORT_PRESETS: { label: string; keys: string[] }[] = [
   { label: 'Accounts Summary', keys: ['leadCode', 'name', 'phone', 'destination', 'wonAt', 'sellingPrice', 'collected', 'pending', 'status'] },
-  { label: 'GST / CA Sheet', keys: ['leadCode', 'name', 'phone', 'wonAt', 'sellingPrice', 'gstStatus', 'gstAmount', 'gstInvoiceNumbers'] },
   { label: 'Vendor Sheet', keys: ['leadCode', 'name', 'destination', 'vendorNames', 'vendorCost', 'vendorPaid', 'vendorOwed'] },
   { label: 'Everything', keys: EXPORT_COLUMNS.map(c => c.key) },
 ];
@@ -135,16 +109,16 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
 
   const toggleCol = (key: string) => setSelected(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn('relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden', theme === 'dark' ? 'bg-slate-900 border border-white/10' : 'bg-white')}>
+      <button tabIndex={-1} aria-label="Close export backdrop" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-label="Export accounts" className={cn('relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden', theme !== 'light' ? 'bg-slate-900 border border-white/10' : 'bg-white')}>
         <div className={cn('flex items-center justify-between px-5 py-4 border-b shrink-0', getBorderClass())}>
           <div>
             <h2 className={cn('text-lg font-bold', getTextColor())}>Export Accounts</h2>
             <p className={cn('text-[12px]', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>{filtered.length} booking{filtered.length === 1 ? '' : 's'} will be exported</p>
           </div>
-          <button onClick={onClose} className={cn('p-2 rounded-full', theme === 'light' ? 'hover:bg-slate-100 text-slate-400' : 'hover:bg-white/10 text-white/50')}><X size={18} /></button>
+          <button aria-label="Close export" onClick={onClose} className={cn('p-2 rounded-full', theme === 'light' ? 'hover:bg-slate-100 text-slate-400' : 'hover:bg-white/10 text-white/50')}><X size={18} /></button>
         </div>
 
         <div className="p-5 flex flex-col gap-4 overflow-y-auto">
@@ -155,7 +129,7 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
               <button
                 key={s || 'all'}
                 onClick={() => setStage(s)}
-                className={cn('px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all',
+                className={cn('px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors',
                   stage === s ? 'bg-slate-900 border-slate-900 text-white' : (theme === 'light' ? 'bg-white border-slate-200 text-slate-500' : 'bg-white/5 border-white/10 text-white/50'))}
               >
                 {s || 'All'}
@@ -170,7 +144,7 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
               <button
                 key={p.label}
                 onClick={() => setSelected(p.keys)}
-                className={cn('px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all',
+                className={cn('px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors',
                   theme === 'light' ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/60 hover:border-white/30')}
               >
                 {p.label}
@@ -219,7 +193,7 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
           <button
             onClick={handleCopy}
             disabled={filtered.length === 0 || cols.length === 0}
-            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all disabled:opacity-40',
+            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors disabled:opacity-40',
               theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30')}
           >
             {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
@@ -235,302 +209,147 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
           </button>
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 };
 
 export const Customers = () => {
-  const { leads, isLoading, loadError } = useLeads();
-  const [visibleRows, setVisibleRows] = useState(50);
+  const { leads, suppliers, isLoading, loadError, retryLoad } = useLeads();
   const { theme, getTextColor, getSecondaryTextColor, getInputClass } = useTheme();
   const { user, users } = useAuth();
-  const { paymentSummary } = usePaymentSummary();
-  const { gstSummary } = useDocumentsSummary();
-
+  const { paymentSummary, paymentSummaryLoaded, paymentSummaryError, refreshPaymentSummary } = usePaymentSummary();
   const [searchQuery, setSearchQuery] = useState('');
   const [destinationFilter, setDestinationFilter] = useState('');
   const [agentFilter, setAgentFilter] = useState('');
   const [vendorFilter, setVendorFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('Won');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentState>('');
+  const [collectionFilter, setCollectionFilter] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState('recent');
+  const [view, setView] = useState<'bookings' | 'vendors'>('bookings');
+  const [visibleRows, setVisibleRows] = useState(50);
   const [showExport, setShowExport] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<string | null>(null);
+  const closeBooking = useCallback(() => { setSelectedLead(null); refreshPaymentSummary(); }, [refreshPaymentSummary]);
 
-  // Distinct filter option lists, derived from the leads actually on file —
-  // destination and vendor are free text (no canonical list anywhere in the
-  // app), so these are built the same way Dashboard's destination breakdown is.
-  const destinationOptions = useMemo(() => {
-    const seen = new Map<string, string>(); // lowercased -> original casing
-    leads.forEach(l => {
-      const d = (l.tripDetails?.destination || '').trim();
-      if (d && !seen.has(d.toLowerCase())) seen.set(d.toLowerCase(), d);
-    });
-    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
-  }, [leads]);
+  useEffect(() => { setVisibleRows(50); }, [searchQuery, destinationFilter, agentFilter, vendorFilter, statusFilter, paymentFilter, collectionFilter, from, to, sort, view]);
 
-  const vendorOptions = useMemo(() => {
-    const seen = new Set<string>();
-    leads.forEach(l => (l.vendors || []).forEach(v => v.name && seen.add(v.name)));
-    return Array.from(seen).sort((a, b) => a.localeCompare(b));
-  }, [leads]);
-
-  const agentOptions = useMemo(
-    () => users.filter(u => u.role === 'agent').map(u => u.name),
-    [users]);
-
-  // --- One row per booking (lead), not grouped by customer — accounts care
-  // about each booking's own collection/vendor/GST state, not a relationship
-  // rollup. ---
-  const rows = useMemo(() => {
-    return leads
-      .map(lead => ({
-        lead,
-        collected: paymentSummary[lead.id]?.collected || 0,
-        vendor: vendorTotals(lead),
-        vendorNames: vendorNamesOf(lead),
-        gst: gstSummary[lead.id] || { status: 'none' as const, gstAmount: 0, invoiceNumbers: [] },
-      }))
-      .sort((a, b) => {
-        const at = a.lead.wonAt || a.lead.lastStatusUpdate || a.lead.createdAt;
-        const bt = b.lead.wonAt || b.lead.lastStatusUpdate || b.lead.createdAt;
-        return new Date(bt).getTime() - new Date(at).getTime();
-      });
-  }, [leads, paymentSummary, gstSummary]);
+  const rows = useMemo<AccountRow[]>(() => leads.map(lead => {
+    const vendorEntries = bookingVendors(lead, suppliers);
+    return { lead, collected: paymentSummary[lead.id]?.collected || 0, vendorEntries, vendor: totalVendors(vendorEntries), vendorNames: [...new Set(vendorEntries.map(v => v.name))].join(', ') };
+  }), [leads, suppliers, paymentSummary]);
+  const destinationOptions = useMemo(() => [...new Set<string>(leads.map(l => l.tripDetails?.destination?.trim()).filter((d): d is string => !!d))].sort((a, b) => a.localeCompare(b)), [leads]);
+  const vendorOptions = useMemo(() => groupVendorBalances(rows).sort((a, b) => a.name.localeCompare(b.name)), [rows]);
+  const agentOptions = useMemo(() => [...new Set([...users.map(u => u.name), ...leads.map(l => l.assignedTo).filter(Boolean)])].sort(), [users, leads]);
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return rows.filter(r => {
-      const l = r.lead;
-      if (q) {
-        const hit = l.name.toLowerCase().includes(q)
-          || (l.contact?.phone || '').includes(q)
-          || (l.contact?.email || '').toLowerCase().includes(q)
-          || (l.tripDetails?.destination || '').toLowerCase().includes(q);
-        if (!hit) return false;
-      }
-      if (destinationFilter && (l.tripDetails?.destination || '').toLowerCase() !== destinationFilter.toLowerCase()) return false;
-      if (agentFilter && l.assignedTo !== agentFilter) return false;
-      if (vendorFilter && !(l.vendors || []).some(v => v.name === vendorFilter)) return false;
-      if (statusFilter && l.status !== statusFilter) return false;
-      return true;
+    return rows.flatMap(row => {
+      const l = row.lead;
+      if (q && ![l.name, l.leadCode, l.contact?.phone, l.contact?.email, l.tripDetails?.destination, row.vendorNames].some(v => v?.toLowerCase().includes(q))) return [];
+      if (destinationFilter && l.tripDetails?.destination?.trim() !== destinationFilter) return [];
+      if (agentFilter && (l.assignedTo || '__unassigned') !== agentFilter) return [];
+      if (statusFilter && l.status !== statusFilter) return [];
+      // Booking date is the recorded Won date; never substitute enquiry creation.
+      const date = l.wonAt ? new Date(l.wonAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) : '';
+      if ((from && (!date || date < from)) || (to && (!date || date > to))) return [];
+      const selling = Math.max(0, Number(l.commercials?.sellingPrice) || 0);
+      if (collectionFilter === 'uncollected' && row.collected > 0) return [];
+      if (collectionFilter === 'pending' && (!selling || row.collected >= selling)) return [];
+      if (collectionFilter === 'partial' && !(row.collected > 0 && row.collected < selling)) return [];
+      if (collectionFilter === 'collected' && !(selling > 0 && row.collected >= selling)) return [];
+      let entries = vendorFilter ? row.vendorEntries.filter(v => v.key === vendorFilter) : row.vendorEntries;
+      // Vendor view filters individual booking/vendor balances before grouping.
+      // This keeps an unpaid supplier visible even if a different supplier is paid.
+      if (view === 'vendors') entries = entries.filter(v => matchesPayment(v, paymentFilter));
+      if (!entries.length) return [];
+      const vendor = totalVendors(entries);
+      if (view === 'bookings' && !matchesPayment(vendor, paymentFilter)) return [];
+      return [{ ...row, vendor, vendorEntries: entries, vendorNames: [...new Set(entries.map(v => v.name))].join(', ') }];
+    }).sort((a, b) => {
+      if (sort === 'owed') return b.vendor.owed - a.vendor.owed;
+      if (sort === 'collected') return b.collected - a.collected;
+      if (sort === 'name') return a.lead.name.localeCompare(b.lead.name);
+      return new Date(b.lead.wonAt || b.lead.lastStatusUpdate || b.lead.createdAt).getTime() - new Date(a.lead.wonAt || a.lead.lastStatusUpdate || a.lead.createdAt).getTime();
     });
-  }, [rows, searchQuery, destinationFilter, agentFilter, vendorFilter, statusFilter]);
-
-  const getInitials = (name: string) =>
-    name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-
-  const clearFilters = () => {
-    setSearchQuery(''); setDestinationFilter(''); setAgentFilter(''); setVendorFilter(''); setStatusFilter('');
+  }, [rows, searchQuery, destinationFilter, agentFilter, vendorFilter, statusFilter, paymentFilter, collectionFilter, from, to, sort, view]);
+  const vendorGroups = useMemo(() => groupVendorBalances(filteredRows), [filteredRows]);
+  const totals = useMemo(() => filteredRows.reduce((s, r) => ({ collected: s.collected + r.collected, paid: s.paid + r.vendor.paid, owed: s.owed + r.vendor.owed }), { collected: 0, paid: 0, owed: 0 }), [filteredRows]);
+  const hasActiveFilters = !!(searchQuery || destinationFilter || agentFilter || vendorFilter || statusFilter || paymentFilter || collectionFilter || from || to);
+  const clearFilters = () => { setSearchQuery(''); setDestinationFilter(''); setAgentFilter(''); setVendorFilter(''); setStatusFilter(''); setPaymentFilter(''); setCollectionFilter(''); setFrom(''); setTo(''); setSort('recent'); };
+  const invalidDates = !!(from && to && from > to);
+  const ready = !isLoading && !loadError;
+  const muted = getSecondaryTextColor();
+  const selectCls = cn('w-full rounded-lg px-3 py-2 text-xs font-medium border', getInputClass());
+  const labelCls = cn('text-[10px] font-bold uppercase tracking-wider', muted);
+  const thCls = 'px-4 py-3 font-bold text-[10px] uppercase tracking-wider opacity-60 whitespace-nowrap';
+  const exportVendors = () => {
+    const csv = Papa.unparse(vendorGroups.map(v => ({ Vendor: v.name, Bookings: v.bookings.size, 'Vendor Cost': v.cost, 'Vendor Paid': v.paid, Outstanding: v.owed })));
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a'); a.href = url; a.download = `tte-vendor-balances-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
   };
-  const hasActiveFilters = !!(searchQuery || destinationFilter || agentFilter || vendorFilter || statusFilter);
+  const shownCount = view === 'vendors' ? vendorGroups.length : filteredRows.length;
 
-  const selectCls = cn('rounded-lg px-3 py-2 text-[12px] font-medium outline-none border transition-all', getInputClass());
-
-  return (
-    <div className="relative min-h-[calc(100vh-100px)]">
-
-      {/* --- Header --- */}
-      <div className="mb-6 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-baseline md:justify-between gap-2">
-          <div className="flex items-baseline gap-2.5">
-            <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>Customers</h1>
-            <span className={cn("text-sm font-medium", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
-              {filteredRows.length} of {rows.length} booking{rows.length === 1 ? '' : 's'}
-            </span>
-          </div>
-          <button
-            disabled={isLoading || !!loadError}
-            title={isLoading ? 'Wait for all bookings to load before exporting' : undefined}
-            onClick={() => setShowExport(true)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors shrink-0",
-              theme === 'light' ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800' : 'bg-white text-slate-900 border-white hover:bg-white/90'
-            )}
-          >
-            <Download size={15} strokeWidth={2.5} /> Export CSV
-          </button>
-        </div>
-        <p className={cn("text-sm opacity-50 -mt-2", getTextColor())}>
-          Booking-wise collections, vendor payments and GST invoice status.
-        </p>
-
-        {/* Search */}
-        <div className={cn(
-          "flex items-center px-4 rounded-xl transition-all border focus-within:ring-1",
-          theme === 'light'
-            ? 'bg-white border-slate-200 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] focus-within:ring-slate-300 focus-within:border-slate-300'
-            : 'bg-white/5 border-white/10 focus-within:ring-white/20'
-        )}>
-          <Search size={18} strokeWidth={2} className="opacity-40 shrink-0 mr-3" />
-          <input
-            type="text"
-            placeholder="Search by name, mobile, or destination..."
-            className={cn("w-full py-3 bg-transparent outline-none text-sm", getInputClass(), "border-none focus:ring-0")}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-500/10 rounded-full transition-colors">
-              <X size={16} strokeWidth={2} />
-            </button>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={destinationFilter} onChange={e => setDestinationFilter(e.target.value)} className={selectCls}>
-            <option value="">All destinations</option>
-            {destinationOptions.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-          {user?.role === 'admin' && (
-            <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)} className={selectCls}>
-              <option value="">All agents</option>
-              {agentOptions.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          )}
-          <select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className={selectCls}>
-            <option value="">All vendors</option>
-            {vendorOptions.map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}>
-            <option value="">All stages</option>
-            {STATUS_COLUMNS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className={cn("text-[12px] font-bold underline opacity-60 hover:opacity-100", getTextColor())}>
-              Clear filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* --- Accounts Table --- */}
-      <Card noPadding className="overflow-hidden shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="overflow-x-auto">
-          <table className={cn("w-full text-left border-collapse", getTextColor())}>
-            <thead>
-              <tr className={cn(theme === 'light' ? 'bg-slate-50 border-b border-slate-200' : 'bg-white/5 border-b border-white/10')}>
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50">Customer</th>
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden md:table-cell">Destination</th>
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden lg:table-cell">Booking Done</th>
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right">Collected</th>
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right hidden sm:table-cell">Vendor Paid</th>
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden lg:table-cell">Vendor(s)</th>
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50">GST</th>
-                {user?.role === 'admin' && <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 hidden md:table-cell">Agent</th>}
-                <th className="p-4 font-bold text-[11px] uppercase tracking-wider opacity-50 text-right">Booking</th>
-              </tr>
-            </thead>
-            <tbody className={cn("divide-y", theme === 'light' ? 'divide-slate-100' : 'divide-white/5')}>
-              {filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="p-16">
-                    <div className="flex flex-col items-center text-center">
-                      <div className={cn(
-                        "w-14 h-14 rounded-2xl flex items-center justify-center mb-4",
-                        theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-white/5 text-white/40'
-                      )}>
-                        <User size={24} strokeWidth={2} />
-                      </div>
-                      <p className={cn("text-base font-semibold", getTextColor())}>
-                        {hasActiveFilters ? 'No bookings match these filters' : 'No bookings yet'}
-                      </p>
-                      <p className={cn("text-sm mt-1", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
-                        {hasActiveFilters ? 'Try clearing a filter.' : 'Bookings appear here as leads are added.'}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredRows.slice(0, visibleRows).map(({ lead, collected, vendor, vendorNames, gst }) => {
-                const gstMeta = GST_META[gst.status];
-                return (
-                  <tr
-                    key={lead.id}
-                    className={cn(
-                      "group relative transition-colors",
-                      theme === 'light' ? "hover:bg-slate-50" : "hover:bg-white/5"
-                    )}
-                  >
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
-                          theme === 'light' ? 'bg-slate-900 text-white' : 'bg-white/10 border border-white/10 text-white'
-                        )}>
-                          {getInitials(lead.name)}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className={cn("font-bold text-sm leading-tight truncate", getTextColor())}>{lead.name}</h3>
-                          <div className={cn("flex items-center gap-1 text-[11px] opacity-70", getSecondaryTextColor())}>
-                            <Phone size={9} /> {lead.contact?.phone || '—'}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="p-4 hidden md:table-cell text-sm opacity-80">
-                      {lead.tripDetails?.destination || <span className="opacity-30 italic">—</span>}
-                    </td>
-
-                    <td className="p-4 hidden lg:table-cell text-sm">
-                      {lead.wonAt
-                        ? formatDate(lead.wonAt)
-                        : <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase", theme === 'light' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-white/5 text-white/40 border-white/10')}>{lead.status}</span>}
-                    </td>
-
-                    <td className="p-4 text-right font-mono font-bold text-sm text-emerald-500">
-                      {fmtAmt(collected)}
-                    </td>
-
-                    <td className="p-4 text-right font-mono text-sm hidden sm:table-cell">
-                      {fmtAmt(vendor.paid)}
-                      {vendor.owed > 0 && (
-                        <div className="text-[10px] font-sans font-bold opacity-50 mt-0.5">
-                          {fmtAmt(vendor.owed)} owed
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="p-4 hidden lg:table-cell text-sm opacity-80 max-w-[160px] truncate" title={vendorNames}>
-                      {vendorNames || <span className="opacity-30 italic">—</span>}
-                    </td>
-
-                    <td className="p-4">
-                      <span className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border font-bold uppercase tracking-wide", gstMeta.className)}>
-                        {gstMeta.icon} {gstMeta.label}
-                      </span>
-                    </td>
-
-                    {user?.role === 'admin' && (
-                      <td className="p-4 hidden md:table-cell">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 w-fit",
-                          getAgentColor(lead.assignedTo)
-                        )}>
-                          <UserCheck size={9} /> {lead.assignedTo || 'Unassigned'}
-                        </span>
-                      </td>
-                    )}
-
-                    <td className="p-4 text-right">
-                      <Link
-                        to={`/leads/${lead.id}`}
-                        className={cn(
-                          "inline-flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-lg border transition-colors",
-                          theme === 'light' ? 'border-slate-200 text-slate-600 hover:bg-slate-100' : 'border-white/10 text-white/70 hover:bg-white/10'
-                        )}
-                      >
-                        View <ArrowUpRight size={12} />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {visibleRows < filteredRows.length && <button className="w-full rounded-lg border border-slate-300 p-3 text-sm font-semibold" onClick={() => setVisibleRows(n => n + 50)}>Show more bookings ({filteredRows.length - visibleRows} remaining)</button>}
-      {showExport && !isLoading && !loadError && <ExportPanel rows={filteredRows} onClose={() => setShowExport(false)} />}
+  return <div className={cn('relative min-h-[calc(100vh-100px)] space-y-4', getTextColor())}>
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div><h1 className="text-2xl font-bold tracking-tight">Customers <span className={cn('text-sm font-medium ml-2', muted)}>{filteredRows.length} of {rows.length} bookings</span></h1><p className={cn('text-sm mt-1', muted)}>Booking-wise collections and vendor payments.</p></div>
+      <button disabled={!ready || !paymentSummaryLoaded || invalidDates} onClick={() => view === 'vendors' ? exportVendors() : setShowExport(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold disabled:opacity-40"><Download size={15} />{view === 'vendors' ? 'Export vendor balances' : 'Export CSV'}</button>
     </div>
-  );
+
+    <Card className="space-y-3">
+      <label className="flex items-center gap-3"><Search size={18} className="opacity-40 shrink-0" /><input aria-label="Search bookings" placeholder="Search name, phone, TTE ID, destination or vendor…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('w-full px-3 py-2 text-sm', getInputClass())} /></label>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <label className="space-y-1"><span className={labelCls}>Destination</span><select aria-label="Destination" value={destinationFilter} onChange={e => setDestinationFilter(e.target.value)} className={selectCls}><option value="">All destinations</option>{destinationOptions.map(d => <option key={d}>{d}</option>)}</select></label>
+        <label className="space-y-1"><span className={labelCls}>Vendor</span><select aria-label="Vendor" value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className={selectCls}><option value="">All vendors</option>{vendorOptions.map(v => <option key={v.key} value={v.key}>{v.name}</option>)}</select></label>
+        <label className="space-y-1"><span className={labelCls}>Vendor payment</span><select aria-label="Vendor payment" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value as PaymentState)} className={selectCls}><option value="">All payment states</option><option value="outstanding">Outstanding (unpaid + partial)</option><option value="unpaid">Not paid</option><option value="partial">Partially paid</option><option value="paid">Fully paid</option><option value="no-cost">No vendor cost entered</option></select></label>
+        <label className="space-y-1"><span className={labelCls}>Customer collection</span><select aria-label="Customer collection" disabled={!paymentSummaryLoaded} value={collectionFilter} onChange={e => setCollectionFilter(e.target.value)} className={selectCls}><option value="">All collections</option><option value="pending">Collection pending</option><option value="uncollected">Nothing collected</option><option value="partial">Partially collected</option><option value="collected">Fully collected</option></select></label>
+        <label className="space-y-1"><span className={labelCls}>Booking done from</span><input aria-label="Booking done from" type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} className={selectCls} /></label>
+        <label className="space-y-1"><span className={labelCls}>Booking done to</span><input aria-label="Booking done to" type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} className={selectCls} /></label>
+        {user?.role === 'admin' && <label className="space-y-1"><span className={labelCls}>Agent</span><select aria-label="Agent" value={agentFilter} onChange={e => setAgentFilter(e.target.value)} className={selectCls}><option value="">All agents</option><option value="__unassigned">Unassigned</option>{agentOptions.map(a => <option key={a}>{a}</option>)}</select></label>}
+        <label className="space-y-1"><span className={labelCls}>Stage</span><select aria-label="Stage" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}><option value="">All stages</option>{STATUS_COLUMNS.map(s => <option key={s}>{s}</option>)}</select></label>
+      </div>
+      <div className="flex items-center justify-between flex-wrap gap-3 border-t border-slate-500/10 pt-3">
+        <div className="flex rounded-lg border border-slate-500/20 p-1 gap-1" aria-label="Accounts view">{(['bookings', 'vendors'] as const).map(v => <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className={cn('px-3 py-1.5 rounded-md text-xs font-semibold', view === v ? 'bg-indigo-600 text-white' : 'hover:bg-slate-500/10')}>{v === 'bookings' ? 'Bookings' : 'By vendor'}</button>)}</div>
+        <div className="flex items-center gap-3"><label className="flex items-center gap-2 text-xs">Sort<select aria-label="Sort bookings" value={sort} onChange={e => setSort(e.target.value)} className={selectCls}><option value="recent">Newest booking</option><option value="owed">Highest outstanding</option><option value="collected">Highest collected</option><option value="name">Customer name</option></select></label>{hasActiveFilters && <button onClick={clearFilters} className="text-xs font-semibold underline whitespace-nowrap">Clear filters</button>}</div>
+      </div>
+      {vendorFilter && <p className={cn('text-xs', muted)}>Vendor paid, outstanding and exports show only {vendorOptions.find(v => v.key === vendorFilter)?.name}. Collections remain the full booking amount.</p>}
+      {view === 'vendors' && <p className={cn('text-xs', muted)}>Vendor balances across the matching bookings, highest outstanding first. Select “View bookings” to review and record payments.</p>}
+      {invalidDates && <p role="alert" className="text-xs text-rose-600">The end date must be on or after the start date.</p>}
+    </Card>
+
+    {(!ready || !paymentSummaryLoaded) && <div role={loadError || paymentSummaryError ? 'alert' : 'status'} className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+      {loadError ? <>{loadError} <button className="underline" onClick={retryLoad}>Retry bookings</button></> : isLoading ? 'Loading all bookings. Totals and exports will be available when loading completes.' : paymentSummaryError ? <>Customer collections could not load. <button className="underline" onClick={refreshPaymentSummary}>Retry collections</button></> : 'Loading customer collections…'}
+    </div>}
+
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-label="Filtered account totals">
+      {[['Matching bookings', ready ? filteredRows.length : '…'], ['Collected', ready && paymentSummaryLoaded ? fmtAmt(totals.collected) : '—'], ['Vendor paid', ready ? fmtAmt(totals.paid) : '—'], ['Vendor outstanding', ready ? fmtAmt(totals.owed) : '—']].map(([label, value]) => <Card key={label} className="!p-3"><div className={labelCls}>{label}</div><div className={cn('text-lg font-bold mt-1 font-mono', label === 'Vendor outstanding' && 'text-amber-600')}>{value}</div></Card>)}
+    </div>
+
+    <Card noPadding className="overflow-hidden">
+      <div className="overflow-x-auto">
+        {view === 'vendors' ? <table className="w-full text-sm text-left min-w-[620px]" aria-label="Vendor balances">
+          <thead className="bg-slate-500/5 border-b border-slate-500/10"><tr>{['Vendor', 'Bookings', 'Vendor cost', 'Vendor paid', 'Outstanding', ''].map((h, i) => <th key={i} className={cn(thCls, i > 1 && 'text-right')}>{h}</th>)}</tr></thead>
+          <tbody className="divide-y divide-slate-500/10">{vendorGroups.slice(0, visibleRows).map(v => <tr key={v.key} className="hover:bg-slate-500/5"><td className="p-4 font-semibold">{v.name}</td><td className="p-4">{v.bookings.size}</td><td className="p-4 text-right font-mono">{fmtAmt(v.cost)}</td><td className="p-4 text-right font-mono">{fmtAmt(v.paid)}</td><td className="p-4 text-right font-mono font-bold text-amber-600">{fmtAmt(v.owed)}</td><td className="p-4 text-right"><button className="px-3 py-2 rounded-lg border border-slate-500/20 text-xs font-bold whitespace-nowrap" onClick={() => { setVendorFilter(v.key); setView('bookings'); }}>View bookings</button></td></tr>)}</tbody>
+        </table> : <table className="w-full text-left border-collapse min-w-[900px]" aria-label="Booking accounts">
+          <thead className="bg-slate-500/5 border-b border-slate-500/10"><tr>{['Customer / TTE ID', 'Destination', 'Booking done', 'Collected', 'Vendor paid', 'Vendor(s)', ...(user?.role === 'admin' ? ['Agent'] : []), 'Booking'].map(h => <th key={h} className={cn(thCls, ['Collected', 'Vendor paid', 'Booking'].includes(h) && 'text-right')}>{h}</th>)}</tr></thead>
+          <tbody className="divide-y divide-slate-500/10">{filteredRows.slice(0, visibleRows).map(({ lead, collected, vendor, vendorNames }) => <tr key={lead.id} className="hover:bg-slate-500/5">
+            <td className="p-4"><div className="font-bold text-sm">{lead.name}</div><div className="mt-1"><LeadCodeChip code={lead.leadCode} /></div><div className={cn('flex items-center gap-1 text-[11px] mt-1 whitespace-nowrap', muted)}><Phone size={10} />{lead.contact?.phone || '—'}</div></td>
+            <td className="p-4 text-sm max-w-[200px]">{lead.tripDetails?.destination || '—'}</td>
+            <td className="p-4 text-xs whitespace-nowrap">{lead.wonAt ? formatDate(lead.wonAt) : lead.status === 'Won' ? 'Date not recorded' : lead.status}</td>
+            <td className="p-4 text-right font-mono font-bold text-sm text-emerald-600">{paymentSummaryLoaded ? fmtAmt(collected) : '—'}</td>
+            <td className="p-4 text-right font-mono text-sm whitespace-nowrap">{fmtAmt(vendor.paid)}{vendor.owed > 0 && <div className="text-[10px] font-sans font-semibold text-amber-600 mt-1">{fmtAmt(vendor.owed)} owed</div>}</td>
+            <td className="p-4 text-xs max-w-[220px]" title={vendorNames}>{vendorNames}</td>
+            {user?.role === 'admin' && <td className="p-4"><span className={cn('px-2 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 whitespace-nowrap', getAgentColor(lead.assignedTo))}><UserCheck size={10} />{lead.assignedTo || 'Unassigned'}</span></td>}
+            <td className="p-4 text-right"><button aria-label={`View booking ${lead.leadCode || lead.name}`} onClick={() => setSelectedLead(lead.id)} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-500/20 hover:bg-slate-500/10">View</button></td>
+          </tr>)}</tbody>
+        </table>}
+        {shownCount === 0 && <div className="p-10 text-center"><User size={24} className="mx-auto opacity-30 mb-2" /><p className="font-semibold">{isLoading ? 'Loading bookings…' : 'No bookings match these filters'}</p><p className={cn('text-sm mt-1', muted)}>Try clearing a filter or changing the booking dates.</p></div>}
+      </div>
+    </Card>
+    {visibleRows < shownCount && <button className="w-full rounded-lg border border-slate-500/20 p-3 text-sm font-semibold" onClick={() => setVisibleRows(n => n + 50)}>Show more ({shownCount - visibleRows} remaining)</button>}
+    {showExport && ready && paymentSummaryLoaded && <ExportPanel rows={filteredRows} onClose={() => setShowExport(false)} />}
+    {selectedLead && <BookingDetailsDialog leadId={selectedLead} onClose={closeBooking} />}
+  </div>;
 };
