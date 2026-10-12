@@ -50,6 +50,10 @@ const SOURCE_LABEL: Record<string, string> = {
 // mapping explicit: source routing must never be inferred from a destination
 // entered by a guest.
 const SOURCE_RULE_KEY: Record<string, string> = {
+  soubooking_website_form: 'soubooking',
+  soubooking_whatsapp_click: 'soubooking',
+  soubooking_whatsapp_bot: 'soubooking',
+  soubooking_email: 'soubooking',
   tte_website_form: 'rannutsav_website',
   website_form: 'rannutsav_tickets',
   // These are all intake channels from the Rann Utsav Tickets site. They
@@ -69,10 +73,16 @@ const SOURCE_RULE_KEY: Record<string, string> = {
 
 export function getWebsiteAttribution(rawSource: string, website?: string | null) {
   let sourceKey = String(rawSource || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  // The SOU adapter supplies this prefix even when a browser omits page_url.
+  if (sourceKey.startsWith('soubooking_')) {
+    const channel = /whatsapp.*bot/.test(sourceKey) ? 'whatsapp_bot' : /whatsapp/.test(sourceKey) ? 'whatsapp_click' : /email/.test(sourceKey) ? 'email' : 'website_form';
+    return { sourceKey: `soubooking_${channel}`, source: `${channel === 'whatsapp_bot' ? 'WhatsApp Bot' : channel === 'whatsapp_click' ? 'WhatsApp Click' : channel === 'email' ? 'Email' : 'Website'} - soubooking.in`, tags: [`soubooking_${channel}`, 'soubooking.in'] };
+  }
   let site: string | null = null;
   if (website) {
     try {
       const host = new URL(website.includes('://') ? website : `https://${website}`).hostname.replace(/^www\./, '').toLowerCase();
+      if (host === 'soubooking.in') return getWebsiteAttribution(`soubooking_${sourceKey}`);
       if (host === 'rannutsav.in' || host === 'rannutsavtickets.in') site = host;
     } catch {}
   }
@@ -239,6 +249,7 @@ export function parseLeadRouting(row: any): LeadRoutingSettings {
       kind: 'lead-routing-v1',
       fallback,
       routes: {
+        soubooking: asRule(stored.routes?.soubooking, fallback),
         rannutsav_website: asRule(stored.routes?.rannutsav_website, fallback),
         rannutsav_tickets: asRule(stored.routes?.rannutsav_tickets, fallback),
       },
@@ -247,7 +258,7 @@ export function parseLeadRouting(row: any): LeadRoutingSettings {
     return {
       kind: 'lead-routing-v1',
       fallback: legacy,
-      routes: { rannutsav_website: legacy, rannutsav_tickets: legacy },
+      routes: { soubooking: legacy, rannutsav_website: legacy, rannutsav_tickets: legacy },
     };
   }
 }

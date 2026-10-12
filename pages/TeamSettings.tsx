@@ -13,7 +13,7 @@ import { User as UserType } from '../types';
 import { UserAvatar } from '../components/ui/UserAvatar';
 
 interface LeadRoutingRule {
-  source_key: 'rannutsav_website' | 'rannutsav_tickets';
+  source_key: 'rannutsav_website' | 'rannutsav_tickets' | 'soubooking';
   source_label: string;
   enabled: boolean;
   assign_to: string | null;
@@ -31,6 +31,7 @@ interface LeadRoutingConfig {
 }
 
 const WEBSITE_ROUTES: Array<Pick<LeadRoutingRule, 'source_key' | 'source_label'> & { subtitle: string }> = [
+  { source_key: 'soubooking', source_label: 'SOU Booking website', subtitle: 'Leads submitted on soubooking.in' },
   { source_key: 'rannutsav_website', source_label: 'Rann Utsav website', subtitle: 'Leads submitted on rannutsav.in' },
   { source_key: 'rannutsav_tickets', source_label: 'Rann Utsav Tickets website', subtitle: 'Leads submitted on rannutsavtickets.in' },
 ];
@@ -53,10 +54,13 @@ const toConfig = (settings: StoredAutoAssignSettings): LeadRoutingConfig => {
         enabled: typeof stored.fallback?.enabled === 'boolean' ? stored.fallback.enabled : legacy.enabled,
         assignTo: typeof stored.fallback?.assignTo === 'string' && stored.fallback.assignTo.trim() ? stored.fallback.assignTo : legacy.assignTo,
       },
-      routes: { rannutsav_website: rule('rannutsav_website'), rannutsav_tickets: rule('rannutsav_tickets') },
+      routes: { soubooking: stored.routes?.soubooking ? rule('soubooking') : {
+        enabled: typeof stored.fallback?.enabled === 'boolean' ? stored.fallback.enabled : legacy.enabled,
+        assignTo: typeof stored.fallback?.assignTo === 'string' && stored.fallback.assignTo.trim() ? stored.fallback.assignTo : legacy.assignTo,
+      }, rannutsav_website: rule('rannutsav_website'), rannutsav_tickets: rule('rannutsav_tickets') },
     };
   } catch {
-    return { kind: 'lead-routing-v1', fallback: legacy, routes: { rannutsav_website: legacy, rannutsav_tickets: legacy } };
+    return { kind: 'lead-routing-v1', fallback: legacy, routes: { soubooking: legacy, rannutsav_website: legacy, rannutsav_tickets: legacy } };
   }
 };
 
@@ -66,6 +70,8 @@ const toConfig = (settings: StoredAutoAssignSettings): LeadRoutingConfig => {
 const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
   const { theme, getTextColor, getInputClass } = useTheme();
   const [config, setConfig] = useState<LeadRoutingConfig | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [savedRule, setSavedRule] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,17 +84,25 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
     return () => { cancelled = true; };
   }, []);
 
-  const save = (next: LeadRoutingConfig) => {
+  const save = async (next: LeadRoutingConfig) => {
+    if (saving) return;
+    const previous = config;
     setConfig(next);
+    setSaving(true);
+    setSaveError('');
     setSavedRule(null);
-    supabase.from('app_settings').update({
-      auto_assign_enabled: next.fallback.enabled,
-      auto_assign_to: JSON.stringify(next),
-    }).eq('id', true).then(({ error }) => {
-      if (error) { console.error('Failed to update lead routing rule:', error); return; }
+    try {
+      const { data, error } = await supabase.from('app_settings').update({
+        auto_assign_enabled: next.fallback.enabled,
+        auto_assign_to: JSON.stringify(next),
+      }).eq('id', true).select('id').single();
+      if (error || !data) throw error || new Error('Settings were not saved');
       setSavedRule('saved');
       setTimeout(() => setSavedRule(null), 2000);
-    });
+    } catch {
+      setConfig(previous);
+      setSaveError('Could not save routing. Please try again.');
+    } finally { setSaving(false); }
   };
 
   if (!config) return null;
@@ -110,7 +124,8 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
         )}
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      {saveError && <p role="alert" className="text-xs text-rose-500">{saveError}</p>}
+      <fieldset disabled={saving} aria-busy={saving} className="grid gap-3 lg:grid-cols-2 disabled:opacity-60">
         {WEBSITE_ROUTES.map(route => {
           const rule = config.routes[route.source_key];
           const updateRule = (patch: Partial<typeof rule>) => save({
@@ -142,7 +157,7 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
                   disabled={!rule.enabled}
                   value={rule.assignTo || ''}
                   onChange={e => updateRule({ assignTo: e.target.value || null })}
-                  className={cn('min-w-[140px] flex-1 rounded-lg p-1.5 text-[12px] outline-none border transition-all disabled:opacity-40', getInputClass())}
+                  className={cn('min-w-[140px] flex-1 rounded-lg p-1.5 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 border transition-colors disabled:opacity-40', getInputClass())}
                   aria-label={`${route.source_label} assignee`}
                 >
                   <option value="">Leave unassigned</option>
@@ -157,9 +172,9 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
             </div>
           );
         })}
-      </div>
+      </fieldset>
 
-      <p className={cn('text-[11px] opacity-50', getTextColor())}>A repeat enquiry is never taken away from a team member who already owns it.</p>
+      <p className={cn('text-[11px] opacity-50', getTextColor())}>Changes apply to new enquiries only. Existing lead owners stay unchanged.</p>
     </Card>
   );
 };

@@ -47,6 +47,16 @@ try {
  assert.equal(first.code,200);assert.equal(second.code,200);assert.equal(first.body.created,true);assert.equal(second.body.created,true);assert.notEqual(first.body.leadId,second.body.leadId);assert.notEqual(second.body.leadId,existing.id);
  assert.equal(patch,null);assert.equal(leadLookups,0);assert.equal(JSON.stringify(existing),before);assert(inserted.tags.includes('rannutsavtickets.in'));assert(!inserted.tags.includes('rannutsav.in'));assert.equal(inserted.status,'New');
  for(const status of ['New','Lost','Won']){existing.status=status;assert.equal((await send('tte_website_form','fixture-website')).body.created,true);assert.equal(patch,null);assert.equal(inserted.assigned_to,'Main Agent');}
+ assert.equal(parseLeadRouting({auto_assign_enabled:true,auto_assign_to:JSON.stringify(routing)}).routes.soubooking.assignTo,'Fallback');
+ assert.equal((await send('soubooking_hotel_form','fixture-website')).code,200);assert.equal(inserted.assigned_to,'Fallback');assert.equal(inserted.source,'Website - soubooking.in');assert(inserted.tags.includes('soubooking.in'));assert(!inserted.tags.includes('rannutsav.in'));
+ routing.routes.soubooking={enabled:true,assignTo:'SOU Agent'};
+ assert.equal((await send('soubooking_whatsapp_click','fixture-website')).code,200);assert.equal(inserted.assigned_to,'SOU Agent');assert.equal(inserted.source,'WhatsApp Click - soubooking.in');
+ routing.routes.soubooking={enabled:false,assignTo:'SOU Agent'};
+ assert.equal((await send('soubooking_website_form','fixture-website')).code,200);assert.equal(inserted.assigned_to,null);
+ routing.routes.soubooking={enabled:true,assignTo:null};
+ assert.equal((await send('soubooking_website_form','fixture-website')).code,200);assert.equal(inserted.assigned_to,null);
+ assert.equal((await send('tte_website_form','fixture-website')).code,200);assert.equal(inserted.assigned_to,'Main Agent');
+ assert.equal(getWebsiteAttribution('website_form','https://www.soubooking.in/').sourceKey,'soubooking_website_form');
  assert.equal((await send('website_form','wrong')).code,401);
  console.log('PASS: two-site/channel attribution, hostname checks, legacy/structured routing, null assignees, form payloads, fresh repeated enquiries, preserved old leads, independent assignments, and webhook authentication');
 } finally { await rm(dir,{recursive:true,force:true}); }
