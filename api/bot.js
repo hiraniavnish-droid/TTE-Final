@@ -6372,7 +6372,7 @@ async function handler(req, res) {
     if (endpoint === "automation/test" && method === "POST") {
       requireScope(client, "automation:manage");
       const input = jsonBody(req), event = input.event || "lead.created";
-      if (!["lead.created", "lead.assigned_to_admin", "followup.due"].includes(event) || Object.keys(input).some((k) => k !== "event")) throw new ApiError(400, "Provide event=lead.created, lead.assigned_to_admin or followup.due.", "invalid_request");
+      if (!["lead.created", "followup.due"].includes(event) || Object.keys(input).some((k) => k !== "event")) throw new ApiError(400, "Provide event=lead.created or followup.due.", "invalid_request");
       const reserve = await reserveIdempotency(req, client, path, { event });
       if (reserve.replay) return envelope(res, reserve.replay.status, rid, reserve.replay.body);
       try {

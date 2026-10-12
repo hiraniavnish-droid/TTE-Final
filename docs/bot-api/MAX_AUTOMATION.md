@@ -23,7 +23,7 @@ Settings/delivery endpoints require `automation:manage`. Normal bot operation ne
 
 ## Signed outbound events
 
-`lead.created` fires only for a newly created admin-owned/unassigned lead. `lead.assigned_to_admin` fires when ownership changes to admin/unassigned. Admin includes an existing CRM user with role admin, or the admin/Avnish alias. Team-owned leads are excluded, including at dispatch time.
+`lead.created` fires only for a newly created admin-owned/unassigned lead. Assignment changes no longer emit a webhook; only `lead.created` and `followup.due` are sent. Admin includes an existing CRM user with role admin, or the admin/Avnish alias. Team-owned leads are excluded, including at dispatch time.
 
 ```json
 {"id":"event-uuid","event":"lead.created","occurred_at":"2026-10-01T10:00:00Z","data":{"id":"lead-uuid","ref_id":"TTE-0586","name":"Guest","phone":"...","source":"...","status":"New","owner":null,"trip":{},"created_at":"..."}}
@@ -124,4 +124,4 @@ Configured receiver: `https://api2.cursor.sh/automations/webhook/f5359d29-cb4b-5
 
 ## Test from the deployed CRM
 
-`POST /automation/test` requires `automation:manage` and `Idempotency-Key`. Body: `{ "event": "lead.created" }` (also accepts lead.assigned_to_admin or followup.due). Sends a labelled synthetic dry-run event through the same deployed sender, with no customer phone and no real lead. Returns `{data:{event_id,event,test:true,http_status,accepted}}`. Check accepted/http_status; HTTP 200 on this test API means the test result was recorded, not necessarily receiver acceptance. The receiver must treat test/dry_run events as tests. Calls are audit-logged and same-key retries replay the result.
+`POST /automation/test` requires `automation:manage` and `Idempotency-Key`. Body: `{ "event": "lead.created" }` (also accepts followup.due). Sends a labelled synthetic dry-run event through the same deployed sender, with no customer phone and no real lead. Returns `{data:{event_id,event,test:true,http_status,accepted}}`. Check accepted/http_status; HTTP 200 on this test API means the test result was recorded, not necessarily receiver acceptance. The receiver must treat test/dry_run events as tests. Calls are audit-logged and same-key retries replay the result.

@@ -7,30 +7,32 @@ POST `https://ttecrm.vercel.app/api/interakt-relay` receives the website’s MAX
 - Queueing, dedupe, and WhatsApp history on all matching existing leads are atomic. No lead is created from a message. Media messages are recorded too. Message IDs are remembered for seven days.
 - The existing `/api/max-worker` minute cron claims a burst after 60 seconds of inactivity, or after 180 seconds from its first queued message. Typical delivery is 60–120 seconds after the last message, depending on the cron tick.
 - The newest Interakt body is preserved, with only a top-level `relay` object added. Its messages have `id`, `text`, `type`, `media_url`, and `received_at_utc`.
-- MAX's existing enabled setting and exact `MAX_WEBHOOK_AUTH_TARGET_URL` pin must match. The worker uses `MAX_WEBHOOK_AUTHORIZATION` and `X-Relay: interakt`. Tokens are never stored in the queue or logged.
+- Interakt uses its own production `INTERAKT_MAX_WEBHOOK_URL` and sensitive `INTERAKT_MAX_WEBHOOK_AUTHORIZATION`, copied from the website's original MAX mirror ending `910a8458…`. `INTERAKT_MAX_RELAY_ENABLED=true` enables this route. Both bundled customer messages and immediate echoes use these settings; neither reads CRM webhook settings nor falls back to CRM credentials. `X-Relay: interakt` is included; tokens are never queued or logged.
+- The CRM webhook ending `f5359d29…` and its existing authorization remain dedicated to `lead.created` and `followup.due`. Migration 025 stops assignment events and cancels any unsupported queued event at preflight. CRM automation settings do not control the independent Interakt relay.
 - Each batch has a two-minute lease. Arrivals during delivery are kept separately. Successful delivery removes only that batch; failure restores it and retries after 60 seconds. After ten attempts the row stays pending with `attempts=10` and is retained for review. Delivery is at least once; MAX should continue deduplicating message IDs after ambiguous network failures.
 - The daily seven-day dedupe cleanup is run by the existing minute worker. RLS and service-role-only permissions protect all relay tables and RPC functions.
 
 ## WhatsApp Click introductions
 
-Only `lead.created` and `lead.assigned_to_admin` with a case-insensitive trimmed source starting `WhatsApp Click` get a five-minute queue delay. At the existing preflight, cancel with `customer_already_messaged` when the lead has a customer timestamp later than creation minus three hours, a bot timestamp, or the same last-ten-digit phone has relay/inbound history from the last three hours. Website form introductions and follow-up event rules remain unchanged.
+Only `lead.created` with a case-insensitive trimmed source starting `WhatsApp Click` get a five-minute queue delay. At the existing preflight, cancel with `customer_already_messaged` when the lead has a customer timestamp later than creation minus three hours, a bot timestamp, or the same last-ten-digit phone has relay/inbound history from the last three hours. Website form introductions and follow-up event rules remain unchanged.
 
 ## Live routing: preserve the website flow
 
 The owner selected **preserve website flow; relay MAX only** on 12 October 2026. Interakt remains pointed at `https://www.rannutsavtickets.in/api/whatsapp-webhook`, with its existing secret and event settings.
 
-That route verifies the original Interakt signature first. Its new `src/lib/max-relay.mjs` helper forwards CustomerMessage events (including media) and `message_echo` events to the CRM relay, signing the exact raw bytes with the dedicated production `CRM_INTERAKT_RELAY_SECRET`. The CRM accepts either its original Interakt secret or this separate server-hop secret. No Interakt or MAX credential was replaced or sent to a new destination.
+That route verifies the original Interakt signature first. Its new `src/lib/max-relay.mjs` helper forwards CustomerMessage events (including media) and `message_echo` events to the CRM relay, signing the exact raw bytes with the dedicated production `CRM_INTERAKT_RELAY_SECRET`. The CRM accepts either its original Interakt secret or this separate server-hop secret. The original Interakt credential and the website-to-CRM secret are unchanged. The relay uses the former website MAX destination and authorization; the separate CRM event destination and authorization are unchanged.
 
 The website's existing Hermes forwarding and allowlisted bot flow remain in place. The direct website-to-MAX mirror was removed, so MAX gets its Interakt wakes through the CRM bundle worker. Website forwarding runs in `waitUntil`, retries a transient relay failure once, and never delays or changes the primary bot response. Its two-attempt mirror is best effort if the CRM remains unavailable; monitor failure logs. Other status events are dropped on the website before any relay HTTP request; echoes use the immediate relay path.
 
 Both Vercel projects have the same dedicated sensitive server-hop secret. Deploy the CRM's accepting handler before deploying the website sender when changing that key.
 
-The website change was deployed from an isolated copy of the previous production source: all 331 existing files matched the deployment hashes. Only the webhook route and new relay helper/test changed. Deployment `dpl_JBNrStVcyK2iAnZ9BP1Y5GKiu3FV` is aliased to `www.rannutsavtickets.in`; the three changed files were also synced back to its original local workspace. Its existing Git remote predates the production source, so this was a targeted Vercel CLI deployment rather than replacing production from that older remote branch.
+The website change was deployed from an isolated copy of the previous production source: all 331 existing files matched the deployment hashes. Only the webhook route and new relay helper/test changed. The preserved-flow deployment, followed by the echo update `dpl_DDszCEe8JgEf8rxDA5HJjjsw5wBi`, is aliased to `www.rannutsavtickets.in`; the three changed files were also synced back to its original local workspace. Its existing Git remote predates the production source, so this was a targeted Vercel CLI deployment rather than replacing production from that older remote branch.
 
 ## Verification
 
 - `node scripts/test-interakt-relay.mjs`
 - `node scripts/test-max-automation.mjs`
+- Run `scripts/verify-max-event-routes.sql` inside `BEGIN` / `ROLLBACK` to verify the CRM event allowlist without sending HTTP.
 - In staging or before cutover with an empty relay queue, run migration + `scripts/verify-interakt-relay-db.sql` in a transaction ending **ROLLBACK**, not commit. These create disposable fixtures and must never dispatch HTTP.
 - For real delivery testing, use only synthetic numbers with no matching customer leads, and inspect worker status plus the queued batch. Never send test messages to an actual customer's WhatsApp account.
 

@@ -102,10 +102,8 @@ async function dispatchWebhooks(db, request = safeWebhookRequest) {
 
 // lib/interaktRelay.ts
 async function dispatchInteraktRelay(db = maxDb, request = safeWebhookRequest) {
-  const target = process.env.MAX_WEBHOOK_AUTH_TARGET_URL, authorization = process.env.MAX_WEBHOOK_AUTHORIZATION;
-  if (!target || !authorization) return { claimed: 0, delivered: 0, failed: 0, disabled: true };
-  const settings = (await db("crm_max_settings?select=enabled,target_url&limit=1"))?.[0];
-  if (!settings?.enabled || settings.target_url !== target) return { claimed: 0, delivered: 0, failed: 0, disabled: true };
+  const target = process.env.INTERAKT_MAX_WEBHOOK_URL, authorization = process.env.INTERAKT_MAX_WEBHOOK_AUTHORIZATION;
+  if (process.env.INTERAKT_MAX_RELAY_ENABLED !== "true" || !target || !authorization) return { claimed: 0, delivered: 0, failed: 0, disabled: true };
   const validated = await validateTarget(target);
   const jobs = await db("rpc/crm_interakt_claim", { method: "POST", body: JSON.stringify({ p_limit: 20 }) });
   let delivered = 0, failed = 0;

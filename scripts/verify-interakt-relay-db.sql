@@ -59,7 +59,7 @@ begin
  insert into public.crm_max_outbox(lead_id,event,payload) values(lid,'lead.assigned_to_admin','{}') returning id into oid;
  if (select next_attempt_at from public.crm_max_outbox where id=oid)<t+interval '5 minutes' then raise exception 'Assignment click not delayed'; end if;
  update public.crm_max_outbox set state='processing',lease_token=lease where id=oid;
- if public.crm_max_preflight(oid,lease) is not null then raise exception 'Assignment click outbound not cancelled'; end if;
+ if public.crm_max_preflight(oid,lease) is not null or (select last_error from public.crm_max_outbox where id=oid)<>'unsupported_crm_webhook_event' then raise exception 'Unsupported assignment event was not cancelled'; end if;
  -- Ordinary website source remains eligible after inbound/outbound timestamps.
  update public.leads set last_customer_message_at=now(),last_bot_message_at=now() where id=form_lid;
  select id into oid from public.crm_max_outbox where lead_id=form_lid and event='lead.created';

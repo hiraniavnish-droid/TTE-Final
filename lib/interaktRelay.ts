@@ -21,10 +21,8 @@ export async function relayRequest(raw: Buffer, signature: unknown, db=maxDb, se
 // Outbound echoes bypass the customer queue and never update inbound history.
 export async function forwardInteraktEcho(raw:Buffer,db=maxDb,request:typeof fetch=safeWebhookRequest) {
   try {
-    const target=process.env.MAX_WEBHOOK_AUTH_TARGET_URL,authorization=process.env.MAX_WEBHOOK_AUTHORIZATION;
-    if (!target || !authorization) return {status:503,body:{error:'MAX relay unavailable'}};
-    const settings=(await db('crm_max_settings?select=enabled,target_url&limit=1'))?.[0];
-    if (!settings?.enabled || settings.target_url !== target) return {status:503,body:{error:'MAX relay unavailable'}};
+    const target=process.env.INTERAKT_MAX_WEBHOOK_URL,authorization=process.env.INTERAKT_MAX_WEBHOOK_AUTHORIZATION;
+    if (process.env.INTERAKT_MAX_RELAY_ENABLED !== 'true' || !target || !authorization) return {status:503,body:{error:'MAX relay unavailable'}};
     const validated=await validateTarget(target);
     const response=await request(validated,{method:'POST',headers:{'Content-Type':'application/json',Authorization:authorization,'X-Relay':'interakt'},body:raw,redirect:'error',signal:AbortSignal.timeout(3000)});
     const success=response.status>=200&&response.status<300;
@@ -33,12 +31,10 @@ export async function forwardInteraktEcho(raw:Buffer,db=maxDb,request:typeof fet
   } catch {return {status:503,body:{error:'MAX echo delivery failed'}};}
 }
 
-// Only the existing, explicitly pinned MAX destination can receive this data and token.
+// This server-only URL and token belong to Interakt; never fall back to CRM event settings.
 export async function dispatchInteraktRelay(db=maxDb,request:typeof fetch=safeWebhookRequest) {
-  const target=process.env.MAX_WEBHOOK_AUTH_TARGET_URL,authorization=process.env.MAX_WEBHOOK_AUTHORIZATION;
-  if (!target || !authorization) return {claimed:0,delivered:0,failed:0,disabled:true};
-  const settings=(await db('crm_max_settings?select=enabled,target_url&limit=1'))?.[0];
-  if (!settings?.enabled || settings.target_url !== target) return {claimed:0,delivered:0,failed:0,disabled:true};
+  const target=process.env.INTERAKT_MAX_WEBHOOK_URL,authorization=process.env.INTERAKT_MAX_WEBHOOK_AUTHORIZATION;
+  if (process.env.INTERAKT_MAX_RELAY_ENABLED !== 'true' || !target || !authorization) return {claimed:0,delivered:0,failed:0,disabled:true};
   const validated=await validateTarget(target);
   const jobs=await db('rpc/crm_interakt_claim',{method:'POST',body:JSON.stringify({p_limit:20})});
   let delivered=0,failed=0;
