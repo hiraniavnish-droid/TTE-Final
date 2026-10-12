@@ -13,12 +13,70 @@ async function maxDb(path, init = {}) {
   return value;
 }
 
+// lib/maxAutomation.ts
+import dns from "node:dns/promises";
+import net from "node:net";
+import https from "node:https";
+var MaxInputError = class extends Error {
+  constructor() {
+    super(...arguments);
+    this.status = 400;
+    this.code = "invalid_request";
+  }
+};
+var bad = (s) => {
+  throw new MaxInputError(s);
+};
+function privateAddress(address) {
+  if (net.isIP(address) === 4) {
+    const [a2, b] = address.split(".").map(Number);
+    return a2 === 0 || a2 === 10 || a2 === 127 || a2 >= 224 || a2 === 169 && b === 254 || a2 === 172 && b >= 16 && b <= 31 || a2 === 192 && b === 168 || a2 === 100 && b >= 64 && b <= 127 || a2 === 198 && (b === 18 || b === 19);
+  }
+  const a = address.toLowerCase();
+  return a === "::" || a === "::1" || a.startsWith("fc") || a.startsWith("fd") || a.startsWith("fe80") || a.startsWith("ff") || a.startsWith("::ffff:");
+}
+async function validateTarget(value) {
+  let u;
+  try {
+    u = new URL(value);
+  } catch {
+    bad("target_url must be a public HTTPS URL.");
+  }
+  if (u.protocol !== "https:" || u.username || u.password || u.hash || u.port && u.port !== "443" || u.hostname === "localhost" || u.hostname.endsWith(".local") || u.href.length > 2e3) bad("target_url must be a public HTTPS URL without credentials.");
+  let addresses;
+  try {
+    addresses = await dns.lookup(u.hostname, { all: true });
+  } catch {
+    bad("Webhook hostname could not be resolved.");
+  }
+  if (!addresses.length || addresses.some((a) => privateAddress(a.address))) bad("Webhook target cannot resolve to a private network.");
+  return u.href;
+}
+var safeWebhookRequest = async (input, init = {}) => {
+  const url = new URL(String(input));
+  return await new Promise((resolve, reject) => {
+    const req = https.request(url, { method: "POST", headers: init.headers, signal: init.signal, lookup: ((hostname, options, callback) => {
+      dns.lookup(hostname, { all: true }).then((addresses) => {
+        if (!addresses.length || addresses.some((a) => privateAddress(a.address))) return callback(Error("Private webhook target"));
+        const first = addresses[0];
+        if (options?.all) callback(null, [first]);
+        else callback(null, first.address, first.family);
+      }).catch(callback);
+    }) }, (response) => {
+      response.destroy();
+      resolve(new Response(null, { status: response.statusCode || 500 }));
+    });
+    req.on("error", reject);
+    req.end(init.body);
+  });
+};
+
 // lib/interaktRelay.ts
 function validInteraktSignature(raw, signature, secret) {
   if (!secret || typeof signature !== "string" || !/^sha256=[a-fA-F0-9]{64}$/.test(signature)) return false;
   return crypto.timingSafeEqual(crypto.createHmac("sha256", secret).update(raw).digest(), Buffer.from(signature.slice(7), "hex"));
 }
-async function relayRequest(raw, signature, db = maxDb, secret = process.env.INTERAKT_WEBHOOK_SECRET || "", forwardSecret = process.env.CRM_INTERAKT_RELAY_SECRET || "") {
+async function relayRequest(raw, signature, db = maxDb, secret = process.env.INTERAKT_WEBHOOK_SECRET || "", forwardSecret = process.env.CRM_INTERAKT_RELAY_SECRET || "", request = safeWebhookRequest) {
   if (!validInteraktSignature(raw, signature, secret) && !validInteraktSignature(raw, signature, forwardSecret)) return { status: 401, body: { error: "Invalid Interakt signature" } };
   let body;
   try {
@@ -26,11 +84,27 @@ async function relayRequest(raw, signature, db = maxDb, secret = process.env.INT
   } catch {
     return { status: 400, body: { error: "Invalid JSON" } };
   }
+  if (body?.type === "message_echo") return forwardInteraktEcho(raw, db, request);
   if (body?.type !== "message_received" || body?.data?.message?.chat_message_type !== "CustomerMessage") return { status: 200, body: { dropped: typeof body?.type === "string" ? body.type : "unknown" } };
   const phone = body?.data?.customer?.channel_phone_number, id = body?.data?.message?.id;
   if (typeof phone !== "string" || !/^\d{10,15}$/.test(phone) || typeof id !== "string" || !id.trim() || id.length > 200) return { status: 400, body: { error: "Customer phone and message id are required" } };
   const result = await db("rpc/crm_interakt_enqueue", { method: "POST", body: JSON.stringify({ p_body: body }) });
   return { status: 200, body: result };
+}
+async function forwardInteraktEcho(raw, db = maxDb, request = safeWebhookRequest) {
+  try {
+    const target = process.env.MAX_WEBHOOK_AUTH_TARGET_URL, authorization = process.env.MAX_WEBHOOK_AUTHORIZATION;
+    if (!target || !authorization) return { status: 503, body: { error: "MAX relay unavailable" } };
+    const settings = (await db("crm_max_settings?select=enabled,target_url&limit=1"))?.[0];
+    if (!settings?.enabled || settings.target_url !== target) return { status: 503, body: { error: "MAX relay unavailable" } };
+    const validated = await validateTarget(target);
+    const response = await request(validated, { method: "POST", headers: { "Content-Type": "application/json", Authorization: authorization, "X-Relay": "interakt" }, body: raw, redirect: "error", signal: AbortSignal.timeout(3e3) });
+    const success = response.status >= 200 && response.status < 300;
+    if (response.body) await response.body.cancel();
+    return success ? { status: 200, body: { forwarded: "message_echo" } } : { status: 503, body: { error: "MAX echo delivery failed" } };
+  } catch {
+    return { status: 503, body: { error: "MAX echo delivery failed" } };
+  }
 }
 
 // lib/interaktRelayHandler.ts
