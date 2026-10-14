@@ -75,7 +75,7 @@ export async function runContactSync(){
   if(!await refreshIndex(settings,people,deadline))return {indexing:true};
   if(Date.now()>deadline)return {indexing:true};
   const group=await ensureGroup(settings,people);
-  const jobs=await contactsDb('crm_google_queue?state=eq.pending&next_attempt_at=lte.'+encodeURIComponent(new Date().toISOString())+'&order=requested_at&limit=15');
+  const jobs=await contactsDb('crm_google_queue?state=eq.pending&next_attempt_at=lte.'+encodeURIComponent(new Date().toISOString())+'&order=priority,requested_at&limit=40');
   for(const job of jobs){
    if(Date.now()>deadline)break;
    const current=await getContactSettings();if(!current.enabled)break;

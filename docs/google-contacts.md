@@ -22,7 +22,7 @@ The OAuth flow requests `openid email https://www.googleapis.com/auth/contacts`,
 
 ## Backend
 
-Apply migration `026_google_contacts.sql`. Configure a random 32-byte base64 `GOOGLE_CONTACTS_ENCRYPTION_KEY` as a **server-only** Vercel environment variable. Preserve it across deploys. Tokens and client secrets are AES-256-GCM encrypted before storage; no token is returned to the browser. Service-role-only tables and RPCs store settings, expiring OAuth states, the contact phone index and the coalescing job queue.
+Apply migrations `026_google_contacts.sql` and `027_google_contacts_priority.sql`. Configure a random 32-byte base64 `GOOGLE_CONTACTS_ENCRYPTION_KEY` as a **server-only** Vercel environment variable. Preserve it across deploys. Tokens and client secrets are AES-256-GCM encrypted before storage; no token is returned to the browser. Service-role-only tables and RPCs store settings, expiring OAuth states, the contact phone index and the coalescing job queue.
 
 Endpoints added without changing existing URLs:
 
@@ -32,6 +32,6 @@ Endpoints added without changing existing URLs:
 
 The lead trigger only enqueues; lead saves make no Google API requests. Google contact IDs are persisted in `leads.google_contact_id`; that update does not requeue itself. One account-wide lease serializes People API writes. A paginated initial contact index and incremental Google sync prevent creating contacts for existing phone numbers. Expired index tokens rebuild the index before more contacts are created. People updates include current source etags to avoid blindly overwriting concurrent edits.
 
-A failed job gets an initial attempt and up to three retries (1, 3, 10 minute delays), then stays failed with a visible error. A newer lead edit supersedes the old revision safely. Missing/invalid phones are skipped and requeued when corrected. Invalid Google refresh grants pause syncing and request reconnection. Backfill is one-time and coalesces existing queued work. Queue/index work uses only the CRM database and Google APIs; it does not call MAX, the Interakt relay or webhooks.
+A failed job gets an initial attempt and up to three retries (1, 3, 10 minute delays), then stays failed with a visible error. A newer lead edit supersedes the old revision safely. Missing/invalid phones are skipped and requeued when corrected. Invalid Google refresh grants pause syncing and request reconnection. Backfill is one-time and coalesces existing queued work. New enquiries and edits get priority over historical backfill. Queue/index work uses only the CRM database and Google APIs; it does not call MAX, the Interakt relay or webhooks.
 
 Validation: `node scripts/test-google-contacts.mjs`; build with `npm run build`. Database verification should run in a rollback transaction to test enqueueing, permissions, lease exclusion and no MAX events without retaining test leads.
