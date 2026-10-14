@@ -11,6 +11,10 @@
     {
       "path": "/api/max-worker",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/google-contacts-worker",
+      "schedule": "* * * * *"
     }
   ],
   "rewrites": [
@@ -77,5 +81,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/google-contacts-worker.js": {
+      "maxDuration": 60
+    }
+  }
 }

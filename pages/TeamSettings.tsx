@@ -1,3 +1,4 @@
+import GoogleContactsSettings from '../components/GoogleContactsSettings';
 import MaxAutomationSettings from '../components/MaxAutomationSettings';
 
 import React, { useState, useEffect } from 'react';
@@ -267,6 +268,7 @@ export const TeamSettings = () => {
         </div>
 
         <LeadRoutingCard agents={users.filter(u => u.role === 'agent')} />
+        <GoogleContactsSettings />
         {user?.role === 'admin' && <MaxAutomationSettings />}
 
         <Card noPadding className="overflow-hidden shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]">
