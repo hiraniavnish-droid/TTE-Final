@@ -1,0 +1,16 @@
+{
+  "name": "tte-crm-backups",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "backup": "node incremental.mjs",
+    "backup:full": "node backup.mjs",
+    "verify": "node verify.mjs",
+    "test": "node --test backup.test.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1152.0",
+    "@aws-sdk/lib-storage": "3.1152.0",
+    "pg": "8.23.1"
+  }
+}

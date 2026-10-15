@@ -1,0 +1,58 @@
+name: TTE CRM daily encrypted backup
+
+on:
+  schedule:
+    # 03:17 India time. GitHub may delay a scheduled run.
+    - cron: '47 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tte-crm-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+          echo '/usr/lib/postgresql/17/bin' >> "$GITHUB_PATH"
+      - name: Install locked backup dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check archive safeguards
+        run: npm test
+      - name: Back up, encrypt and verify the stored archive
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_SOURCE_BUCKET: ${{ secrets.R2_SOURCE_BUCKET }}
+          R2_SOURCE_ACCESS_KEY_ID: ${{ secrets.R2_SOURCE_ACCESS_KEY_ID }}
+          R2_SOURCE_SECRET_ACCESS_KEY: ${{ secrets.R2_SOURCE_SECRET_ACCESS_KEY }}
+          R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+          R2_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_OUTPUT: ${{ runner.temp }}/tte-backup-output
+        run: npm run backup
+      - name: Keep a second encrypted database snapshot outside Cloudflare
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: encrypted-crm-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/tte-backup-output/
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
