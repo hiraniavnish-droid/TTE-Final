@@ -111,7 +111,7 @@ export const DestinationGallery: React.FC<DestinationGalleryProps> = ({ onSelect
             </div>
             <h2 className="text-3xl font-bold text-white font-serif mb-2 leading-tight">Rann Utsav</h2>
             <p className="text-white/80 text-xs mb-6 line-clamp-2 leading-relaxed">
-              Instant quotation builder for Tent City &amp; Tent Resort — auto pricing, discount, GST, PDF &amp; WhatsApp.
+              Tent City, Tent Resort &amp; Namak Resort — rate calculators, personalised PDFs &amp; WhatsApp quotations.
             </p>
 
             <div className="flex items-center gap-3 text-white font-bold text-sm opacity-0 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-75">

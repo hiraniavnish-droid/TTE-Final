@@ -24,7 +24,9 @@ import {
 } from '../services/rannCompareMessage';
 import { COMMISSION_OPTIONS } from '../services/leadCostingEngine';
 
-type Product = 'resort' | 'tentcity' | 'compare';
+const NamakCalculator = React.lazy(() => import('../components/NamakCalculator'));
+
+type Product = 'resort' | 'tentcity' | 'compare' | 'namak';
 const DISCOUNTS = [0, 5, 6, 7];
 const COMPARE_DURATIONS: OptionDuration[] = [1, 2, 3];
 const cellKey = (c: string, n: number) => `${c}::${n}`;
@@ -417,13 +419,13 @@ export const RannUtsavBuilder: React.FC = () => {
         <button onClick={() => navigate('/builder')} className="opacity-50 hover:opacity-100 active:scale-90 transition"><ArrowLeft size={18} /></button>
         <div className={cn('p-1.5 rounded-lg', theme === 'light' ? 'bg-orange-50 text-orange-600' : 'bg-orange-500/15 text-orange-300')}><Tent size={17} /></div>
         <h1 className={cn('text-lg font-bold tracking-tight leading-none', getTextColor())}>Rann Utsav Quotation</h1>
-        <span className={cn('text-[11.5px]', getSecondaryTextColor())}>Season 2026-27 · Tent Resort &amp; Tent City rate builder</span>
+        <span className={cn('text-[11.5px]', getSecondaryTextColor())}>Season 2026-27 · Tent City, Tent Resort &amp; Namak</span>
       </div>
 
       {/* Product tabs */}
-      <div className={cn('inline-flex p-1 rounded-xl border mb-3', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
-        {([['tentcity', 'Rann Utsav Tent City'], ['resort', 'Rann Tent Resort'], ['compare', 'Compare Options']] as [Product, string][]).map(([p, label]) => (
-          <button key={p} onClick={() => { setProduct(p); setNights(2); if (p === 'resort') setOccupancy('double'); }}
+      <div className={cn('inline-flex flex-wrap p-1 rounded-xl border mb-3', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
+        {([['tentcity', 'Rann Utsav Tent City'], ['resort', 'Rann Tent Resort'], ['compare', 'Compare Options'], ['namak', 'Namak Resort']] as [Product, string][]).map(([p, label]) => (
+          <button key={p} aria-pressed={product === p} onClick={() => { setProduct(p); setNights(2); if (p === 'resort') setOccupancy('double'); }}
             className={cn('px-3 py-1.5 rounded-lg text-[12.5px] font-bold transition-all active:scale-[0.98]',
               product === p ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'text-slate-500 hover:text-slate-800' : 'text-white/50 hover:text-white/80'))}>
             {label}
@@ -431,7 +433,9 @@ export const RannUtsavBuilder: React.FC = () => {
         ))}
       </div>
 
-      {product !== 'compare' && (
+      {product === 'namak' && <React.Suspense fallback={<p className="text-sm p-4">Opening Namak calculator…</p>}><NamakCalculator /></React.Suspense>}
+
+      {product !== 'compare' && product !== 'namak' && (
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* ─── Form ─── */}
         <div className="lg:col-span-3 space-y-3">
