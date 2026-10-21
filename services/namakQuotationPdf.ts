@@ -10,7 +10,7 @@ async function browserAsset(path:string) {
 /** Same validated quote drives screen, WhatsApp and PDF; no supplier margins. */
 export async function createNamakPdf(q:NamakQuote,guide=false,load=browserAsset):Promise<jsPDF> {
   const {jsPDF}=await import('jspdf');
-  const paths=['/quotation-assets/Outfit-Regular.ttf','/quotation-assets/Outfit-Semibold.ttf','/quotation-assets/Cormorant.ttf','/namak-assets/logo.png','/namak-assets/exterior.jpg',...(guide?['/namak-assets/bedroom.jpg','/namak-assets/seating.jpg']:[])];
+  const paths=['/quotation-assets/Outfit-Regular.ttf','/quotation-assets/Outfit-Semibold.ttf','/quotation-assets/Cormorant.ttf','/namak-assets/logo.png'];
   const a=Object.fromEntries(await Promise.all(paths.map(async p=>[p,await load(p)])));
   const doc=new jsPDF({unit:'mm',format:'a4',compress:true});
   for(const [file,font,weight] of [['Outfit-Regular.ttf','Outfit','normal'],['Outfit-Semibold.ttf','Outfit','bold'],['Cormorant.ttf','Cormorant','normal']]){doc.addFileToVFS(file,a['/quotation-assets/'+file]);doc.addFont(file,font,weight);}
@@ -24,29 +24,28 @@ export async function createNamakPdf(q:NamakQuote,guide=false,load=browserAsset)
   header(1);text('A BOUTIQUE RANN UTSAV STAY',14,40,8,gold,true);title('Your Namak stay.',14,46,29);
   text(q.guestName?`Prepared for ${q.guestName}`:'Prepared for our guest',14,60,9,ink,true,135);
   if(q.reference)text(`Ref: ${q.reference}`,151,59,8,muted,false,45);
-  photo('exterior.jpg',14,70,182,48);
   const cat=NAMAK_CATEGORIES[q.category];
-  title(cat.name,14,124,22);text(`${cat.area} | ${q.rooms} ${q.category==='darbari'?'suite(s)':'tent(s)'} | ${q.nights} night(s) | ${q.guests} guests`,14,134,9,muted);
-  rect(14,144,182,18,'#F1E8D5');text('CHECK-IN',19,147,7,gold,true);text(namakDate(q.checkIn),19,153,10,ink,true);text('CHECKOUT',83,147,7,gold,true);text(namakDate(q.checkOut),83,153,10,ink,true);text('EXTRA GUESTS',148,147,7,gold,true);text(`${q.extraPersons} total across rooms`,148,153,9,ink,false,43);
+  title(cat.name,14,76,22);text(`${cat.area} | ${q.rooms} ${q.category==='darbari'?'suite(s)':'tent(s)'} | ${q.nights} night(s) | ${q.guests} guests`,14,86,9,muted);
+  rect(14,98,182,18,'#F1E8D5');text('CHECK-IN',19,101,7,gold,true);text(namakDate(q.checkIn),19,107,10,ink,true);text('CHECKOUT',83,101,7,gold,true);text(namakDate(q.checkOut),83,107,10,ink,true);text('EXTRA GUESTS',148,101,7,gold,true);text(`${q.extraPersons} total across rooms`,148,107,9,ink,false,43);
   // Group consecutive nights with identical tariffs so even a long quote remains a single page.
   const groups:{first:string;last:string;count:number;perRoom:number;label:string;total:number}[]=[];
   for(const n of q.nightly){const g=groups[groups.length-1];if(g&&g.perRoom===n.perRoom&&g.label===n.label){g.last=n.date;g.count++;g.total+=n.roomTotal;}else groups.push({first:n.date,last:n.date,count:1,perRoom:n.perRoom,label:n.label,total:n.roomTotal});}
-  text('YOUR ACCOMMODATION',14,170,8,gold,true);let y=177;
+  text('YOUR ACCOMMODATION',14,127,8,gold,true);let y=136;
   for(const g of groups){text(`${namakDate(g.first)}${g.count>1?' - '+namakDate(g.last):''} | ${g.label}`,14,y,8,ink,false,111);text(`${money(g.perRoom)} x ${g.count}N x ${q.rooms}`,14,y+4,7,muted,false,111);text(money(g.total),131,y+1,9,ink,true,65);y+=9;}
   // At most five date-band groups in a 28-night stay; totals sit independently on the right.
-  const totalY=Math.max(199,y+2);let ty=totalY;
+  const totalY=Math.max(170,y+5);let ty=totalY;
   if(q.discount){text(`Room discount (${q.discountPct}%)`,116,ty,8,muted,false,46);text('-'+money(q.discount),164,ty,8,ink,false,32);ty+=6;}
   if(q.extras){text(`Extra guests (${q.extraPersons} x ${q.nights}N)`,116,ty,8,muted,false,46);text(money(q.extras),164,ty,8,ink,false,32);ty+=6;}
   if(q.gst!==null){text(`GST (${q.gstPct}%)`,116,ty,8,muted,false,46);text(money(q.gst),164,ty,8,ink,false,32);ty+=6;}
   rect(116,ty+1,80,17,'#EEDFBF');text(q.gst===null?'STAY TOTAL + APPLICABLE GST':'GRAND TOTAL',120,ty+4,7,gold,true,72);text(money(q.total),120,ty+9,15,ink,true,72);
   text('INCLUDED IN YOUR STAY',14,totalY,8,gold,true,95);let iy=totalY+7;for(const item of q.inclusions){iy+=text('- '+item,14,iy,8,muted,false,94)+2;}
   const noteY=Math.max(ty+22,iy+3);text(q.category==='darbari'?'Transfer routes and sightseeing are as per your confirmed itinerary.':'Lunch, transport and sightseeing are not included in this quotation.',14,noteY,7.5,ink,false,182);
-  text('Subject to availability. Confirm room capacity, child charges, check-in/out timings, payment and cancellation terms before booking. Planned imagery is illustrative; category layouts may vary.',14,noteY+7,7,muted,false,182);
-  if(guide){doc.addPage();header(2);text('THE STAY GUIDE',14,41,8,gold,true);title('A little more of Namak.',14,47,29);photo('bedroom.jpg',14,64,112,60);photo('seating.jpg',130,64,66,60);text('Approved planned interiors; photographs are illustrative.',14,127,7,muted);
-    let cy=139; for(const c of Object.values(NAMAK_CATEGORIES)){rect(14,cy,182,19,'#FFFFFF');text(c.name,19,cy+4,11,ink,true,65);text(`${c.area} | ${c.inventory} ${c.inventory===1?'suite':'tents'}`,19,cy+11,8,muted,false,65);text(`${money(c.base)} + GST / night`,101,cy+4,10,gold,true,90);text(`2 guests | Extra person ${money(c.extra)} + GST / night`,101,cy+11,7,muted,false,90);cy+=22;}
-    text('Standard tariffs above. Premium / Super Premium: + INR 1,500 on Nov 22-25 and Feb 18-21; + INR 3,000 on Dec 18-31 and Jan 20-23. Supplements apply per tent, per night, plus GST. Darbari has no date supplement.',14,207,7.5,muted,false,182);
-    text('SUGGESTED PLACES TO EXPLORE',14,228,8,gold,true);text('White Rann  /  Road to Heaven  /  Hodka  /  Nirona',14,236,11,ink,true);text('Ideas for planning your Kutch visit, not a scheduled or included tour. Transport, entry permits and guides are quoted separately unless expressly included in your confirmed Darbari itinerary.',14,244,8,muted,false,182);
-    text('Premium & Super Premium: breakfast, hi-tea, dinner and a cultural programme. Darbari: all meals and confirmed itinerary privileges. Programme timings and booking conditions are confirmed by reservations.',14,259,7.5,muted,false,182);
+  text('Subject to availability. Confirm room capacity, child charges, check-in/out timings, payment and cancellation terms before booking.',14,noteY+7,7,muted,false,182);
+  if(guide){doc.addPage();header(2);text('THE STAY GUIDE',14,41,8,gold,true);title('A little more of Namak.',14,47,29);text('Three accommodation choices. Rates per night for two guests, plus GST.',14,63,9,muted);
+    let cy=78; for(const c of Object.values(NAMAK_CATEGORIES)){rect(14,cy,182,19,'#FFFFFF');text(c.name,19,cy+4,11,ink,true,65);text(`${c.area} | ${c.inventory} ${c.inventory===1?'suite':'tents'}`,19,cy+11,8,muted,false,65);text(`${money(c.base)} + GST / night`,101,cy+4,10,gold,true,90);text(`2 guests | Extra person ${money(c.extra)} + GST / night`,101,cy+11,7,muted,false,90);cy+=22;}
+    text('Standard tariffs above. Premium / Super Premium: + INR 1,500 on Nov 22-25 and Feb 18-21; + INR 3,000 on Dec 18-31 and Jan 20-23. Supplements apply per tent, per night, plus GST. Darbari has no date supplement.',14,150,7.5,muted,false,182);
+    text('SUGGESTED PLACES TO EXPLORE',14,181,8,gold,true);text('White Rann  /  Road to Heaven  /  Hodka  /  Nirona',14,190,11,ink,true);text('Ideas for planning your Kutch visit, not a scheduled or included tour. Transport, entry permits and guides are quoted separately unless expressly included in your confirmed Darbari itinerary.',14,201,8,muted,false,182);
+    text('Premium & Super Premium: breakfast, hi-tea, dinner and a cultural programme. Darbari: all meals and confirmed itinerary privileges. Programme timings and booking conditions are confirmed by reservations.',14,222,7.5,muted,false,182);
   }
   return doc;
 }

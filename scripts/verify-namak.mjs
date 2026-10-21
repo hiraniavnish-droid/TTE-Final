@@ -17,7 +17,7 @@ for(const invalid of [{checkIn:'2027-02-28',nights:2},{checkIn:'2026-10-31'},{ch
 assert.match(namakMessage(quoteNamak(base)),/applicable GST/);assert.doesNotMatch(namakMessage(quoteNamak(base)),/includes all sightseeing/);
 await build({entryPoints:['services/namakQuotationPdf.ts'],outfile:'.tmp/namak-pdf.mjs',bundle:true,platform:'node',format:'esm',external:['jspdf']});
 const {createNamakPdf}=await import('../.tmp/namak-pdf.mjs');
-const load=async p=>(await fs.readFile('public'+p)).toString('base64');
+const load=async p=>{assert.ok(!/\.(jpe?g|webp)$/i.test(p),'Quotation must not load tent photographs');return (await fs.readFile('public'+p)).toString('base64');};
 for(const [name,input,guide] of [['Namak-Quotation-Demo', {...base,guestName:'Avnish Hirani',checkIn:'2026-11-21',extraPersons:1},true],['Namak-Quotation-One-Page',base,false],['Namak-Quotation-Stress',{...base,guestName:'A long guest name for the extended family group accommodation quotation review',reference:'TTE-0123 / Family',checkIn:'2026-11-21',nights:28,rooms:10,extraPersons:20,discountPct:7,gstPct:18},false]]){
  const doc=await createNamakPdf(quoteNamak(input),guide,load);assert.equal(doc.getNumberOfPages(),guide?2:1);await fs.writeFile('output/pdf/'+name+'.pdf',Buffer.from(doc.output('arraybuffer')));
 }
