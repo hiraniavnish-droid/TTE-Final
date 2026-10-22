@@ -80,3 +80,9 @@ Only WhatsApp Click sources have the five-minute minimum hold. Eligible form, em
 Bearer tokens saved in Settings are server-only, stored in the private settings table and pinned to the destination saved alongside them. They are not returned through GET or included in the webhook JSON. Replacing a URL without its new token does not send the old token to the new URL. Sonali's existing pinned environment token remains a fallback when no matching database token exists. No main-bot token or settings are shared with these routes.
 
 Checks: `node scripts/test-team-rann-webhooks.mjs`, existing Sonali settings/delivery tests, production build and `scripts/verify-team-rann-webhooks.sql` in a rolled-back migration transaction. UI uses the existing Card/Button/theme primitives and was checked at desktop and mobile widths with mocked settings only.
+
+## Sonali owner identity compatibility fix (22 October 2026)
+
+The legacy website intake and agent UI store owner names in `leads.assigned_to`, while the Sonali subscription pins a user ID. Sonali's enqueue and preflight now resolve either representation through the service-only `crm_team_owner_user_id(text)` helper. Exact IDs take priority; a name must match exactly one user (case-insensitive and trimmed). Unrecognised or ambiguous names fail closed. An equivalent name-to-ID edit does not create another assignment event or cancel an existing one. The outgoing `data.owner` remains the canonical user ID and `data.owner_name` is resolved from that ID.
+
+No lead owner values are rewritten. Website/destination restrictions, WhatsApp holds, retries and the main MAX webhook remain unchanged. This patch changes Sonali's functions only; the other team routes are outside this fix's scope. Test `scripts/verify-sonali-owner-identity.sql` within the migration transaction followed by ROLLBACK, without dispatching fixtures. Historical missed events are not automatically backfilled.
