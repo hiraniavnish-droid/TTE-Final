@@ -127,6 +127,34 @@ async function dispatchInteraktRelay(db = maxDb, request = safeWebhookRequest) {
   return { claimed: jobs?.length || 0, delivered, failed };
 }
 
+// lib/sonaliWebhook.ts
+async function dispatchSonaliWebhook(db, request = safeWebhookRequest) {
+  const rpc = (name, body) => db("rpc/crm_sonali_webhook_" + name, { method: "POST", body: JSON.stringify(body) });
+  const jobs = await rpc("claim", { p_limit: 20 });
+  let delivered = 0, failed = 0, skipped = 0;
+  await Promise.all((jobs || []).map(async (job) => {
+    const event = await rpc("preflight", { p_id: job.id, p_lease: job.lease_token });
+    if (!event) {
+      skipped++;
+      return;
+    }
+    let status = 0, error = "";
+    try {
+      const target = await validateTarget(event.target_url), raw = JSON.stringify(event.body), timestamp = Math.floor(Date.now() / 1e3);
+      const response = await request(target, { method: "POST", body: raw, headers: { "Content-Type": "application/json", "X-TTE-Signature": signWebhook(raw, event.signing_secret, timestamp), "X-TTE-Event-Id": job.id, "X-TTE-Event": job.event }, redirect: "error", signal: AbortSignal.timeout(1e4) });
+      status = response.status;
+      if (response.body) await response.body.cancel();
+      if (status < 200 || status >= 300) error = `Receiver returned HTTP ${status}`;
+    } catch (e) {
+      error = e instanceof MaxInputError ? e.message : "Webhook network request failed or timed out";
+    }
+    await rpc("finish", { p_id: job.id, p_lease: job.lease_token, p_status: status, p_error: error });
+    if (status >= 200 && status < 300) delivered++;
+    else failed++;
+  }));
+  return { claimed: (jobs || []).length, delivered, failed, skipped };
+}
+
 // lib/maxWorker.ts
 async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -135,9 +163,9 @@ async function handler(req, res) {
   const expected = "Bearer " + secret;
   if (!secret || given.length !== expected.length || !crypto2.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return res.status(401).json({ error: { code: "unauthorized" } });
   try {
-    const [outbox, relay] = await Promise.allSettled([dispatchWebhooks(maxDb), dispatchInteraktRelay(maxDb)]);
+    const [outbox, relay, sonali] = await Promise.allSettled([dispatchWebhooks(maxDb), dispatchInteraktRelay(maxDb), dispatchSonaliWebhook(maxDb)]);
     if (outbox.status === "rejected" || relay.status === "rejected") throw Error("Queue failed");
-    return res.status(200).json({ ...outbox.value, relay: relay.value });
+    return res.status(200).json({ ...outbox.value, relay: relay.value, sonali: sonali.status === "fulfilled" ? sonali.value : { error: "queue_unavailable" } });
   } catch {
     return res.status(503).json({ error: { code: "worker_unavailable", message: "MAX queue could not be processed." } });
   }

@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';import {build} from 'esbuild';
+await build({entryPoints:['lib/sonaliWebhook.ts'],bundle:true,platform:'node',format:'esm',packages:'external',outfile:'.tmp/sonali-webhook-test.mjs'});
+const {dispatchSonaliWebhook}=await import('../.tmp/sonali-webhook-test.mjs');
+let calls=[];let cancelled=false;const db=async(path,init)=>{const b=JSON.parse(init.body);calls.push({path,b});if(path.endsWith('_claim'))return [{id:'event-1',event:'lead.assigned',lease_token:'lease-1'}];if(path.endsWith('_preflight'))return cancelled?null:{target_url:'https://example.com/webhook',signing_secret:'s'.repeat(64),body:{id:'event-1',event:'lead.assigned',data:{owner:'2'}}};};
+process.env.MAX_WEBHOOK_AUTHORIZATION='DO-NOT-SHARE';process.env.MAX_WEBHOOK_AUTH_TARGET_URL='https://example.com/webhook';
+let sent=0;const request=async(url,init)=>{sent++;assert.equal(init.headers.Authorization,undefined);assert.equal(init.headers['X-MAX-Signature'],undefined);assert.equal(init.headers['X-TTE-Event-Id'],'event-1');assert.equal(init.headers['X-TTE-Event'],'lead.assigned');assert.match(init.headers['X-TTE-Signature'],/^t=\d+,v1=[a-f0-9]{64}$/);return new Response(null,{status:200});};
+assert.equal((await dispatchSonaliWebhook(db,request)).delivered,1);assert.equal(calls.at(-1).b.p_status,200);
+assert.equal((await dispatchSonaliWebhook(db,async()=>new Response(null,{status:503}))).failed,1);assert.equal(calls.at(-1).b.p_status,503);
+assert.equal((await dispatchSonaliWebhook(db,async()=>{throw Error('network failure')})).failed,1);assert.equal(calls.at(-1).b.p_status,0);
+cancelled=true;const before=sent;assert.equal((await dispatchSonaliWebhook(db,request)).skipped,1);assert.equal(sent,before);
+assert.ok(calls.every(c=>c.path.startsWith('rpc/crm_sonali_webhook_')));
+console.log('Sonali delivery signatures, secret isolation, success, retryable failure and preflight cancellation passed.');
