@@ -9,4 +9,7 @@ assert.equal((await dispatchSonaliWebhook(db,async()=>new Response(null,{status:
 assert.equal((await dispatchSonaliWebhook(db,async()=>{throw Error('network failure')})).failed,1);assert.equal(calls.at(-1).b.p_status,0);
 cancelled=true;const before=sent;assert.equal((await dispatchSonaliWebhook(db,request)).skipped,1);assert.equal(sent,before);
 assert.ok(calls.every(c=>c.path.startsWith('rpc/crm_sonali_webhook_')));
+cancelled=false;process.env.SONALI_WEBHOOK_AUTHORIZATION='Bearer own-test-key';process.env.SONALI_WEBHOOK_AUTH_TARGET_URL='https://example.com/webhook';
+await dispatchSonaliWebhook(db,async(url,init)=>{assert.equal(init.headers.Authorization,'Bearer own-test-key');return new Response(null,{status:200});});
+process.env.SONALI_WEBHOOK_AUTH_TARGET_URL='https://different.example/webhook';await dispatchSonaliWebhook(db,async(url,init)=>{assert.equal(init.headers.Authorization,undefined);return new Response(null,{status:200});});
 console.log('Sonali delivery signatures, secret isolation, success, retryable failure and preflight cancellation passed.');

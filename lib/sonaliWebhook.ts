@@ -7,7 +7,7 @@ export async function dispatchSonaliWebhook(db:(path:string,init?:any)=>Promise<
   let status=0,error='';
   try{
    const target=await validateTarget(event.target_url),raw=JSON.stringify(event.body),timestamp=Math.floor(Date.now()/1000);
-   const response=await request(target,{method:'POST',body:raw,headers:{'Content-Type':'application/json','X-TTE-Signature':signWebhook(raw,event.signing_secret,timestamp),'X-TTE-Event-Id':job.id,'X-TTE-Event':job.event},redirect:'error',signal:AbortSignal.timeout(10000)});
+   const response=await request(target,{method:'POST',body:raw,headers:{'Content-Type':'application/json','X-TTE-Signature':signWebhook(raw,event.signing_secret,timestamp),'X-TTE-Event-Id':job.id,'X-TTE-Event':job.event,...(process.env.SONALI_WEBHOOK_AUTHORIZATION && target===process.env.SONALI_WEBHOOK_AUTH_TARGET_URL?{Authorization:process.env.SONALI_WEBHOOK_AUTHORIZATION}:{})},redirect:'error',signal:AbortSignal.timeout(10000)});
    status=response.status;if(response.body)await response.body.cancel();if(status<200||status>=300)error=`Receiver returned HTTP ${status}`;
   }catch(e){error=e instanceof MaxInputError?e.message:'Webhook network request failed or timed out';}
   await rpc('finish',{p_id:job.id,p_lease:job.lease_token,p_status:status,p_error:error});if(status>=200&&status<300)delivered++;else failed++;

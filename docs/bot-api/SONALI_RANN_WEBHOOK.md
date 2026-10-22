@@ -53,7 +53,7 @@ Payload is rebuilt from the current lead immediately before delivery. `previous_
 - `X-TTE-Event-Id`: stable event UUID.
 - `X-TTE-Signature`: `t=<unix seconds>,v1=<hex HMAC-SHA256(secret, timestamp + "." + raw request body)>`.
 
-Verify the signature over the unmodified raw body with a constant-time comparison and a short timestamp tolerance. The signing secret is separate from MAX. Generate a replacement in Settings, show/copy it to the receiver securely, then Save. Existing saved secrets cannot be retrieved through the browser API. No MAX authorization header is sent.
+Verify the signature over the unmodified raw body with a constant-time comparison and a short timestamp tolerance. The signing secret is separate from MAX. Generate a replacement in Settings, show/copy it to the receiver securely, then Save. Existing saved secrets cannot be retrieved through the browser API. No MAX authorization header is sent. An independent receiver token may be configured through the encrypted production environment variables `SONALI_WEBHOOK_AUTHORIZATION` and `SONALI_WEBHOOK_AUTH_TARGET_URL`. The Authorization header is sent only when the validated target exactly matches the pinned URL. Changing the destination in Settings cannot disclose the token to another receiver.
 
 Public HTTPS only; private DNS/IP targets and redirects are rejected. Requests time out after ten seconds. Durable leases and `FOR UPDATE SKIP LOCKED` prevent concurrent claims. Non-2xx/network failures retry up to ten attempts, starting at 60 seconds with exponential backoff capped at six hours. Last HTTP status/error remain visible in Settings; cancelled/failed events are not automatically replayed.
 

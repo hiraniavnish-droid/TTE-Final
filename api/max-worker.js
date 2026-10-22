@@ -141,7 +141,7 @@ async function dispatchSonaliWebhook(db, request = safeWebhookRequest) {
     let status = 0, error = "";
     try {
       const target = await validateTarget(event.target_url), raw = JSON.stringify(event.body), timestamp = Math.floor(Date.now() / 1e3);
-      const response = await request(target, { method: "POST", body: raw, headers: { "Content-Type": "application/json", "X-TTE-Signature": signWebhook(raw, event.signing_secret, timestamp), "X-TTE-Event-Id": job.id, "X-TTE-Event": job.event }, redirect: "error", signal: AbortSignal.timeout(1e4) });
+      const response = await request(target, { method: "POST", body: raw, headers: { "Content-Type": "application/json", "X-TTE-Signature": signWebhook(raw, event.signing_secret, timestamp), "X-TTE-Event-Id": job.id, "X-TTE-Event": job.event, ...process.env.SONALI_WEBHOOK_AUTHORIZATION && target === process.env.SONALI_WEBHOOK_AUTH_TARGET_URL ? { Authorization: process.env.SONALI_WEBHOOK_AUTHORIZATION } : {} }, redirect: "error", signal: AbortSignal.timeout(1e4) });
       status = response.status;
       if (response.body) await response.body.cancel();
       if (status < 200 || status >= 300) error = `Receiver returned HTTP ${status}`;
