@@ -1,3 +1,4 @@
+import TeamRannWebhookSettings from '../components/TeamRannWebhookSettings';
 import SonaliWebhookSettings from '../components/SonaliWebhookSettings';
 import GoogleContactsSettings from '../components/GoogleContactsSettings';
 import MaxAutomationSettings from '../components/MaxAutomationSettings';
@@ -272,6 +273,8 @@ export const TeamSettings = () => {
         <GoogleContactsSettings />
         {user?.role === 'admin' && <MaxAutomationSettings />}
         {user?.role === 'admin' && <SonaliWebhookSettings />}
+        {user?.role === 'admin' && <TeamRannWebhookSettings name="Jigar" slug="jigar" />}
+        {user?.role === 'admin' && <TeamRannWebhookSettings name="Prakash" slug="prakash" />}
 
         <Card noPadding className="overflow-hidden shadow-[0_8px_30px_-8px_rgba(15,23,42,0.12)]">
             <div className="overflow-x-auto">

@@ -66,3 +66,17 @@ Public HTTPS only; private DNS/IP targets and redirects are rejected. Requests t
 - No MAX setting, database function, queue, event eligibility or authorization configuration is changed. The existing payload helper is reused read-only.
 
 Verification: `node scripts/test-sonali-webhook.mjs`; `scripts/verify-sonali-webhook.sql` inside a transaction followed by ROLLBACK. Never commit the synthetic test leads or invoke a real receiver during tests.
+
+## Three team routes (22 October 2026)
+
+Team Settings now has Sonali, Jigar and Prakash cards. Each has independent settings, a randomly generated signing secret, an optional password-only Bearer token input, enable/pause and its own outbox/RPCs. Routes and tables use `sonali`, `jigar` or `prakash` in the corresponding names. Jigar and Prakash were installed paused with no URL or Bearer token. Sonali retains her existing active URL and encrypted environment token.
+
+All three require a recorded source website of exactly `rannutsav.in` or `rannutsavtickets.in`, in addition to the owner and Rann destination filters. Canonical source labels (`Website - ...`, `WhatsApp Click - ...`, `Form - ...`, `Email - ...`, `Manual - ...`) and exact domain/URL values normalize to a domain. `www.` and case variations normalize; unrelated hosts, deceptive suffixes and ambiguous labels such as `Website` or `Website - Rann Utsav` are excluded. Website attribution is never inferred from destination, owner, free-text notes or phone. No historical backfill is performed.
+
+The outgoing payload adds **`data.source_website`** with `rannutsav.in` or `rannutsavtickets.in`, while retaining `data.source` as the original source label. Source website is checked both on enqueue and immediately before delivery; disallowed queued events are cancelled during installation.
+
+Only WhatsApp Click sources have the five-minute minimum hold. Eligible form, email and manual events are due immediately and run on the next minute worker tick. Existing WhatsApp intro cancellation checks are unchanged. All three retain stable event IDs on retries and require receiver-side deduplication.
+
+Bearer tokens saved in Settings are server-only, stored in the private settings table and pinned to the destination saved alongside them. They are not returned through GET or included in the webhook JSON. Replacing a URL without its new token does not send the old token to the new URL. Sonali's existing pinned environment token remains a fallback when no matching database token exists. No main-bot token or settings are shared with these routes.
+
+Checks: `node scripts/test-team-rann-webhooks.mjs`, existing Sonali settings/delivery tests, production build and `scripts/verify-team-rann-webhooks.sql` in a rolled-back migration transaction. UI uses the existing Card/Button/theme primitives and was checked at desktop and mobile widths with mocked settings only.

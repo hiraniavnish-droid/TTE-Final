@@ -10,4 +10,6 @@ assert.equal((await run('GET',null,false)).status,401);role='agent';assert.equal
 const get=await run('GET');assert.equal(get.status,200);assert.equal(get.result.data.enabled,false);assert.equal(get.result.data.signing_secret,undefined);
 assert.equal((await run('POST',{enabled:true})).status,400);assert.equal((await run('POST',{owner_id:'another-user'})).status,400);
 assert.equal((await run('POST',{enabled:false})).status,200);assert.deepEqual(writes,[{p_data:{enabled:false}}]);
+assert.equal((await run('POST',{authorization:' receiver-token '})).status,200);assert.equal(writes.at(-1).p_data.authorization,'Bearer receiver-token');
+assert.equal((await run('POST',{authorization:'bad\r\nheader'})).status,400);
 console.log('Sonali settings authentication, admin restriction, secret redaction, owner lock and enable validation passed.');
