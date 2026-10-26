@@ -91,8 +91,7 @@ frontend into `dist/`. Vercel runs this build for Git deployments.
 - `public/`: deployed brochures, videos, photos, and fonts used by the CRM.
 - `scripts/`: build tools and feature verification scripts.
 - `docs/`: module and integration documentation, including
-  [the deployed-module audit](docs/DEPLOYED_MODULES.md) and
-  [Hutoxy Pilot integration handover](docs/bot-api/HUTOXY_PILOT.md).
+  [the deployed-module audit](docs/DEPLOYED_MODULES.md).
 - `vercel.json`: routing, response headers, and scheduled jobs.
 
 Production secrets and customer exports do not belong in Git. Environment files,
