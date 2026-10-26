@@ -9,22 +9,24 @@
 - Authentication: **`x-api-key: $HUTOXY_CRM_API_KEY`** on every request.
 - This key is for this dedicated base URL. It does not grant access to the main
   `/api/v1` API, MAX settings, other agents' leads, payments, or supplier costs.
-- Initial mode: API access is test-number-only; outbound webhook delivery is
-  **paused**, with no receiver URL configured. No existing leads were assigned
-  to Hutoxy and no source auto-assignment rule was changed.
-- Test phone: **+91 9601070220**. The business Interakt number **+91 9274730220**
-  is not the test customer number and is not configured by this release.
+- API and events cover all Hutoxy-owned Rann leads, regardless of phone number.
+  Test-recipient filtering, messaging approvals and rollout decisions belong
+  entirely to the external bot and Avnish. The CRM does not enforce a test number.
+- Outbound webhook delivery starts paused because no receiver URL has been
+  supplied. The bot developer can configure and enable its own receiver through
+  the documented endpoints. No existing leads or source assignments were changed.
 
 The pilot queue/settings/idempotency tables are service-role-only, with RLS
 enabled and no browser/public grants or policies. The security advisor reports
 the lack of public policies as informational; it is intentional isolation.
 
-The restricted API and event preflight enforce the owner, a Rann destination,
-and the test phone in the database. Owner name and ID representations resolve
+The restricted API and event preflight enforce only the Hutoxy owner and a
+Rann destination in the database. Owner name and ID representations resolve
 to the same employee. Unrecognised or ambiguous owners fail closed. Moving a
 lead to another owner, another destination, or closing it cancels pending events.
-The pilot key cannot lift the test-phone restriction or change the owner. An
-administrator must approve and perform the later production-mode cutover.
+There is no CRM-side recipient allowlist, test-only mode, or approval step to
+access other phone numbers belonging to Hutoxy-owned Rann leads. The key cannot
+change its CRM owner scope.
 
 ## Credentials: secure handoff only
 
@@ -47,7 +49,7 @@ Interakt credentials, and does not provision the external bot host.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| GET | `/health` | Owner identity, test-only status, webhook state and polling interval |
+| GET | `/health` | Owner identity, webhook state and polling interval |
 | GET | `/leads?updated_since=ISO&limit=50&cursor=...` | Only eligible Hutoxy leads, oldest updated first |
 | GET | `/leads/{ref}` | Eligible lead details, without vendor costs or payment records |
 | GET | `/leads/{ref}/messages?limit=50&cursor=...` | Recorded inbound/outbound WhatsApp messages, oldest first |
@@ -74,7 +76,9 @@ No key is a 401; an inaccessible lead is a 404 `lead_not_in_pilot`. API rate lim
 **120-second polling is supported** as an alternative to enabling webhooks.
 List Hutoxy leads, follow every opaque `next_cursor`, and read their messages.
 Keep the last successful `updated_since` watermark with a short overlap, and
-deduplicate leads/messages by ID plus timestamp. Message pagination is scoped
+deduplicate leads/messages by ID plus timestamp. Also poll messages for known
+active owned leads each cycle; the lead discovery watermark is not a substitute
+for per-conversation message cursors. Message pagination is scoped
 to a specific lead; do not reuse its cursor for another resource. Polling itself
 never starts a conversation. A lead must first be explicitly assigned to owner
 `3`/`Hutoxy Pilot`; there is no historical backfill or automatic reassignment.
@@ -129,7 +133,9 @@ POST this to `/leads/{ref}/quotes` with `Idempotency-Key`. `category`,
 `pax` can alternatively be a numeric adult count. Use the engine's calculated
 amount for `total`; the example above illustrates the schema, not a tariff.
 This creates a Note with actor `Hutoxy Pilot` and kind `quote`. It logs the
-quote, not a booking/payment/hold, and does not send a document.
+quote, not a booking/payment/hold, and does not send a document. Quote logging
+accepts durations of 1-365 nights; the separate Tent City calculation/PDF engine
+supports its published 1-3-night packages.
 
 ### Generate a quotation PDF
 
@@ -194,7 +200,7 @@ Configure only this pilot, using its key:
 PATCH `/automation/settings`, run the connection test, and enable with
 `{"enabled":true}` when the receiver is ready. The server rejects private
 addresses, non-HTTPS URLs and redirects. The pilot API key cannot change the
-owner, allowed test phone, or `test_only` setting.
+CRM owner scope. Recipient controls are managed by the bot, not these settings.
 
 Payload:
 
@@ -228,8 +234,8 @@ receiver, it returns 409 `webhook_not_configured`.
 Receiver hosting/URL and secret-store access; Interakt credentials, number
 routing and send permissions; customer-facing identity and TTE mention;
 approved template name/language/text; discounts and availability rules;
-handover employee/desk group; choice of brochure; four-night policy; and the
-explicit later approval to lift test-only mode. Shared-number conversation
+handover employee/desk group; choice of brochure; four-night policy; and any
+test-recipient filtering or rollout rules on the bot side. Shared-number conversation
 ownership must be coordinated on the bot side to prevent competing replies.
 
 Existing public assets (selection/approval remains with Avnish):

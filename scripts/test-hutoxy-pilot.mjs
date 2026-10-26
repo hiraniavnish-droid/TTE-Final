@@ -8,7 +8,7 @@ await build({entryPoints:['lib/hutoxyWorker.ts'],bundle:true,platform:'node',for
 const {createHutoxyHandler,hutoxyAvailability}=await import('../.tmp/hutoxy-api-test.mjs');
 const {dispatchHutoxy}=await import('../.tmp/hutoxy-worker-test.mjs');
 process.env.HUTOXY_API_KEY='hutoxy-test-key-only';process.env.HUTOXY_WEBHOOK_SECRET='hutoxy-test-signing-key'.repeat(3);
-const calls=[];let settings={owner_id:'3',enabled:false,target_url:'https://example.com/hutoxy',test_only:true,test_phone:'9601070220'};
+const calls=[];let settings={owner_id:'3',enabled:false,target_url:'https://example.com/hutoxy',test_only:false,test_phone:'9601070220'};
 const db=async(path,init={})=>{
  calls.push({path,init});
  if(path==='rpc/crm_api_consume_rate_limit')return{allowed:true};
@@ -32,7 +32,8 @@ async function invoke(path,method='GET',body,headers={}){
  const res={setHeader(){},status(status){this.code=status;return this;},json(value){result={status:this.code,body:value};return this;},send(value){result={status:this.code,body:value};return this;}};
  await handler(req,res);return result;
 }
-assert.equal((await invoke('health')).body.data.owner,'3');
+const health=(await invoke('health')).body.data;assert.equal(health.owner,'3');assert.equal(health.recipient_filter,'bot_managed');assert.equal('test_phone' in health,false);assert.equal('test_only' in health,false);
+const shownSettings=(await invoke('automation/settings')).body.data;assert.equal(shownSettings.recipient_filter,'bot_managed');assert.equal('test_phone' in shownSettings,false);
 assert.equal((await invoke('health','GET',null,{'x-api-key':''})).status,401);
 assert.equal((await invoke('health','GET',null,{'x-api-key':'primary-key'})).status,401);
 const listed=await invoke('leads');assert.equal(listed.status,200);const cursor=listed.body.next_cursor;assert.ok(cursor);
@@ -46,6 +47,7 @@ assert.equal((await invoke('leads/owned/messages','POST',{direction:'out',text:'
 assert.equal((await invoke('leads/owned/messages','POST',{direction:'in',text:'Fake customer'},{'idempotency-key':'12345678'})).status,400);
 assert.equal((await invoke('leads/owned/messages','POST',{direction:'out',text:'Already sent'},{'idempotency-key':'12345678'})).body.data.sent,false);
 assert.equal((await invoke('leads/other/quotes','POST',{category:'Premium Tent'})).status,404);
+assert.equal((await invoke('leads/owned/quotes','POST',{category:'Custom Rann package',check_in:'2027-01-12',nights:4,rooms:1,pax:2,total:50000},{'idempotency-key':'custom-quote-123'})).status,200);
 assert.equal((await invoke('automation/settings','PATCH',{test_only:false})).status,400);
 assert.equal((await invoke('automation/settings','PATCH',{target_url:'http://localhost/private'})).status,400);
 assert.equal((await invoke('automation/test','POST',{})).body.data.customer_contacted,false);assert.equal(posted,1);

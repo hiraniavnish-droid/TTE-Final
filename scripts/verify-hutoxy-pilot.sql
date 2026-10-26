@@ -10,17 +10,18 @@ begin
  insert into public.leads(id,name,phone,assigned_to,destination,source,status,trip_details)
  values(own,'Hutoxy rollback test','+91 96010 70220','Hutoxy Pilot','Rann Utsav','Manual - rannutsavtickets.in','New','{"destination":"Rann Utsav","paxConfig":{"adults":2,"children":0,"childAges":[]}}'),
  (outsider,'Hutoxy excluded owner','9601070220','2','Rann Utsav','Manual - rannutsavtickets.in','New','{}'),
- (other_phone,'Hutoxy excluded phone','9000000000','3','Rann Utsav','Manual - rannutsavtickets.in','New','{}'),
+ (other_phone,'Hutoxy second recipient','9000000000','3','Rann Utsav','Manual - rannutsavtickets.in','New','{}'),
  (nonrann,'Hutoxy excluded destination','9601070220','3','Goa','Manual - rannutsavtickets.in','New','{}');
  if exists(select 1 from public.crm_hutoxy_outbox) then raise exception 'Paused route queued events';end if;
  response:=public.crm_hutoxy_api('lead',own::text);
  if response->>'owner'<>'3' or response->>'owner_name'<>'Hutoxy Pilot' or response?'vendors' or response?'commercials' then raise exception 'Scoped lead serialization failed';end if;
  if public.crm_hutoxy_api('lead',outsider::text)->>'error'<>'lead_not_in_pilot' then raise exception 'Other owner leaked';end if;
- if public.crm_hutoxy_api('lead',other_phone::text)->>'error'<>'lead_not_in_pilot' then raise exception 'Other phone leaked';end if;
+ if public.crm_hutoxy_api('lead',other_phone::text)->>'id' is distinct from other_phone::text then raise exception 'CRM must not filter recipients';end if;
  if public.crm_hutoxy_api('lead',nonrann::text)->>'error'<>'lead_not_in_pilot' then raise exception 'Other destination leaked';end if;
  response:=public.crm_hutoxy_api('leads');
  if not exists(select 1 from jsonb_array_elements(response->'data') v where v->>'id'=own::text) then raise exception 'Pilot lead not listed';end if;
- if exists(select 1 from jsonb_array_elements(response->'data') v where v->>'id' in(outsider::text,other_phone::text,nonrann::text)) then raise exception 'Unscoped lead listed';end if;
+ if exists(select 1 from jsonb_array_elements(response->'data') v where v->>'id' in(outsider::text,nonrann::text)) then raise exception 'Unscoped lead listed';end if;
+ if not exists(select 1 from jsonb_array_elements(response->'data') v where v->>'id'=other_phone::text) then raise exception 'Second recipient not listed';end if;
  perform public.crm_hutoxy_api('settings_write',null,'{"target_url":"https://example.com/hutoxy","enabled":true}');
  update public.leads set assigned_to='3' where id=own;
  if exists(select 1 from public.crm_hutoxy_outbox where lead_id=own) then raise exception 'Equivalent owner change queued duplicate assignment';end if;
@@ -37,17 +38,19 @@ begin
  if response->>'recorded'<>'true' or response->>'sent'<>'false' then raise exception 'Message logging failed';end if;
  if public.crm_hutoxy_api('record_message',own::text,jsonb_build_object('idempotency_id',repeat('a',64),'request_hash',repeat('b',64),'body',jsonb_build_object('direction','out','text','Recorded, not sent')))<>response then raise exception 'Idempotency replay failed';end if;
  if public.crm_hutoxy_api('record_message',own::text,jsonb_build_object('idempotency_id',repeat('a',64),'request_hash',repeat('c',64),'body','{}'::jsonb))->>'error'<>'idempotency_conflict' then raise exception 'Idempotency conflict missing';end if;
+ insert into public.interactions(id,lead_id,type,content) values('hutoxy_second_phone_'||other_phone,other_phone::text,'WhatsApp','{"direction":"in","text":"Different recipient","actor":"Interakt"}');
+ if not exists(select 1 from public.crm_hutoxy_outbox where lead_id=other_phone and event='customer.message') then raise exception 'Other recipient event was filtered';end if;
  select * into claim from public.crm_hutoxy_claim(1);
  if public.crm_hutoxy_preflight(claim.id,claim.lease_token) is null then raise exception 'Eligible event failed preflight';end if;
  perform public.crm_hutoxy_finish(claim.id,claim.lease_token,503,'Receiver failed');
  if not exists(select 1 from public.crm_hutoxy_outbox where id=claim.id and state='pending' and attempts=1 and next_attempt_at>now()) then raise exception 'Retry scheduling failed';end if;
  select * into claim from public.crm_hutoxy_claim(1);
  if claim.id is not null then
-  update public.leads set assigned_to='2' where id=own;
+  update public.leads set assigned_to='2' where id=claim.lead_id;
   if public.crm_hutoxy_preflight(claim.id,claim.lease_token) is not null then raise exception 'Reassigned lead still delivered';end if;
  end if;
  perform public.crm_hutoxy_api('settings_write',null,'{"enabled":false}');
  if exists(select 1 from public.crm_hutoxy_outbox where state in('pending','processing')) then raise exception 'Pause did not cancel events';end if;
  if (select to_jsonb(s) from public.crm_max_settings s)<>before_max then raise exception 'MAX settings changed';end if;
 end$$;
-select 'Hutoxy owner isolation, test-phone gate, Rann gate, messages, idempotency, retries and pause checks passed' as verification;
+select 'Hutoxy owner isolation, unrestricted recipients, Rann gate, messages, idempotency, retries and pause checks passed' as verification;

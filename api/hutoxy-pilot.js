@@ -4848,6 +4848,10 @@ var equal = (a, b) => {
 };
 var key = () => process.env.HUTOXY_API_KEY || "";
 var signingKey = () => process.env.HUTOXY_WEBHOOK_SECRET || "";
+function publicSettings(value) {
+  const { test_only, test_phone, ...settings } = value;
+  return { ...settings, recipient_filter: "bot_managed" };
+}
 var rpc = (db, action, ref = null, data = {}) => db("rpc/crm_hutoxy_api", { method: "POST", body: JSON.stringify({ p_action: action, p_ref: ref, p_data: data }) });
 function body(req) {
   let v;
@@ -4933,9 +4937,9 @@ function createHutoxyHandler(db = maxDb, request = safeWebhookRequest) {
       const endpoint = segments.join("/"), method = String(req.method || "GET").toUpperCase();
       if (method === "GET" && endpoint === "health") {
         const s = await rpc(db, "settings");
-        return respond(200, { data: { status: "ok", service: "tte-crm-hutoxy-pilot", owner: s.owner_id, owner_name: "Hutoxy Pilot", webhook_enabled: s.enabled, test_only: s.test_only, test_phone: s.test_phone, poll_interval_seconds: 120 } });
+        return respond(200, { data: { status: "ok", service: "tte-crm-hutoxy-pilot", owner: s.owner_id, owner_name: "Hutoxy Pilot", webhook_enabled: s.enabled, recipient_filter: "bot_managed", poll_interval_seconds: 120 } });
       }
-      if (endpoint === "automation/settings" && method === "GET") return respond(200, { data: await rpc(db, "settings") });
+      if (endpoint === "automation/settings" && method === "GET") return respond(200, { data: publicSettings(await rpc(db, "settings")) });
       if (endpoint === "automation/settings" && method === "PATCH") {
         const b = body(req), s = await rpc(db, "settings");
         if (Object.keys(b).some((k) => !["enabled", "target_url"].includes(k)) || !Object.keys(b).length) throw new HutoxyError(400, "invalid_settings", "Only enabled and target_url can be changed.");
@@ -4943,7 +4947,7 @@ function createHutoxyHandler(db = maxDb, request = safeWebhookRequest) {
         if (b.target_url !== void 0) b.target_url = await validateTarget(b.target_url);
         if (b.enabled && (!signingKey() || !(b.target_url || s.target_url))) throw new HutoxyError(400, "not_configured", "Configure the receiver URL and signing secret first.");
         await audit(db, req, rid, "hutoxy_settings_change");
-        return respond(200, { data: await rpc(db, "settings_write", null, b) });
+        return respond(200, { data: publicSettings(await rpc(db, "settings_write", null, b)) });
       }
       if (endpoint === "automation/deliveries" && method === "GET") return respond(200, { data: await rpc(db, "deliveries", null, page(req.query, "deliveries")) });
       if (endpoint === "automation/test" && method === "POST") {
@@ -4982,7 +4986,6 @@ function createHutoxyHandler(db = maxDb, request = safeWebhookRequest) {
         const record = await lead(db, segments[1]), b = body(req), kind = segments[2] === "messages" ? "message" : "quote";
         const message = kind === "message" ? messageInput(b) : null, quote = kind === "quote" ? quoteInput(b) : null, input = message || quote;
         if (message && message.direction !== "out") throw new HutoxyError(400, "outbound_log_only", "Log sent outbound messages only. Customer messages are relayed by the CRM.");
-        if (quote && ![1, 2, 3].includes(quote.nights)) throw new HutoxyError(400, "unsupported_duration", "Tent City quote logging supports 1-3 nights.");
         const idem = String(req.headers?.["idempotency-key"] || "");
         if (idem.length < 8 || idem.length > 200) throw new HutoxyError(400, "idempotency_key_required", "Provide a unique Idempotency-Key of 8-200 characters.");
         const output = await rpc(db, "record_" + kind, segments[1], { body: input, idempotency_id: hash(record.id + ":" + kind + ":" + idem), request_hash: hash(JSON.stringify(input)) });
