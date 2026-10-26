@@ -15,12 +15,20 @@
     {
       "path": "/api/google-contacts-worker",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/hutoxy-worker",
+      "schedule": "* * * * *"
     }
   ],
   "rewrites": [
     {
       "source": "/api/v1/:path*",
       "destination": "/api/bot?path=:path*"
+    },
+    {
+      "source": "/api/hutoxy/v1/:path*",
+      "destination": "/api/hutoxy-pilot?path=:path*"
     }
   ],
   "headers": [
