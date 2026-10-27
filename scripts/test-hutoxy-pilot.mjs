@@ -13,6 +13,7 @@ const db=async(path,init={})=>{
  calls.push({path,init});
  if(path==='rpc/crm_api_consume_rate_limit')return{allowed:true};
  if(path==='crm_api_audit')return null;
+ if(path==='rpc/crm_hutoxy_update_lead'){const b=JSON.parse(init.body);assert.equal(b.p_ref,'owned');assert.equal(b.p_idempotency_id.length,64);return{id:'owned',status:b.p_patch.status||'New'};}
  assert.equal(path,'rpc/crm_hutoxy_api','Hutoxy must not call a MAX settings/outbox RPC');
  const {p_action:a,p_ref:ref,p_data:b}=JSON.parse(init.body);
  if(a==='settings')return settings;
@@ -62,3 +63,10 @@ const delivered=await dispatchHutoxy(qdb,async(url,init)=>{assert.equal(init.hea
 assert.equal((await dispatchHutoxy(qdb,async()=>new Response(null,{status:503}))).failed,1);
 assert.equal((await dispatchHutoxy(async(path)=>path.endsWith('claim')?[{id:'x'}]:null,async()=>{throw Error('Cancelled event was sent');})).skipped,1);
 console.log('Hutoxy API and worker isolation, scoped lookup, cursors, logging, test safety, quotation, availability, signatures and receiver failures passed.');
+
+assert.equal((await invoke('leads/owned','PATCH',{status:'Contacted'},{'idempotency-key':'update-001'})).body.data.status,'Contacted');
+assert.equal((await invoke('leads/other','PATCH',{status:'Contacted'},{'idempotency-key':'update-002'})).status,404);
+assert.equal((await invoke('leads/owned','PATCH',{status:'Contacted'})).status,400);
+for(const invalid of [{assigned_to:'2'},{payments:[]},{status:'Bogus'},{adults:0},{child_ages:[18]},{bot_paused:'false'},{check_in:'2027-02-30'},{next_follow_up_at:'tomorrow'},{note:''},{tent_count:1.5},{expected_updated_at:'2027-01-01T00:00:00Z'}])assert.equal((await invoke('leads/owned','PATCH',invalid,{'idempotency-key':'invalid-001'})).status,400,JSON.stringify(invalid));
+assert.equal((await invoke('leads/owned','PATCH',{check_in:'2027-01-12',nights:4,adults:9,child_ages:[4,8],tent_category:'Non-AC Swiss Cottage',tent_count:3,status:'Discussion',temperature:'Hot',note:'Client confirmed',next_follow_up_at:null,human_takeover:true,bot_paused:true},{'idempotency-key':'update-003'})).status,200);
+console.log('Hutoxy PATCH authorization, allowlist and validation passed.');

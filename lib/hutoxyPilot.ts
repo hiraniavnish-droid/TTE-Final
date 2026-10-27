@@ -19,6 +19,22 @@ function cursor(value:any,scope:string){
 }
 function encodeCursor(v:any,scope:string){if(!v)return null;const encoded=Buffer.from(JSON.stringify({...v,scope})).toString('base64url');return encoded+'.'+crypto.createHmac('sha256',key()).update(encoded).digest('hex');}
 function page(query:any,scope:string){const limit=Number(query?.limit||50);if(!Number.isInteger(limit)||limit<1||limit>100)throw new HutoxyError(400,'invalid_limit','limit must be 1-100.');const since=query?.updated_since;if(since&&!Number.isFinite(Date.parse(String(since))))throw new HutoxyError(400,'invalid_timestamp','updated_since must be an ISO timestamp.');return {limit,...cursor(query?.cursor,scope),...(since?{updated_since:String(since)}:{})};}
+export function leadUpdateInput(b:any){
+ const allowed=['check_in','nights','adults','child_ages','tent_category','tent_count','status','temperature','note','next_follow_up_at','human_takeover','bot_paused','expected_updated_at'];
+ const fail=()=>{throw new HutoxyError(400,'invalid_update','Provide only supported lead fields with valid values.');};
+ if(Object.keys(b).some(k=>!allowed.includes(k))||!Object.keys(b).some(k=>k!=='expected_updated_at'))fail();
+ const integer=(k:string,min:number,max:number)=>{if(k in b&&(!Number.isInteger(b[k])||b[k]<min||b[k]>max))fail();};
+ integer('nights',1,365);integer('adults',1,1000);integer('tent_count',1,1000);
+ if('check_in' in b&& (typeof b.check_in!=='string'||!/^\d{4}-\d\d-\d\d$/.test(b.check_in)||!Number.isFinite(Date.parse(b.check_in+'T12:00:00Z'))||new Date(b.check_in+'T12:00:00Z').toISOString().slice(0,10)!==b.check_in))fail();
+ if('child_ages' in b&&(!Array.isArray(b.child_ages)||b.child_ages.length>1000||b.child_ages.some((v:any)=>!Number.isInteger(v)||v<0||v>17)))fail();
+ if('tent_category' in b&&!['Non-AC Swiss Cottage','Deluxe AC Swiss Cottage','Premium Tent','Super Premium Tent','Rajwadi Suite','Darbari Suite'].includes(b.tent_category))fail();
+ if('status' in b&&!['New','Contacted','Proposal Sent','Discussion','Won','Lost'].includes(b.status))fail();
+ if('temperature' in b&&!['Hot','Warm','Cold'].includes(b.temperature))fail();
+ if('note' in b&&(typeof b.note!=='string'||!b.note.trim()||b.note.length>10000))fail();
+ for(const k of ['human_takeover','bot_paused'])if(k in b&&typeof b[k]!=='boolean')fail();
+ for(const k of ['expected_updated_at','next_follow_up_at'])if(k in b&&!(k==='next_follow_up_at'&&b[k]===null)&&(typeof b[k]!=='string'||!/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(b[k])||!Number.isFinite(Date.parse(b[k]))))fail();
+ return b;
+}
 async function lead(db:typeof maxDb,ref:string){const value=await rpc(db,'lead',ref);if(value?.error)throw new HutoxyError(404,'lead_not_in_pilot','Lead not found in the Hutoxy pilot.');return value;}
 async function audit(db:typeof maxDb,req:any,rid:string,action:string){await db('crm_api_audit',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({request_id:rid,client_id:'hutoxy-pilot',method:req.method,path:new URL(req.url||'/','https://ttecrm.vercel.app').pathname,action,metadata:{}})});}
 const assets=new Map<string,Promise<string>>();
@@ -69,6 +85,14 @@ export function createHutoxyHandler(db:typeof maxDb=maxDb,request:typeof fetch=s
   if(method==='GET'&&endpoint==='itinerary/catalog'){const c=catalog();return respond(200,{data:{...c,modules:c.modules.filter(m=>m.id==='rann-tentcity')}});}
   if(method==='GET'&&endpoint==='availability')return respond(200,{data:await hutoxyAvailability(req.query||{},db)});
   if(method==='GET'&&endpoint==='leads'){const result=await rpc(db,'leads',null,page(req.query,'leads'));return respond(200,{...result,next_cursor:encodeCursor(result.next_cursor,'leads')});}
+  if(segments[0]==='leads'&&segments[1]&&segments.length===2&&method==='PATCH'){
+   const b=leadUpdateInput(body(req)),idem=String(req.headers?.['idempotency-key']||'');
+   if(idem.length<8||idem.length>200)throw new HutoxyError(400,'idempotency_key_required','Provide a unique Idempotency-Key of 8-200 characters.');
+   const record=await lead(db,segments[1]);
+   const output=await db('rpc/crm_hutoxy_update_lead',{method:'POST',body:JSON.stringify({p_ref:record.id,p_patch:b,p_request_id:rid,p_idempotency_id:hash(record.id+':update:'+idem),p_request_hash:hash(JSON.stringify(b))})});
+   if(output.error)throw new HutoxyError(output.error==='lead_not_in_pilot'?404:409,output.error,'Lead update was rejected. Refresh the lead before retrying.');
+   return respond(200,{data:output});
+  }
   if(segments[0]==='leads'&&segments[1]&&segments.length===2&&method==='GET')return respond(200,{data:await lead(db,segments[1])});
   if(segments[0]==='leads'&&segments[1]&&segments.length===3&&segments[2]==='messages'&&method==='GET'){
    await lead(db,segments[1]);const scope='messages:'+segments[1],result=await rpc(db,'messages',segments[1],page(req.query,scope));if(result.error)throw new HutoxyError(404,'lead_not_in_pilot','Lead not found in the Hutoxy pilot.');return respond(200,{...result,next_cursor:encodeCursor(result.next_cursor,scope)});

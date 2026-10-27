@@ -4887,6 +4887,28 @@ function page(query, scope) {
   if (since && !Number.isFinite(Date.parse(String(since)))) throw new HutoxyError(400, "invalid_timestamp", "updated_since must be an ISO timestamp.");
   return { limit, ...cursor(query?.cursor, scope), ...since ? { updated_since: String(since) } : {} };
 }
+function leadUpdateInput(b) {
+  const allowed = ["check_in", "nights", "adults", "child_ages", "tent_category", "tent_count", "status", "temperature", "note", "next_follow_up_at", "human_takeover", "bot_paused", "expected_updated_at"];
+  const fail2 = () => {
+    throw new HutoxyError(400, "invalid_update", "Provide only supported lead fields with valid values.");
+  };
+  if (Object.keys(b).some((k) => !allowed.includes(k)) || !Object.keys(b).some((k) => k !== "expected_updated_at")) fail2();
+  const integer = (k, min, max) => {
+    if (k in b && (!Number.isInteger(b[k]) || b[k] < min || b[k] > max)) fail2();
+  };
+  integer("nights", 1, 365);
+  integer("adults", 1, 1e3);
+  integer("tent_count", 1, 1e3);
+  if ("check_in" in b && (typeof b.check_in !== "string" || !/^\d{4}-\d\d-\d\d$/.test(b.check_in) || !Number.isFinite(Date.parse(b.check_in + "T12:00:00Z")) || (/* @__PURE__ */ new Date(b.check_in + "T12:00:00Z")).toISOString().slice(0, 10) !== b.check_in)) fail2();
+  if ("child_ages" in b && (!Array.isArray(b.child_ages) || b.child_ages.length > 1e3 || b.child_ages.some((v) => !Number.isInteger(v) || v < 0 || v > 17))) fail2();
+  if ("tent_category" in b && !["Non-AC Swiss Cottage", "Deluxe AC Swiss Cottage", "Premium Tent", "Super Premium Tent", "Rajwadi Suite", "Darbari Suite"].includes(b.tent_category)) fail2();
+  if ("status" in b && !["New", "Contacted", "Proposal Sent", "Discussion", "Won", "Lost"].includes(b.status)) fail2();
+  if ("temperature" in b && !["Hot", "Warm", "Cold"].includes(b.temperature)) fail2();
+  if ("note" in b && (typeof b.note !== "string" || !b.note.trim() || b.note.length > 1e4)) fail2();
+  for (const k of ["human_takeover", "bot_paused"]) if (k in b && typeof b[k] !== "boolean") fail2();
+  for (const k of ["expected_updated_at", "next_follow_up_at"]) if (k in b && !(k === "next_follow_up_at" && b[k] === null) && (typeof b[k] !== "string" || !/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(b[k]) || !Number.isFinite(Date.parse(b[k])))) fail2();
+  return b;
+}
 async function lead(db, ref) {
   const value = await rpc(db, "lead", ref);
   if (value?.error) throw new HutoxyError(404, "lead_not_in_pilot", "Lead not found in the Hutoxy pilot.");
@@ -4975,6 +4997,14 @@ function createHutoxyHandler(db = maxDb, request = safeWebhookRequest) {
         const result = await rpc(db, "leads", null, page(req.query, "leads"));
         return respond(200, { ...result, next_cursor: encodeCursor(result.next_cursor, "leads") });
       }
+      if (segments[0] === "leads" && segments[1] && segments.length === 2 && method === "PATCH") {
+        const b = leadUpdateInput(body(req)), idem = String(req.headers?.["idempotency-key"] || "");
+        if (idem.length < 8 || idem.length > 200) throw new HutoxyError(400, "idempotency_key_required", "Provide a unique Idempotency-Key of 8-200 characters.");
+        const record = await lead(db, segments[1]);
+        const output = await db("rpc/crm_hutoxy_update_lead", { method: "POST", body: JSON.stringify({ p_ref: record.id, p_patch: b, p_request_id: rid, p_idempotency_id: hash(record.id + ":update:" + idem), p_request_hash: hash(JSON.stringify(b)) }) });
+        if (output.error) throw new HutoxyError(output.error === "lead_not_in_pilot" ? 404 : 409, output.error, "Lead update was rejected. Refresh the lead before retrying.");
+        return respond(200, { data: output });
+      }
       if (segments[0] === "leads" && segments[1] && segments.length === 2 && method === "GET") return respond(200, { data: await lead(db, segments[1]) });
       if (segments[0] === "leads" && segments[1] && segments.length === 3 && segments[2] === "messages" && method === "GET") {
         await lead(db, segments[1]);
@@ -5029,5 +5059,6 @@ export {
   HutoxyError,
   createHutoxyHandler,
   hutoxyPilot_default as default,
-  hutoxyAvailability
+  hutoxyAvailability,
+  leadUpdateInput
 };
