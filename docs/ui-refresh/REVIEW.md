@@ -45,3 +45,7 @@ Use the repository's documented pull-request/preview/owner-review workflow. Prev
 At the user's request, Hot/Warm/Cold badges, card colour cues, creation controls, filters, grouping and the CSV export option are removed. The dashboard's previous hot-only panel now shows recent active enquiries without a temperature dependency. Forms use the existing neutral backend default, and stored/API fields remain compatible. Old bookmarked URLs, session preferences and saved views have retired temperature filters/grouping removed on read; other filters are retained.
 
 The browser resilience suite now contains nine tests, including this legacy-view migration. No schema or integration changes are required.
+
+## Follow-up: remove the desktop top bar
+
+The user identified the full-width desktop header as wasted space. Desktop pages now reclaim its 72px: New lead is in the sidebar, search stays in the sidebar, and the theme switch sits beside the account menu. Actions remain available in collapsed navigation. The duplicate Leads-page add button is removed, and sidebar spacing is tightened. Phones and tablets retain the compact header because they do not show the desktop sidebar.

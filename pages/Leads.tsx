@@ -1535,21 +1535,7 @@ export const Leads = () => {
           >
             <Download size={15} /> Export
           </button>
-          <button
-            onClick={handleOpenModal}
-            className={cn(
-              'hidden md:flex items-center gap-2 rounded-full pl-5 pr-2 py-2 text-sm font-semibold',
-              'transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.97]',
-              theme === 'light'
-                ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-[0_4px_16px_-4px_rgba(15,23,42,0.4),0_1px_4px_rgba(15,23,42,0.2)] hover:shadow-[0_8px_24px_-4px_rgba(15,23,42,0.5)]'
-                : 'bg-white text-slate-900 hover:bg-white/90 shadow-lg'
-            )}
-          >
-            Add Lead
-            <span className={cn('w-7 h-7 rounded-full flex items-center justify-center', theme === 'light' ? 'bg-white/15' : 'bg-black/10')}>
-              <Plus size={14} />
-            </span>
-          </button>
+
         </div>
       </div>
 

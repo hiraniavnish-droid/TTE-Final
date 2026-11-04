@@ -72,7 +72,8 @@
   "decisions": [
     "4 November 2026: User requested a cohesive professional refresh and fixes for phone layout failures and returning-browser load errors. Use a restrained blue and slate system, grouped desktop navigation, four mobile destinations plus a complete More menu, consistent shared controls and clean metric cards.",
     "Replace runtime Tailwind CDN generation with bundled, versioned CSS. Preserve all existing server integrations and quotation engines.",
-    "4 November 2026: Remove Hot/Warm/Cold classification from visible CRM cards, forms, filters, grouping and export choices. Retire legacy saved-view temperature filters so they cannot silently hide enquiries. Keep the existing API/database field compatible with integrations."
+    "4 November 2026: Remove Hot/Warm/Cold classification from visible CRM cards, forms, filters, grouping and export choices. Retire legacy saved-view temperature filters so they cannot silently hide enquiries. Keep the existing API/database field compatible with integrations.",
+    "4 November 2026: Remove the desktop top bar to reclaim its full 72px. Keep search, New lead and theme controls in the sidebar; retain the compact mobile header where the sidebar is hidden."
   ],
   "evidence": [
     {

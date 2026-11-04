@@ -91,6 +91,9 @@ export const Layout = () => {
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
         </div>
+        <Button onClick={() => setAddLeadModalOpen(true)} className="crm-sidebar-new-lead" aria-label="New lead" title="New lead">
+          <Plus size={18}/>{!collapsed && <span>New lead</span>}
+        </Button>
         <button className="crm-sidebar-search" onClick={search} aria-label="Search leads"><Search size={17} />{!collapsed && <><span>Search anything</span><kbd>⌘ K</kbd></>}</button>
         <nav className="crm-sidebar-nav">
           {['Workspace', 'Sales tools', 'Operations'].map(group => <div className="crm-nav-group" key={group}>
@@ -99,20 +102,21 @@ export const Layout = () => {
           </div>)}
         </nav>
         <div className="crm-sidebar-footer">
+          <div className="crm-sidebar-account-row">
           <button className="crm-account" onClick={() => setMenuOpen(true)} aria-label="Open account and workspace menu">
             <UserAvatar name={user?.name || 'Expert'} size={34} />
             {!collapsed && <><span><strong>{user?.name}</strong><small>{user?.role === 'admin' ? 'Administrator' : 'Travel consultant'}</small></span><ChevronRight size={15} /></>}
           </button>
+          <button className="crm-icon-button" onClick={toggleTheme} aria-label={`Change theme, current ${theme}`} title={`Theme: ${theme}`}><ThemeIcon size={19}/></button>
+          </div>
         </div>
       </aside>
 
       <div className="crm-workspace">
         <header className="crm-topbar">
           <Link to="/" className="crm-mobile-brand" aria-label="The Tourism Experts home"><span className="crm-brand-mark"><Compass size={20}/></span><span>The Tourism<strong>Experts</strong></span></Link>
-          <div className="crm-breadcrumb"><span>Workspace</span><ChevronRight size={14}/><strong>{pageTitle}</strong></div>
           <div className="crm-topbar-actions">
             <button className="crm-icon-button" onClick={search} aria-label="Search leads" title="Search leads"><Search size={20}/></button>
-            <button className="crm-icon-button crm-theme-toggle" onClick={toggleTheme} aria-label={`Change theme, current ${theme}`} title={`Theme: ${theme}`}><ThemeIcon size={19}/></button>
             <Button onClick={() => setAddLeadModalOpen(true)} className="crm-new-lead"><Plus size={18}/><span>New lead</span></Button>
           </div>
         </header>

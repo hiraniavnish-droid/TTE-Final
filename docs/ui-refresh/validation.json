@@ -316,5 +316,19 @@
     "legacyViewMigration": "verified old temperature/group query removed; all 12 fictional leads remain visible",
     "mobileChecks": "lead cards, details, creation dialog and dashboard checked at 390px without overflow",
     "backendCompatibility": "existing field retained; no schema or API changes"
+  },
+  "desktopTopBarRemoval": {
+    "desktopHeaderHeight": 0,
+    "reclaimedHeightPx": 72,
+    "phoneTabletHeaderHeight": 64,
+    "verifiedWidths": [
+      320,
+      390,
+      768,
+      1024,
+      1440
+    ],
+    "horizontalOverflow": false,
+    "sidebarActions": "New lead verified expanded/collapsed; search and theme switch verified"
   }
 }
