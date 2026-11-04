@@ -1,3 +1,4 @@
+import { cleanLeadWorkspaceQuery } from '../lib/leadWorkspaceQuery';
 import { localStore, sessionStore, readStoredArray, readStoredRecord } from '../lib/browserStorage';
 import { isFinancialLead } from '../lib/financialLeadFilter';
 import { IncrementalList, useDesktopLayout } from '../components/ui/IncrementalList';
@@ -14,7 +15,7 @@ import { Modal } from '../components/ui/Modal';
 import { ServiceSelector } from '../components/ServiceSelector';
 import { PaxSelector } from '../components/PaxSelector';
 import { TravelPreferences } from '../components/TravelPreferences';
-import { Lead, LeadStatus, LeadTemperature, LeadSource, PaxConfig, TravelPreferences as TravelPreferencesType, Commercials, User } from '../types';
+import { Lead, LeadStatus, LeadSource, PaxConfig, TravelPreferences as TravelPreferencesType, Commercials, User } from '../types';
 import { STATUS_COLUMNS } from '../constants';
 import { formatCurrency, formatCompactCurrency, generateId, cn, formatDate, timeAgo } from '../utils/helpers';
 import Papa from 'papaparse';
@@ -175,12 +176,10 @@ const getInitials = (name: string): string => {
   return name.slice(0, 2).toUpperCase();
 };
 
-const getBandStyle = (lead: Lead, urgencyColor: string): string => {
+const getBandStyle = (urgencyColor: string): string => {
   if (urgencyColor === 'red') return 'linear-gradient(90deg, #ef4444, #f97316)';
   if (urgencyColor === 'orange') return 'linear-gradient(90deg, #f97316, #fbbf24)';
-  if (lead.temperature === 'Hot') return 'linear-gradient(90deg, #f43f5e, #ec4899)';
-  if (lead.temperature === 'Warm') return 'linear-gradient(90deg, #fbbf24, #f59e0b)';
-  return 'linear-gradient(90deg, #38bdf8, #818cf8)';
+  return 'none';
 };
 
 // ─── Column Styles ────────────────────────────────────────────────────────────
@@ -207,9 +206,7 @@ const LeadCard: React.FC<{ lead: Lead; isOverlay?: boolean; isDragging?: boolean
 
   const leftBorder = isRed ? 'border-l-red-500'
     : isOrange ? 'border-l-orange-500'
-    : lead.temperature === 'Hot' ? 'border-l-rose-400'
-    : lead.temperature === 'Warm' ? 'border-l-amber-400'
-    : 'border-l-sky-400';
+    : theme === 'light' ? 'border-l-slate-200' : 'border-l-slate-600';
 
   const bgTint = isRed
     ? (theme === 'light' ? 'bg-red-50' : 'bg-red-500/10')
@@ -238,13 +235,6 @@ const LeadCard: React.FC<{ lead: Lead; isOverlay?: boolean; isDragging?: boolean
   const profit = lead.commercials ? lead.commercials.sellingPrice - lead.commercials.netCost : null;
   const initials = getInitials(lead.name);
   const avatarGradient = getAvatarGradient(lead.name);
-
-  const tempDot = lead.temperature === 'Hot' ? 'bg-rose-500' : lead.temperature === 'Warm' ? 'bg-amber-500' : 'bg-sky-500';
-
-  const tempBadge = {
-    light: { Hot: 'bg-rose-100 text-rose-700', Warm: 'bg-amber-100 text-amber-700', Cold: 'bg-sky-100 text-sky-700' },
-    dark:  { Hot: 'bg-rose-500/20 text-rose-300', Warm: 'bg-amber-500/20 text-amber-300', Cold: 'bg-sky-500/20 text-sky-300' },
-  };
 
   // ── Payment flag — only meaningful once a deal is Won ──────────────────────
   const expectedAmount = lead.commercials?.sellingPrice || 0;
@@ -322,16 +312,10 @@ const LeadCard: React.FC<{ lead: Lead; isOverlay?: boolean; isDragging?: boolean
             </span>
           </div>
 
-          {/* Meta row — temperature dot + agent + budget (hidden when compact) */}
-          {!compact && (
+          {/* Meta row — owner and budget (hidden when compact) */}
+          {!compact && (lead.legacy || lead.assignedTo || budget || profit !== null) && (
             <div className="flex items-center gap-1.5 mt-1.5">
-              <span className={cn(
-                'inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md',
-                theme === 'light' ? tempBadge.light[lead.temperature] : tempBadge.dark[lead.temperature]
-              )}>
-                <span className={cn('w-1.5 h-1.5 rounded-full', tempDot)} />
-                {lead.temperature}
-              </span>
+
               {lead.legacy && (
                 <span className={cn('text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md', theme === 'light' ? 'bg-slate-200 text-slate-500' : 'bg-white/10 text-white/40')}>
                   Legacy
@@ -666,7 +650,7 @@ const OverviewLeadCard: React.FC<{
   const { colorClass: urgencyColor, tooltip: urgencyTooltip } = getLeadUrgency(lead);
   const isRed = urgencyColor === 'red';
   const hasUrgency = !!urgencyColor;
-  const bandStyle = getBandStyle(lead, urgencyColor);
+  const bandStyle = getBandStyle(urgencyColor);
   const initials = getInitials(lead.name);
   const avatarGradient = getAvatarGradient(lead.name);
 
@@ -762,12 +746,7 @@ const OverviewLeadCard: React.FC<{
 
         {/* Row 3: Tags */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={cn(
-            'text-[9px] font-black uppercase tracking-wide px-2 py-1 rounded-md',
-            lead.temperature === 'Hot' ? 'bg-rose-100 text-rose-600' : lead.temperature === 'Warm' ? 'bg-amber-100 text-amber-600' : 'bg-sky-100 text-sky-600'
-          )}>
-            {lead.temperature}
-          </span>
+
           {lead.legacy && (
             <span className={cn('text-[9px] font-bold uppercase px-2 py-1 rounded-md', theme === 'light' ? 'bg-slate-200 text-slate-500' : 'bg-white/10 text-white/40')}>
               Legacy
@@ -832,7 +811,7 @@ const OverviewGrid: React.FC<{
   const { theme } = useTheme();
   const openLead = React.useContext(LeadWorkspaceOpen);
   const [overviewParams,setOverviewParams]=useSearchParams();
-  const groupBy=(overviewParams.get('group') || 'none') as 'none'|'agent'|'temperature';
+  const groupBy = overviewParams.get('group') === 'agent' ? 'agent' : 'none';
   const sortBy=(overviewParams.get('sort') || 'newest') as 'newest'|'budget'|'name';
   const setGroupBy=(fn:(v:typeof groupBy)=>typeof groupBy)=>setOverviewParams(p=>{const n=new URLSearchParams(p);n.set('group',fn(groupBy));return n;},{replace:true});
   const setSortBy=(fn:(v:typeof sortBy)=>typeof sortBy)=>setOverviewParams(p=>{const n=new URLSearchParams(p);n.set('sort',fn(sortBy));return n;},{replace:true});
@@ -874,16 +853,11 @@ const OverviewGrid: React.FC<{
       });
       return Array.from(map.entries()).map(([key, gLeads]) => ({ key, label: key, leads: gLeads }));
     }
-    if (groupBy === 'temperature') {
-      return ['Hot', 'Warm', 'Cold']
-        .map(t => ({ key: t, label: t, leads: sorted.filter(l => l.temperature === t) }))
-        .filter(g => g.leads.length > 0);
-    }
     return [{ key: 'all', label: null as string | null, leads: sorted }];
   }, [sorted, groupBy]);
 
   const sortLabels = { newest: 'Newest', budget: 'Budget', name: 'A–Z' };
-  const groupLabels = { none: 'No Group', agent: 'By Agent', temperature: 'By Temp' };
+  const groupLabels = { none: 'No Group', agent: 'By Agent' };
 
   const containerBg = theme === 'light' ? 'bg-[#f4f6f9]' : 'bg-slate-900/30';
 
@@ -956,7 +930,7 @@ const OverviewGrid: React.FC<{
         </button>
 
         <button
-          onClick={() => setGroupBy(g => g === 'none' ? 'agent' : g === 'agent' ? 'temperature' : 'none')}
+          onClick={() => setGroupBy(g => g === 'none' ? 'agent' : 'none')}
           className={cn(
             'text-[11px] font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap',
             theme === 'light'
@@ -1042,7 +1016,6 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'phone', label: 'Phone', get: l => l.contact?.phone || '' },
   { key: 'email', label: 'Email', get: l => l.contact?.email || '' },
   { key: 'status', label: 'Stage', get: l => l.status },
-  { key: 'temperature', label: 'Temperature', get: l => l.temperature },
   { key: 'assignedTo', label: 'Assigned To', get: l => l.assignedTo || 'Unassigned' },
   { key: 'destination', label: 'Destination', get: l => l.tripDetails?.destination || '' },
   { key: 'travelDate', label: 'Travel Date', get: l => l.tripDetails?.startDate ? formatDate(l.tripDetails.startDate) : '' },
@@ -1245,12 +1218,12 @@ export const Leads = () => {
   const [moreFilters, setMoreFilters] = useState(false);
   const [customDates, setCustomDates] = useState(false);
   const [savedViews, setSavedViews] = useState<{name:string; query:string}[]>(() => {
-    return readStoredArray<{name:string;query:string}>(localStore, `${workspaceKey}:views`, v => v && typeof v.name === 'string' && typeof v.query === 'string');
+    return readStoredArray<{name:string;query:string}>(localStore, `${workspaceKey}:views`, v => v && typeof v.name === 'string' && typeof v.query === 'string').map(v => ({ ...v, query: cleanLeadWorkspaceQuery(v.query) }));
   });
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
   const changeQuery = (changes: Record<string,string>) => setSearchParams(previous => {
-    const next = new URLSearchParams(previous);
+    const next = new URLSearchParams(cleanLeadWorkspaceQuery(previous.toString()));
     Object.entries(changes).forEach(([key,value]) => value ? next.set(key,value) : next.delete(key));
     if (!next.has('view')) next.set('view', previous.get('status') || previous.get('from') ? 'overview' : 'kanban');
     return next;
@@ -1268,7 +1241,6 @@ export const Leads = () => {
   const setFilters = (next: any) => { const value = typeof next === 'function' ? next(filters) : next; changeQuery({agent:value.assignedTo, pay:value.paymentStatus}); };
   const search = searchParams.get('q') || '';
   const destination = searchParams.get('destination') || '';
-  const temperature = searchParams.get('temperature') || '';
   const [activeMobileStatus, setActiveMobileStatus] = useState<LeadStatus>((searchParams.get('mobile') as LeadStatus) || 'New');
   const [lostExpanded, setLostExpanded] = useState(searchParams.get('lost') === '1');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1285,10 +1257,12 @@ export const Leads = () => {
       initialized.current = true;
       if (!searchParams.toString()) {
         const saved = sessionStore.getItem(workspaceKey);
-        if (saved) { setSearchParams(saved,{replace:true}); return; }
+        if (saved) { setSearchParams(cleanLeadWorkspaceQuery(saved),{replace:true}); return; }
       }
     }
-    sessionStore.setItem(workspaceKey, searchParams.toString());
+    const cleanQuery = cleanLeadWorkspaceQuery(searchParams.toString());
+    if (cleanQuery !== searchParams.toString()) { setSearchParams(cleanQuery, {replace:true}); return; }
+    sessionStore.setItem(workspaceKey, cleanQuery);
     sessionStore.setItem(`${workspaceKey}:return`, `/leads?${searchParams.toString()}`);
   }, [searchParams,workspaceKey]);
   useEffect(() => {
@@ -1348,7 +1322,6 @@ export const Leads = () => {
     if (search && ![l.name,l.leadCode,l.contact.phone,l.contact.email,l.tripDetails.destination].join(' ').toLowerCase().includes(search.toLowerCase())) return false;
     if (stageFilter && l.status !== stageFilter) return false;
     if (destination && l.tripDetails.destination !== destination) return false;
-    if (temperature && l.temperature !== temperature) return false;
     if (filters.assignedTo) {
       if (filters.assignedTo === 'Unassigned') {
         if (l.assignedTo) return false;
@@ -1369,7 +1342,7 @@ export const Leads = () => {
     return true;
   });
 
-  const hasActiveFilters = !!(financialReport || filters.assignedTo || filters.paymentStatus || createdFrom || createdTo || search || stageFilter || destination || temperature);
+  const hasActiveFilters = !!(financialReport || filters.assignedTo || filters.paymentStatus || createdFrom || createdTo || search || stageFilter || destination);
 
   const applyTimePreset = (preset:string) => {
     setCustomDates(false);
@@ -1384,7 +1357,7 @@ export const Leads = () => {
   useEffect(()=>{if(stageFilter==='Lost')setLostExpanded(true);},[stageFilter]);
   const filterLabelClass=cn('block text-[11px] font-semibold uppercase tracking-[0.07em]',theme==='light'?'text-slate-500':'text-slate-400');
   const filterControlClass=cn('w-full h-10 min-w-0 rounded-xl border px-3 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:border-indigo-400',theme==='light'?'bg-white border-slate-200 text-slate-700 hover:border-slate-300':'bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-500');
-  const advancedFilterCount=[stageFilter,filters.paymentStatus,destination,temperature].filter(Boolean).length;
+  const advancedFilterCount=[stageFilter,filters.paymentStatus,destination].filter(Boolean).length;
   const panelLead=leads.find(l=>l.id===panelId);
   const panelIndex=filteredLeads.findIndex(l=>l.id===panelId);
   const destinations=Array.from(new Set(leads.map(l=>l.tripDetails.destination).filter(Boolean))).sort();
@@ -1442,7 +1415,7 @@ export const Leads = () => {
       validLeads.push({
         id: generateId(), name, contact: { phone, email: findField(row, mappings.email) || '' },
         tripDetails: { destination: findField(row, mappings.destination) || 'TBD', budget: Number(findField(row, mappings.budget)) || 0, paxConfig: { adults: 2, children: 0, childAges: [] }, startDate: findField(row, mappings.startDate) || new Date().toISOString() },
-        status: (findField(row, mappings.status) as LeadStatus) || 'New', temperature: 'Hot',
+        status: (findField(row, mappings.status) as LeadStatus) || 'New', temperature: 'Warm',
         source: (findField(row, mappings.source) as LeadSource) || 'Other',
         interestedServices: [], tags: ['Imported'], createdAt: new Date().toISOString(), lastStatusUpdate: new Date().toISOString(),
       });
@@ -1485,7 +1458,7 @@ export const Leads = () => {
       tripDetails: { destination: formData.get('destination') as string, budget: Number(formData.get('budget') || 0), paxConfig: newLeadPax, startDate: formData.get('startDate') as string, nights: formData.get('nights') ? Number(formData.get('nights')) : undefined },
       preferences: newLeadPrefs,
       status: 'New',
-      temperature: formData.get('temperature') as LeadTemperature,
+      temperature: 'Warm',
       source: formData.get('source') as LeadSource,
       interestedServices: newLeadServices,
       referenceName: formData.get('reference') as string,
@@ -1596,16 +1569,16 @@ export const Leads = () => {
         {(customDates || activeTimePreset==='Custom') && <div className={cn('mx-3 md:mx-4 mb-3 rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-3 text-xs',theme==='light'?'bg-indigo-50/60 text-slate-600':'bg-slate-800 text-slate-300')}><Calendar size={16} className="text-indigo-500"/><span className="font-semibold">{financialReport ? 'Custom won dates' : 'Custom creation dates'}</span><label className="flex items-center gap-2">From<input aria-label="Lead start date" type="date" value={createdFrom} onChange={e=>changeQuery({from:e.target.value,to:createdTo && e.target.value>createdTo?e.target.value:createdTo})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label><label className="flex items-center gap-2">To<input aria-label="Lead end date" type="date" value={createdTo} onChange={e=>changeQuery({to:e.target.value,from:createdFrom && e.target.value<createdFrom?e.target.value:createdFrom})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label></div>}
         {moreFilters && <div id="advanced-lead-filters" className={cn('px-3 md:px-4 py-3 border-t',theme==='light'?'bg-slate-50/60 border-slate-100':'bg-slate-800/40 border-slate-700')}>
           <div className="flex items-center justify-between mb-2.5"><span className={cn('text-xs font-semibold',getTextColor())}>Refine your results</span>{advancedFilterCount>0 && <button onClick={()=>changeQuery({status:'',pay:'',destination:'',temperature:''})} className="text-xs text-indigo-600 font-semibold focus-visible:ring-2 rounded">Reset advanced</button>}</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr_1fr] gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr] gap-3">
             <label className="space-y-1.5"><span className={filterLabelClass}>Pipeline stage</span><select aria-label="Stage" value={stageFilter} onChange={e=>setStageFilter(e.target.value)} className={filterControlClass}><option value="">All stages</option>{STATUS_COLUMNS.map(v=><option key={v}>{v}</option>)}</select></label>
             <label className="space-y-1.5"><span className={filterLabelClass}>Payment status</span><select aria-label="Payment status" value={filters.paymentStatus} onChange={e=>changeQuery({pay:e.target.value})} className={filterControlClass}><option value="">Any payment status</option><option value="unpaid">Won · No payment</option><option value="partial">Won · Part paid</option><option value="paid">Won · Paid</option></select></label>
             <label className="space-y-1.5"><span className={filterLabelClass}>Destination</span><select aria-label="Destination" value={destination} onChange={e=>changeQuery({destination:e.target.value})} className={filterControlClass}><option value="">All destinations</option>{destinations.map(v=><option key={v}>{v}</option>)}</select></label>
-            <label className="space-y-1.5"><span className={filterLabelClass}>Lead temperature</span><select aria-label="Temperature" value={temperature} onChange={e=>changeQuery({temperature:e.target.value})} className={filterControlClass}><option value="">Any temperature</option>{['Hot','Warm','Cold'].map(v=><option key={v}>{v}</option>)}</select></label>
+
           </div>
         </div>}
         {hasActiveFilters && <div className={cn('flex flex-wrap items-center gap-2 px-3 md:px-4 py-2.5 border-t text-xs',theme==='light'?'border-slate-100':'border-slate-700')} aria-label="Active filters">
           <span className={cn('font-semibold mr-1',getSecondaryTextColor())}>{filteredLeads.length} results</span>
-          {[[financialReport ? 'financial' : '', 'Financial report · Won date', 'report'],[search,'Search: '+search,'q'],[filters.assignedTo,filters.assignedTo,'agent'],[dateLabel,dateLabel,'dates'],[stageFilter,stageFilter,'status'],[filters.paymentStatus,'Payment: '+filters.paymentStatus,'pay'],[destination,destination,'destination'],[temperature,temperature,'temperature']].filter(v=>v[0]).map(([value,label,key])=><button key={key} aria-label={`Remove ${label} filter`} onClick={()=>{if(key==='dates'){setCustomDates(false);changeQuery({from:'',to:''});}else changeQuery({[key]:''});}} className={cn('flex items-center gap-1.5 rounded-lg px-2 py-1 border max-w-full focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors',theme==='light'?'bg-indigo-50/60 border-indigo-100 text-indigo-700 hover:bg-indigo-100':'bg-indigo-500/10 border-indigo-500/20 text-indigo-300')}><span className="truncate max-w-[220px]">{label}</span><X size={12} className="shrink-0"/></button>)}
+          {[[financialReport ? 'financial' : '', 'Financial report · Won date', 'report'],[search,'Search: '+search,'q'],[filters.assignedTo,filters.assignedTo,'agent'],[dateLabel,dateLabel,'dates'],[stageFilter,stageFilter,'status'],[filters.paymentStatus,'Payment: '+filters.paymentStatus,'pay'],[destination,destination,'destination']].filter(v=>v[0]).map(([value,label,key])=><button key={key} aria-label={`Remove ${label} filter`} onClick={()=>{if(key==='dates'){setCustomDates(false);changeQuery({from:'',to:''});}else changeQuery({[key]:''});}} className={cn('flex items-center gap-1.5 rounded-lg px-2 py-1 border max-w-full focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors',theme==='light'?'bg-indigo-50/60 border-indigo-100 text-indigo-700 hover:bg-indigo-100':'bg-indigo-500/10 border-indigo-500/20 text-indigo-300')}><span className="truncate max-w-[220px]">{label}</span><X size={12} className="shrink-0"/></button>)}
           <button onClick={clearFilters} className="ml-auto text-slate-500 hover:text-rose-600 font-semibold px-2 py-1 focus-visible:ring-2 rounded">Clear filters</button>
         </div>}
       </section>
@@ -1765,15 +1738,8 @@ export const Leads = () => {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-1.5">
-              <label className={cn('text-xs font-bold uppercase tracking-wider opacity-60', getTextColor())}>Temperature</label>
-              <select name="temperature" className={cn('w-full rounded-lg p-3 outline-none transition-all border', getInputClass(), '[&>option]:text-black')}>
-                <option value="Hot">Hot (Ready to buy)</option>
-                <option value="Warm">Warm (Interested)</option>
-                <option value="Cold">Cold (Future)</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-1 gap-5">
+
             <div className="space-y-1.5">
               <label className={cn('text-xs font-bold uppercase tracking-wider opacity-60', getTextColor())}>Reference Name</label>
               <input name="reference" className={cn('w-full rounded-lg p-3 outline-none transition-all border', getInputClass())} placeholder="Optional" />

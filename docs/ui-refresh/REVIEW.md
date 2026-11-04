@@ -39,3 +39,9 @@ The broad rate-wall verification reports 503,075 checks and 336 failures on both
 ## Release
 
 Use the repository's documented pull-request/preview/owner-review workflow. Preview the branch and review it on real staff phones before merging into main. No database migration, webhook cutover, worker change or production credential change is required. Rolling back the source commit restores the previous interface; recovery never clears task or quotation storage.
+
+## Follow-up: remove lead temperature
+
+At the user's request, Hot/Warm/Cold badges, card colour cues, creation controls, filters, grouping and the CSV export option are removed. The dashboard's previous hot-only panel now shows recent active enquiries without a temperature dependency. Forms use the existing neutral backend default, and stored/API fields remain compatible. Old bookmarked URLs, session preferences and saved views have retired temperature filters/grouping removed on read; other filters are retained.
+
+The browser resilience suite now contains nine tests, including this legacy-view migration. No schema or integration changes are required.

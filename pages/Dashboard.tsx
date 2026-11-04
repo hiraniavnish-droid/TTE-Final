@@ -815,8 +815,8 @@ export const Dashboard = () => {
     navigate(path);
   };
 
-  const hotLeads = useMemo(() => dashboardLeads
-        .filter((l) => l.temperature === 'Hot' && l.status !== 'Won' && l.status !== 'Lost')
+  const recentLeads = useMemo(() => dashboardLeads
+        .filter((l) => l.status !== 'Won' && l.status !== 'Lost')
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5), [dashboardLeads]);
 
@@ -995,12 +995,12 @@ export const Dashboard = () => {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-full flex flex-col">
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2"><Briefcase size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold tracking-tight", getTextColor())}>Priority Leads</h3></div>
+                <div className="flex items-center gap-2"><Briefcase size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold tracking-tight", getTextColor())}>Recent enquiries</h3></div>
                 <Link to="/leads" className="text-xs text-blue-500 hover:underline">View All</Link>
             </div>
             <div className="space-y-3">
-                {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> :
-                    hotLeads.map(lead => (
+                {recentLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No active enquiries.</div> :
+                    recentLeads.map(lead => (
                         <Link key={lead.id} to={`/leads/${lead.id}`} className={cn(
                             "flex items-center justify-between p-3 rounded-2xl border group",
                             "transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5",

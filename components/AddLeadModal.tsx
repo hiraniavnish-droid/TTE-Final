@@ -8,9 +8,9 @@ import { Button } from './ui/Button';
 import { ServiceSelector } from './ServiceSelector';
 import { PaxSelector } from './PaxSelector';
 import { TravelPreferences } from './TravelPreferences';
-import { Lead, LeadTemperature, LeadSource, PaxConfig, TravelPreferences as TravelPreferencesType } from '../types';
+import { Lead, LeadSource, PaxConfig, TravelPreferences as TravelPreferencesType } from '../types';
 import { generateId, cn } from '../utils/helpers';
-import { UploadCloud, Download, CheckCircle2, Sparkles, User, MapPin, Flame } from 'lucide-react';
+import { UploadCloud, Download, CheckCircle2, Sparkles, User, MapPin } from 'lucide-react';
 import Papa from 'papaparse';
 
 export const AddLeadModal = () => {
@@ -117,7 +117,7 @@ export const AddLeadModal = () => {
                   startDate: findField(row, mappings.startDate) || new Date().toISOString(),
               },
               status: (findField(row, mappings.status) as any) || 'New',
-              temperature: 'Hot',
+              temperature: 'Warm',
               source: (findField(row, mappings.source) as any) || 'Other',
               interestedServices: [],
               tags: ['Imported'],
@@ -200,7 +200,7 @@ export const AddLeadModal = () => {
           },
           preferences: newLeadPrefs,
           status: 'New',
-          temperature: formData.get('temperature') as LeadTemperature,
+          temperature: 'Warm',
           source: formData.get('source') as LeadSource,
           interestedServices: newLeadServices,
           referenceName: formData.get('reference') as string,
@@ -331,24 +331,17 @@ export const AddLeadModal = () => {
                 </div>
             </div>
 
-            {/* ── Section 4: Lead Qualification ── Amber */}
+            {/* ── Section 4: Lead Assignment ── Amber */}
             <div className={cn("space-y-3 pl-3", sc.amber.border)}>
                 <div className="flex items-center gap-2">
                     <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", sc.amber.iconBg)}>
-                        <Flame size={12} className={sc.amber.text} />
+                        <User size={12} className={sc.amber.text} />
                     </div>
-                    <span className={cn("text-xs font-bold uppercase tracking-wider", sc.amber.text)}>Lead Qualification</span>
+                    <span className={cn("text-xs font-bold uppercase tracking-wider", sc.amber.text)}>Lead Assignment</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                     <div className="space-y-1.5">
-                        <label htmlFor="create-lead-temperature" className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Temperature</label>
-                        <select id="create-lead-temperature" aria-label="Temperature" name="temperature" className={cn(inputClasses, "[&>option]:text-black")}>
-                            <option value="Hot">🔥 Hot (Ready to buy)</option>
-                            <option value="Warm">🌤 Warm (Interested)</option>
-                            <option value="Cold">❄️ Cold (Future)</option>
-                        </select>
-                    </div>
+                <div className="grid grid-cols-1 gap-4">
+
                      <div className="space-y-1.5">
                         <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>
                             {user?.role === 'admin' ? 'Assign To' : 'Reference Name'}

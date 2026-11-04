@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { readStoredArray, readStoredRecord, storageAdapter } from '../lib/browserStorage.ts';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout.ts';
+import { cleanLeadWorkspaceQuery } from '../lib/leadWorkspaceQuery.ts';
 
 const from = value => ({getItem:() => value});
 const isTask = value => value && typeof value.id === 'string';
@@ -71,4 +72,15 @@ test('entry HTML includes early recovery before the bundled module and no runtim
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.ok(html.indexOf('/app-recovery.js') < html.indexOf('type="module"'));
   assert.ok(!html.includes('cdn.tailwindcss.com'));
+});
+
+test('retired temperature filters and grouping cannot hide leads from legacy views',()=>{
+  const params=new URLSearchParams(cleanLeadWorkspaceQuery('view=overview&temperature=Hot&group=temperature&status=Won&report=financial&agent=Test+Agent'));
+  assert.equal(params.has('temperature'),false);
+  assert.equal(params.has('group'),false);
+  assert.equal(params.get('view'),'overview');
+  assert.equal(params.get('status'),'Won');
+  assert.equal(params.get('report'),'financial');
+  assert.equal(params.get('agent'),'Test Agent');
+  assert.equal(new URLSearchParams(cleanLeadWorkspaceQuery('group=agent&temperature=Cold')).get('group'),'agent');
 });

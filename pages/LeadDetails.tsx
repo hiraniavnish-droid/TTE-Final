@@ -490,12 +490,7 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
                   </Button>
                   <h1 className={cn("min-w-0 text-xl md:text-2xl font-bold tracking-tight break-words", getTextColor())}>{lead.name}</h1>
                   <LeadCodeChip code={lead.leadCode} size="md" />
-                  <span className={cn(
-                      "text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded border",
-                      lead.temperature === 'Hot' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-600 border-slate-200'
-                  )}>
-                      {lead.temperature}
-                  </span>
+
               </div>
               
               <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-sm", getSecondaryTextColor())}>

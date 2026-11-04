@@ -294,7 +294,7 @@
     }
   ],
   "resilienceTests": {
-    "passed": 8,
+    "passed": 9,
     "failed": 0
   },
   "customerAccountsRegression": "passed",
@@ -310,5 +310,11 @@
     "currentFailures": 336,
     "status": "same failures on unchanged baseline; pricing engine not edited"
   },
-  "physicalMobileBrowsers": "not tested; Chrome responsive viewports only"
+  "physicalMobileBrowsers": "not tested; Chrome responsive viewports only",
+  "leadTemperatureRemoval": {
+    "ui": "removed badges, selectors, card colour cues, filters, grouping and export option",
+    "legacyViewMigration": "verified old temperature/group query removed; all 12 fictional leads remain visible",
+    "mobileChecks": "lead cards, details, creation dialog and dashboard checked at 390px without overflow",
+    "backendCompatibility": "existing field retained; no schema or API changes"
+  }
 }
