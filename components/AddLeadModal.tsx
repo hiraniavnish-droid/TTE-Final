@@ -267,12 +267,12 @@ export const AddLeadModal = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Client Name</label>
-                        <input name="name" required className={inputClasses} placeholder="John Doe" />
+                        <label htmlFor="create-lead-name" className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Client Name</label>
+                        <input id="create-lead-name" aria-label="Client name" name="name" required className={inputClasses} placeholder="John Doe" />
                     </div>
                     <div className="space-y-1.5">
-                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Source</label>
-                        <select name="source" className={cn(inputClasses, "[&>option]:text-black")}>
+                        <label htmlFor="create-lead-source" className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Source</label>
+                        <select id="create-lead-source" aria-label="Source" name="source" className={cn(inputClasses, "[&>option]:text-black")}>
                             <option value="Instagram">Instagram</option>
                             <option value="Walk-in">Walk-in</option>
                             <option value="Referral">Referral</option>
@@ -283,12 +283,12 @@ export const AddLeadModal = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Phone</label>
-                        <input name="phone" defaultValue="+91 " className={inputClasses} placeholder="+91 ..." />
+                        <label htmlFor="create-lead-phone" className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Phone</label>
+                        <input id="create-lead-phone" aria-label="Phone" name="phone" defaultValue="+91 " className={inputClasses} placeholder="+91 ..." />
                     </div>
                     <div className="space-y-1.5">
                         <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Email <span className="text-[10px] opacity-50 font-normal normal-case ml-1">(Optional)</span></label>
-                        <input name="email" type="email" className={inputClasses} placeholder="email@example.com" />
+                        <input id="create-lead-email" aria-label="Email" name="email" type="email" className={inputClasses} placeholder="email@example.com" />
                     </div>
                 </div>
             </div>
@@ -304,17 +304,17 @@ export const AddLeadModal = () => {
 
                 <div className="space-y-4">
                      <div className="space-y-1">
-                        <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Destination</label>
-                        <input name="destination" required placeholder="Where to?" className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
+                        <label htmlFor="create-lead-destination" className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Destination</label>
+                        <input id="create-lead-destination" aria-label="Destination" name="destination" required placeholder="Where to?" className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
                      </div>
                      <div className="grid grid-cols-2 gap-4">
                          <div className="space-y-1">
-                            <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Start Date</label>
-                            <input name="startDate" type="date" required className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
+                            <label htmlFor="create-lead-startDate" className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Start Date</label>
+                            <input id="create-lead-startDate" aria-label="Start date" name="startDate" type="date" required className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
                          </div>
                          <div className="space-y-1">
-                            <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Nights</label>
-                            <input name="nights" type="number" min={1} placeholder="e.g. 3" className={cn("w-full bg-transparent border-b p-2 outline-none text-base font-mono transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
+                            <label htmlFor="create-lead-nights" className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Nights</label>
+                            <input id="create-lead-nights" aria-label="Nights" name="nights" type="number" min={1} placeholder="e.g. 3" className={cn("w-full bg-transparent border-b p-2 outline-none text-base font-mono transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
                          </div>
                      </div>
 
@@ -325,8 +325,8 @@ export const AddLeadModal = () => {
                      </div>
 
                      <div className="space-y-1">
-                        <label className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Total Budget</label>
-                        <input name="budget" type="number" placeholder="Budget (₹) - Optional" className={cn("w-full bg-transparent border-b p-2 outline-none text-lg font-mono transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
+                        <label htmlFor="create-lead-budget" className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Total Budget</label>
+                        <input id="create-lead-budget" aria-label="Total budget" name="budget" type="number" placeholder="Budget (₹) - Optional" className={cn("w-full bg-transparent border-b p-2 outline-none text-lg font-mono transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
                      </div>
                 </div>
             </div>
@@ -342,8 +342,8 @@ export const AddLeadModal = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                      <div className="space-y-1.5">
-                        <label className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Temperature</label>
-                        <select name="temperature" className={cn(inputClasses, "[&>option]:text-black")}>
+                        <label htmlFor="create-lead-temperature" className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Temperature</label>
+                        <select id="create-lead-temperature" aria-label="Temperature" name="temperature" className={cn(inputClasses, "[&>option]:text-black")}>
                             <option value="Hot">🔥 Hot (Ready to buy)</option>
                             <option value="Warm">🌤 Warm (Interested)</option>
                             <option value="Cold">❄️ Cold (Future)</option>
@@ -354,14 +354,14 @@ export const AddLeadModal = () => {
                             {user?.role === 'admin' ? 'Assign To' : 'Reference Name'}
                         </label>
                         {user?.role === 'admin' ? (
-                            <select name="assignedTo" className={cn(inputClasses, "[&>option]:text-black")}>
+                            <select id="create-lead-assignedTo" aria-label="Assign to" name="assignedTo" className={cn(inputClasses, "[&>option]:text-black")}>
                                 <option value="Unassigned">Unassigned</option>
                                 {users.filter(u => u.role === 'agent').map(u => (
                                     <option key={u.id} value={u.name}>{u.name}</option>
                                 ))}
                             </select>
                         ) : (
-                            <input name="reference" className={inputClasses} placeholder="Optional" />
+                            <input id="create-lead-reference" aria-label="Reference name" name="reference" className={inputClasses} placeholder="Optional" />
                         )}
                     </div>
                 </div>

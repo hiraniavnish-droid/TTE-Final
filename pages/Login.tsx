@@ -1,96 +1,38 @@
-
 import React, { useState } from 'react';
+import { Compass, ArrowRight, LockKeyhole } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Plane, Lock } from 'lucide-react';
-import { cn } from '../utils/helpers';
+import { Button } from '../components/ui/Button';
 
 export const Login = () => {
   const { login } = useAuth();
-  const navigate = useNavigate();
   const [passcode, setPasscode] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (loading) return;
-    setLoading(true);
-    const success = await login(passcode);
-    // On success the app reloads (login() triggers it); nothing more to do here.
-    if (!success) {
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (loading || !passcode.trim()) return;
+    setLoading(true); setError('');
+    if (!await login(passcode)) {
       setLoading(false);
-      setError(true);
-      setPasscode('');
-      setTimeout(() => setError(false), 500);
+      setError('We couldn’t sign you in. Check your access code and connection, then try again.');
     }
   };
-
-  return (
-    <div className="min-h-screen flex flex-col justify-center items-center bg-slate-50 relative overflow-hidden pb-20 md:pb-0">
-        {/* Background Elements */}
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-cyan-500/10 blur-3xl" />
-
-        <div className="relative z-10 w-full max-w-sm px-6">
-            <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center p-3 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 shadow-xl shadow-blue-500/20 mb-3">
-                    <Plane className="text-white w-8 h-8" />
-                </div>
-                <h1 className="text-2xl font-bold font-serif text-slate-900 tracking-tight leading-tight">The Tourism Experts</h1>
-                <p className="text-slate-500 mt-1 text-sm font-medium">Enter your access code to continue</p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="relative space-y-4">
-                <div className={cn(
-                    "relative transition-transform duration-100",
-                    error ? "animate-[shake_0.5s_ease-in-out]" : ""
-                )}>
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                        <Lock className="w-5 h-5" />
-                    </div>
-                    <input 
-                        type="password" 
-                        value={passcode}
-                        onChange={(e) => setPasscode(e.target.value)}
-                        placeholder="Passcode"
-                        className={cn(
-                            "w-full bg-white border text-slate-900 text-lg font-bold placeholder:font-normal placeholder:text-slate-400 rounded-xl py-4 pl-12 pr-4 outline-none transition-all shadow-sm",
-                            error 
-                                ? "border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-500/10" 
-                                : "border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
-                        )}
-                        autoFocus
-                    />
-                </div>
-                
-                {error && (
-                    <p className="text-center text-xs font-bold text-red-500 animate-in fade-in slide-in-from-top-1">
-                        Invalid Passcode. Please try again.
-                    </p>
-                )}
-
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-800 active:scale-95 transition-all duration-200 disabled:opacity-70"
-                >
-                    {loading ? 'Unlocking…' : 'Unlock Access'}
-                </button>
-            </form>
-            
-            <div className="mt-8 text-center">
-               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold opacity-80">Authorized Personnel Only</p>
-            </div>
-        </div>
-
-        <style>{`
-            @keyframes shake {
-                0%, 100% { transform: translateX(0); }
-                10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-                20%, 40%, 60%, 80% { transform: translateX(4px); }
-            }
-        `}</style>
-    </div>
-  );
+  return <div className="crm-login">
+    <section className="crm-login-story" aria-label="The Tourism Experts workspace">
+      <div className="flex items-center gap-3"><Compass size={30}/><span className="text-sm font-semibold">The Tourism Experts</span></div>
+      <div><p className="text-xs uppercase tracking-widest mb-4">YOUR TEAM. EVERY JOURNEY.</p><h2>Less admin.<br/>More extraordinary trips.</h2><p>Keep enquiries, follow-ups and quotations together, from the first hello to the next booking.</p></div>
+      <footer>The Tourism Experts · Team workspace</footer>
+    </section>
+    <section className="crm-login-form"><div>
+      <span className="crm-brand-mark"><Compass size={24}/></span>
+      <h1>Welcome back.</h1><p>Sign in to your travel workspace.</p>
+      <form onSubmit={submit} aria-busy={loading}>
+        <label htmlFor="access-code">Your access code</label>
+        <input id="access-code" type="password" autoComplete="current-password" value={passcode} onChange={event => { setPasscode(event.target.value); setError(''); }} required aria-invalid={!!error} aria-describedby={error ? 'login-error' : undefined} placeholder="Enter your access code"/>
+        {error && <p id="login-error" role="alert" className="mt-3 text-sm !text-red-600">{error}</p>}
+        <Button type="submit" disabled={loading || !passcode.trim()} size="lg">{loading ? 'Signing in…' : 'Sign in'}<ArrowRight size={18}/></Button>
+      </form>
+      <p className="crm-login-support flex items-start gap-2"><LockKeyhole size={16} className="shrink-0 mt-0.5"/>For your team only. Ask your administrator if you need an access code.</p>
+    </div></section>
+  </div>;
 };

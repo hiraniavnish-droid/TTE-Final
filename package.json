@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build-bot-api.mjs && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:resilience": "node --experimental-strip-types --test tests/browser-resilience.test.mjs",
+    "preview:ui": "node scripts/preview-ui.mjs",
+    "build:ui-preview": "VITE_SUPABASE_URL=http://127.0.0.1:3187 VITE_SUPABASE_ANON_KEY=local-ui-preview-only vite build --outDir .ui-preview"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -32,8 +35,11 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "10.4.21",
+    "esbuild": "^0.25.12",
+    "postcss": "8.5.6",
+    "tailwindcss": "3.4.17",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "esbuild": "^0.25.12"
+    "vite": "^6.2.0"
   }
 }

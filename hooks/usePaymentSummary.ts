@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { useCallback, useEffect, useState } from 'react';
 
 const API_BASE = (import.meta as any).env?.DEV ? 'https://ttecrm.vercel.app' : '';
@@ -27,7 +28,7 @@ export interface RawPaymentRecord {
 // for cash-basis (paid-date-scoped) reporting on the Dashboard.
 let pendingSummary: Promise<any> | null = null;
 function fetchSummary() {
-  if (!pendingSummary) pendingSummary = fetch(`${API_BASE}/api/razorpay-link?skipRefresh=1`, { signal: AbortSignal.timeout(20_000) })
+  if (!pendingSummary) pendingSummary = fetchWithTimeout(`${API_BASE}/api/razorpay-link?skipRefresh=1`, {}, 20_000)
     .then(response => { if (!response.ok) throw new Error('Payment summary unavailable'); return response.json(); })
     .finally(() => { pendingSummary = null; });
   return pendingSummary;
@@ -50,7 +51,7 @@ export function usePaymentSummary() {
     fetchSummary()
       .then(data => {
         if (cancelled) return;
-        const raw: any[] = data.records || [];
+        const raw: any[] = Array.isArray(data.records) ? data.records.filter(r => r && typeof r === 'object') : [];
         const next: Record<string, LeadPaymentSummary> = {};
         for (const r of raw) {
           if (!r.leadId) continue;

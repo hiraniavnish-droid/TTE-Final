@@ -1,0 +1,314 @@
+{
+  "date": "2026-11-04",
+  "baseCommit": "070ef8e1357fafbb76adc1841f8e89ba4e74d71f",
+  "data": "fictional local fixtures; no production writes",
+  "coreViewportChecks": [
+    {
+      "documentWidth": 320,
+      "heading": "Good Afternoon, Design Reviewer",
+      "mainScrollWidth": 320,
+      "mainWidth": 320,
+      "route": "#/",
+      "width": 320
+    },
+    {
+      "documentWidth": 320,
+      "heading": "Leads",
+      "mainScrollWidth": 320,
+      "mainWidth": 320,
+      "route": "#/leads?view=kanban",
+      "width": 320
+    },
+    {
+      "documentWidth": 320,
+      "heading": "Leads",
+      "mainScrollWidth": 320,
+      "mainWidth": 320,
+      "route": "#/leads?view=overview",
+      "width": 320
+    },
+    {
+      "documentWidth": 320,
+      "heading": "Demo \u00b7 Long international group name for mobile layout verification",
+      "mainScrollWidth": 320,
+      "mainWidth": 320,
+      "route": "#/leads/00000000-0000-4000-8000-000000000021",
+      "width": 320
+    },
+    {
+      "documentWidth": 360,
+      "heading": "Good Afternoon, Design Reviewer",
+      "mainScrollWidth": 360,
+      "mainWidth": 360,
+      "route": "#/",
+      "width": 360
+    },
+    {
+      "documentWidth": 360,
+      "heading": "Leads",
+      "mainScrollWidth": 360,
+      "mainWidth": 360,
+      "route": "#/leads?view=kanban",
+      "width": 360
+    },
+    {
+      "documentWidth": 360,
+      "heading": "Leads",
+      "mainScrollWidth": 360,
+      "mainWidth": 360,
+      "route": "#/leads?view=overview",
+      "width": 360
+    },
+    {
+      "documentWidth": 360,
+      "heading": "Demo \u00b7 Long international group name for mobile layout verification",
+      "mainScrollWidth": 360,
+      "mainWidth": 360,
+      "route": "#/leads/00000000-0000-4000-8000-000000000021",
+      "width": 360
+    },
+    {
+      "documentWidth": 390,
+      "heading": "Good Afternoon, Design Reviewer",
+      "mainScrollWidth": 390,
+      "mainWidth": 390,
+      "route": "#/",
+      "width": 390
+    },
+    {
+      "documentWidth": 390,
+      "heading": "Leads",
+      "mainScrollWidth": 390,
+      "mainWidth": 390,
+      "route": "#/leads?view=kanban",
+      "width": 390
+    },
+    {
+      "documentWidth": 390,
+      "heading": "Leads",
+      "mainScrollWidth": 390,
+      "mainWidth": 390,
+      "route": "#/leads?view=overview",
+      "width": 390
+    },
+    {
+      "documentWidth": 390,
+      "heading": "Demo \u00b7 Long international group name for mobile layout verification",
+      "mainScrollWidth": 390,
+      "mainWidth": 390,
+      "route": "#/leads/00000000-0000-4000-8000-000000000021",
+      "width": 390
+    },
+    {
+      "documentWidth": 430,
+      "heading": "Good Afternoon, Design Reviewer",
+      "mainScrollWidth": 430,
+      "mainWidth": 430,
+      "route": "#/",
+      "width": 430
+    },
+    {
+      "documentWidth": 430,
+      "heading": "Leads",
+      "mainScrollWidth": 430,
+      "mainWidth": 430,
+      "route": "#/leads?view=kanban",
+      "width": 430
+    },
+    {
+      "documentWidth": 430,
+      "heading": "Leads",
+      "mainScrollWidth": 430,
+      "mainWidth": 430,
+      "route": "#/leads?view=overview",
+      "width": 430
+    },
+    {
+      "documentWidth": 430,
+      "heading": "Demo \u00b7 Long international group name for mobile layout verification",
+      "mainScrollWidth": 430,
+      "mainWidth": 430,
+      "route": "#/leads/00000000-0000-4000-8000-000000000021",
+      "width": 430
+    },
+    {
+      "documentWidth": 768,
+      "heading": "Good Afternoon, Design Reviewer",
+      "mainScrollWidth": 768,
+      "mainWidth": 768,
+      "route": "#/",
+      "width": 768
+    },
+    {
+      "documentWidth": 768,
+      "heading": "Leads",
+      "mainScrollWidth": 768,
+      "mainWidth": 768,
+      "route": "#/leads?view=kanban",
+      "width": 768
+    },
+    {
+      "documentWidth": 768,
+      "heading": "Leads",
+      "mainScrollWidth": 768,
+      "mainWidth": 768,
+      "route": "#/leads?view=overview",
+      "width": 768
+    },
+    {
+      "documentWidth": 768,
+      "heading": "Demo \u00b7 Long international group name for mobile layout verification",
+      "mainScrollWidth": 768,
+      "mainWidth": 768,
+      "route": "#/leads/00000000-0000-4000-8000-000000000021",
+      "width": 768
+    },
+    {
+      "documentWidth": 1024,
+      "heading": "Good Afternoon, Design Reviewer",
+      "mainScrollWidth": 792,
+      "mainWidth": 792,
+      "route": "#/",
+      "width": 1024
+    },
+    {
+      "documentWidth": 1024,
+      "heading": "Leads",
+      "mainScrollWidth": 792,
+      "mainWidth": 792,
+      "route": "#/leads?view=kanban",
+      "width": 1024
+    },
+    {
+      "documentWidth": 1024,
+      "heading": "Leads",
+      "mainScrollWidth": 792,
+      "mainWidth": 792,
+      "route": "#/leads?view=overview",
+      "width": 1024
+    },
+    {
+      "documentWidth": 1024,
+      "heading": "Demo \u00b7 Long international group name for mobile layout verification",
+      "mainScrollWidth": 792,
+      "mainWidth": 792,
+      "route": "#/leads/00000000-0000-4000-8000-000000000021",
+      "width": 1024
+    },
+    {
+      "documentWidth": 1440,
+      "heading": "Good Afternoon, Design Reviewer",
+      "mainScrollWidth": 1208,
+      "mainWidth": 1208,
+      "route": "#/",
+      "width": 1440
+    },
+    {
+      "documentWidth": 1440,
+      "heading": "Leads",
+      "mainScrollWidth": 1208,
+      "mainWidth": 1208,
+      "route": "#/leads?view=kanban",
+      "width": 1440
+    },
+    {
+      "documentWidth": 1440,
+      "heading": "Leads",
+      "mainScrollWidth": 1208,
+      "mainWidth": 1208,
+      "route": "#/leads?view=overview",
+      "width": 1440
+    },
+    {
+      "documentWidth": 1440,
+      "heading": "Demo \u00b7 Long international group name for mobile layout verification",
+      "mainScrollWidth": 1208,
+      "mainWidth": 1208,
+      "route": "#/leads/00000000-0000-4000-8000-000000000021",
+      "width": 1440
+    }
+  ],
+  "operationsViewportChecks": [
+    {
+      "heading": "Tent City inventory desk",
+      "mainScrollWidth": 320,
+      "mainWidth": 320,
+      "route": "#/availability",
+      "width": 320
+    },
+    {
+      "heading": "Time, well accounted for.",
+      "mainScrollWidth": 320,
+      "mainWidth": 320,
+      "route": "#/attendance",
+      "width": 320
+    },
+    {
+      "heading": "Rajarshi Travels",
+      "mainScrollWidth": 320,
+      "mainWidth": 320,
+      "route": "#/rajarshi-builder/hotels",
+      "width": 320
+    },
+    {
+      "heading": "Tent City inventory desk",
+      "mainScrollWidth": 390,
+      "mainWidth": 390,
+      "route": "#/availability",
+      "width": 390
+    },
+    {
+      "heading": "Time, well accounted for.",
+      "mainScrollWidth": 390,
+      "mainWidth": 390,
+      "route": "#/attendance",
+      "width": 390
+    },
+    {
+      "heading": "Rajarshi Travels",
+      "mainScrollWidth": 390,
+      "mainWidth": 390,
+      "route": "#/rajarshi-builder/hotels",
+      "width": 390
+    },
+    {
+      "heading": "Tent City inventory desk",
+      "mainScrollWidth": 768,
+      "mainWidth": 768,
+      "route": "#/availability",
+      "width": 768
+    },
+    {
+      "heading": "Time, well accounted for.",
+      "mainScrollWidth": 768,
+      "mainWidth": 768,
+      "route": "#/attendance",
+      "width": 768
+    },
+    {
+      "heading": "Rajarshi Travels",
+      "mainScrollWidth": 768,
+      "mainWidth": 768,
+      "route": "#/rajarshi-builder/hotels",
+      "width": 768
+    }
+  ],
+  "resilienceTests": {
+    "passed": 8,
+    "failed": 0
+  },
+  "customerAccountsRegression": "passed",
+  "financialLeadFilterRegression": "passed",
+  "typecheck": {
+    "baselineErrors": 41,
+    "currentErrors": 38,
+    "status": "existing failures remain; no errors in newly added UI/resilience files"
+  },
+  "rateWallRegression": {
+    "checks": 503075,
+    "baselineFailures": 336,
+    "currentFailures": 336,
+    "status": "same failures on unchanged baseline; pricing engine not edited"
+  },
+  "physicalMobileBrowsers": "not tested; Chrome responsive viewports only"
+}

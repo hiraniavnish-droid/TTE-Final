@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "project": {
+    "name": "The Tourism Experts CRM",
+    "productType": "Travel agency CRM",
+    "stack": [
+      "react",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "styles/crm.css",
+      "contexts/ThemeContext.tsx"
+    ],
+    "components": [
+      "components/ui"
+    ],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "light with dark and ocean alternatives",
+    "colors": {
+      "background": "#f5f7fa",
+      "surface": "#ffffff",
+      "text": "#182536",
+      "muted": "#66758a",
+      "accent": "#2859dc",
+      "border": "#e3e8ef"
+    },
+    "typography": {
+      "body": "Plus Jakarta Sans, system-ui",
+      "headings": "same family, compact hierarchy"
+    },
+    "spacing": {},
+    "radius": {
+      "cards": "12px",
+      "controls": "8px"
+    },
+    "shadows": {},
+    "motion": {},
+    "density": "Compact operational workspace; touch layouts below 1024px"
+  },
+  "components": {
+    "installed": [
+      "AuroraBackground",
+      "Button",
+      "Card",
+      "DialButton",
+      "GridBackground",
+      "IncrementalList",
+      "LeadCodeChip",
+      "Modal",
+      "PageLoader",
+      "RadialGauge",
+      "Skeleton",
+      "Sparkline",
+      "UserAvatar"
+    ],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "Preserve TTE identity, existing roles, workflows and financial calculations.",
+      "Keep every section accessible on mobile. Use 44px touch controls, scrollable forms and visible focus.",
+      "Recover failed release assets without deleting local tasks or saved records."
+    ],
+    "avoid": []
+  },
+  "decisions": [
+    "4 November 2026: User requested a cohesive professional refresh and fixes for phone layout failures and returning-browser load errors. Use a restrained blue and slate system, grouped desktop navigation, four mobile destinations plus a complete More menu, consistent shared controls and clean metric cards.",
+    "Replace runtime Tailwind CDN generation with bundled, versioned CSS. Preserve all existing server integrations and quotation engines."
+  ],
+  "evidence": [
+    {
+      "fact": "components.installed",
+      "source": "components/ui"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-11-04T09:54:10.804Z"
+}

@@ -1,3 +1,4 @@
+import { sessionStore } from '../lib/browserStorage';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -483,11 +484,11 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row justify-between items-start gap-3 mb-3">
           <div>
-              <div className="flex items-center gap-2.5 mb-2">
-                  <Button variant="ghost" onClick={() => { if(embedded){onClose?.();return;} const target=sessionStorage.getItem(`tte-lead-workspace:${user?.id || 'anonymous'}:return`); navigate(target?.startsWith('/leads?') ? target : '/leads'); }} aria-label="Back to lead workspace" className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
+              <div className="crm-lead-heading flex items-center gap-2.5 mb-2">
+                  <Button variant="ghost" onClick={() => { if(embedded){onClose?.();return;} const target=sessionStore.getItem(`tte-lead-workspace:${user?.id || 'anonymous'}:return`); navigate(target?.startsWith('/leads?') ? target : '/leads'); }} aria-label="Back to lead workspace" className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
                       <ArrowLeft size={20} strokeWidth={2.5} />
                   </Button>
-                  <h1 className={cn("text-xl md:text-2xl font-bold font-serif tracking-tight", getTextColor())}>{lead.name}</h1>
+                  <h1 className={cn("min-w-0 text-xl md:text-2xl font-bold tracking-tight break-words", getTextColor())}>{lead.name}</h1>
                   <LeadCodeChip code={lead.leadCode} size="md" />
                   <span className={cn(
                       "text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded border",

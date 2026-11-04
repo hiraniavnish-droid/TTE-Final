@@ -8,14 +8,6 @@ export function useReminderNotifications() {
   const { user } = useAuth();
   const notifiedIds = useRef<Set<string>>(new Set());
 
-  // Request permission once on mount
-  useEffect(() => {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
   // Check reminders whenever they change
   useEffect(() => {
     if (!user || !('Notification' in window) || Notification.permission !== 'granted') return;
@@ -31,11 +23,11 @@ export function useReminderNotifications() {
       if (due <= fiveMinutesLater) {
         notifiedIds.current.add(r.id);
         const isOverdue = due < now;
-        new Notification(isOverdue ? '⏰ Overdue Reminder' : '🔔 Upcoming Reminder', {
+        try { new Notification(isOverdue ? '⏰ Overdue Reminder' : '🔔 Upcoming Reminder', {
           body: r.task,
           icon: '/favicon.ico',
           tag: r.id, // Prevents duplicate toasts for the same reminder
-        });
+        }); } catch { /* Some mobile browsers expose Notification but disallow its constructor. */ }
       }
     });
   }, [reminders, user]);

@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { generateId } from '../utils/helpers';
+import { localStore, readStoredArray } from '../lib/browserStorage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,13 +38,13 @@ const TASKS_KEY    = 'tte_team_tasks';
 const MESSAGES_KEY = 'tte_task_messages';
 
 const loadTasks = (): TeamTask[] => {
-  try { return JSON.parse(localStorage.getItem(TASKS_KEY) || '[]'); } catch { return []; }
+  return readStoredArray<TeamTask>(localStore, TASKS_KEY, t => t && typeof t.id === 'string' && typeof t.title === 'string' && typeof t.assignedTo === 'string' && typeof t.status === 'string');
 };
 const saveTasks = (tasks: TeamTask[]) => {
   try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
 };
 const loadMessages = (): TaskMessage[] => {
-  try { return JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]'); } catch { return []; }
+  return readStoredArray<TaskMessage>(localStore, MESSAGES_KEY, m => m && typeof m.id === 'string' && typeof m.taskId === 'string' && typeof m.content === 'string');
 };
 const saveMessages = (msgs: TaskMessage[]) => {
   try { localStorage.setItem(MESSAGES_KEY, JSON.stringify(msgs)); } catch {}

@@ -272,7 +272,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
         )}
         <span className={cn('text-[12.5px] font-bold leading-tight', getTextColor())}>{entry.hotelName}</span>
         {entry.starLabel && (
-          <span className={cn('text-[9.5px] leading-tight ml-auto shrink-0', getSecondaryTextColor())}>{entry.starLabel}</span>
+          <span className={cn('text-[10px] leading-relaxed ml-auto min-w-0 flex-1 text-right break-words', getSecondaryTextColor())}>{entry.starLabel}</span>
         )}
       </div>
 

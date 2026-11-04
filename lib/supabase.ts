@@ -1,5 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
+import { fetchWithTimeout } from './fetchWithTimeout';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -19,8 +20,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   global: {
     headers: storedToken ? { Authorization: `Bearer ${storedToken}` } : {},
     fetch: async (input, init) => {
-      const timeout = AbortSignal.timeout(25_000);
-      const response = await fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+      const response = await fetchWithTimeout(input, init);
       if (storedToken && response.status === 401) window.dispatchEvent(new Event('tte:session-expired'));
       return response;
     },

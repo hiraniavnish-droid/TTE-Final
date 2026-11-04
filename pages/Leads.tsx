@@ -1,3 +1,4 @@
+import { localStore, sessionStore, readStoredArray, readStoredRecord } from '../lib/browserStorage';
 import { isFinancialLead } from '../lib/financialLeadFilter';
 import { IncrementalList, useDesktopLayout } from '../components/ui/IncrementalList';
 
@@ -78,7 +79,7 @@ const getLeadPeriodRange = (period: 'This Month'|'Last Month') => {
 
 const jumpToBuilder = (lead: Lead) => {
   try {
-    localStorage.setItem('tte_pending_lead', JSON.stringify({
+    localStore.setItem('tte_pending_lead', JSON.stringify({
       name: lead.name,
       pax: lead.tripDetails.paxConfig.adults || 2,
       startDate: lead.tripDetails.startDate || '',
@@ -559,7 +560,7 @@ const DroppableColumn: React.FC<{ status: string; children: React.ReactNode; tot
     // ── Double-Bezel outer shell (owns flex dimensions) ──────────────────────
     <div className={cn(
       'p-[1.5px] rounded-[1.375rem] transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]',
-      onToggle ? 'flex-none w-[228px]' : 'flex-1 min-w-[224px]',
+      onToggle ? 'flex-none w-[228px]' : 'flex-1 min-w-[240px]',
       'h-full',
       theme === 'light'
         ? cn(
@@ -1244,7 +1245,7 @@ export const Leads = () => {
   const [moreFilters, setMoreFilters] = useState(false);
   const [customDates, setCustomDates] = useState(false);
   const [savedViews, setSavedViews] = useState<{name:string; query:string}[]>(() => {
-    try { return JSON.parse(localStorage.getItem(`${workspaceKey}:views`) || '[]'); } catch { return []; }
+    return readStoredArray<{name:string;query:string}>(localStore, `${workspaceKey}:views`, v => v && typeof v.name === 'string' && typeof v.query === 'string');
   });
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
@@ -1283,17 +1284,17 @@ export const Leads = () => {
     if (!initialized.current) {
       initialized.current = true;
       if (!searchParams.toString()) {
-        const saved = sessionStorage.getItem(workspaceKey);
+        const saved = sessionStore.getItem(workspaceKey);
         if (saved) { setSearchParams(saved,{replace:true}); return; }
       }
     }
-    sessionStorage.setItem(workspaceKey, searchParams.toString());
-    sessionStorage.setItem(`${workspaceKey}:return`, `/leads?${searchParams.toString()}`);
+    sessionStore.setItem(workspaceKey, searchParams.toString());
+    sessionStore.setItem(`${workspaceKey}:return`, `/leads?${searchParams.toString()}`);
   }, [searchParams,workspaceKey]);
   useEffect(() => {
     const key = `${workspaceKey}:scroll:${searchParams.toString()}`;
     let positions: Record<string,{top:number;left:number}> = {};
-    try { positions = JSON.parse(sessionStorage.getItem(key) || '{}'); } catch {}
+    positions = readStoredRecord(sessionStore, key);
     const root = rootRef.current;
     if (!root) return;
     const main=root.closest('main');
@@ -1302,7 +1303,7 @@ export const Leads = () => {
     const save = () => {
       const values: Record<string,{top:number;left:number}> = {};
       nodes.forEach((node,i) => { values[node.dataset.workspaceScroll || `root${i}`]={top:node.scrollTop,left:node.scrollLeft}; });
-      sessionStorage.setItem(key,JSON.stringify(values));
+      sessionStore.setItem(key,JSON.stringify(values));
     };
     (main || root).addEventListener('scroll',save,true);
     return () => { (main || root).removeEventListener('scroll',save,true); };
@@ -1387,7 +1388,7 @@ export const Leads = () => {
   const panelLead=leads.find(l=>l.id===panelId);
   const panelIndex=filteredLeads.findIndex(l=>l.id===panelId);
   const destinations=Array.from(new Set(leads.map(l=>l.tripDetails.destination).filter(Boolean))).sort();
-  const saveView=()=>{ const name=viewName.trim(); if(!name)return; const next=[...savedViews.filter(v=>v.name!==name),{name,query:searchParams.toString()}]; setSavedViews(next);localStorage.setItem(`${workspaceKey}:views`,JSON.stringify(next));setSavingView(false);setViewName(''); };
+  const saveView=()=>{ const name=viewName.trim(); if(!name)return; const next=[...savedViews.filter(v=>v.name!==name),{name,query:searchParams.toString()}]; setSavedViews(next);localStore.setItem(`${workspaceKey}:views`,JSON.stringify(next));setSavingView(false);setViewName(''); };
   const dateLabel = (createdFrom && createdTo)
     ? `${new Date(createdFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${new Date(createdTo).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
     : createdFrom ? `From ${new Date(createdFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -1500,7 +1501,7 @@ export const Leads = () => {
   };
 
   return (
-    <LeadWorkspaceOpen.Provider value={openLead}><div ref={rootRef} onClickCapture={e=>{const link=(e.target as HTMLElement).closest('a[href]');if(link && !link.hasAttribute('data-full-page') && !e.ctrlKey && !e.metaKey){const match=link.getAttribute('href')?.match(/#\/leads\/([^?]+)/);if(match){e.preventDefault();e.stopPropagation();openLead(match[1]);}}}} className={cn('md:h-full flex flex-col animate-in fade-in duration-500 relative', view === 'kanban' ? 'gap-3' : 'gap-0')}>
+    <LeadWorkspaceOpen.Provider value={openLead}><div ref={rootRef} onClickCapture={e=>{const link=(e.target as HTMLElement).closest('a[href]');if(link && !link.hasAttribute('data-full-page') && !e.ctrlKey && !e.metaKey){const match=link.getAttribute('href')?.match(/#\/leads\/([^?]+)/);if(match){e.preventDefault();e.stopPropagation();openLead(match[1]);}}}} className={cn('lg:h-full min-w-0 flex flex-col relative', view === 'kanban' ? 'gap-3' : 'gap-0')}>
 
       {/* Toast */}
       {showToast && (
@@ -1513,7 +1514,7 @@ export const Leads = () => {
       )}
 
       {/* Header — compact single toolbar row: title | filter chips | buttons */}
-      <div className={cn('flex flex-col md:flex-row md:items-center gap-3', view === 'overview' && 'shrink-0')}>
+      <div className={cn('crm-lead-toolbar flex flex-col xl:flex-row xl:items-center gap-3', view === 'overview' && 'shrink-0')}>
         {/* Title block */}
         <div className="shrink-0 flex items-baseline gap-2.5">
           <h1 className={cn('text-2xl font-bold tracking-tight leading-none', getTextColor())}>Leads</h1>
@@ -1524,10 +1525,11 @@ export const Leads = () => {
 
         <div className="flex-1" />
         {/* Buttons */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="flex gap-1.5 items-center"><select aria-label="Saved views" value="" onChange={e=>{if(!e.target.value)return;const v=savedViews[Number(e.target.value)];if(v)setSearchParams(v.query || 'view=kanban',{replace:true});}} className={cn(filterControlClass,'w-[148px] text-xs')}><option value="">Saved views ({savedViews.length})</option>{savedViews.map((v,i)=><option key={v.name} value={i}>{v.name}</option>)}</select><button title="Save current view" aria-label="Save view" onClick={()=>setSavingView(true)} className={cn('h-10 w-10 rounded-xl border flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500',theme==='light'?'border-slate-200 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200':'border-slate-700 text-slate-300 hover:bg-slate-800')}><Bookmark size={17}/></button></div>
+        <div className="crm-lead-actions flex flex-wrap items-center gap-2 shrink-0">
+          <div className={cn("crm-saved-views flex gap-1.5 items-center",moreFilters && "is-visible")}><select aria-label="Saved views" value="" onChange={e=>{if(!e.target.value)return;const v=savedViews[Number(e.target.value)];if(v)setSearchParams(v.query || 'view=kanban',{replace:true});}} className={cn(filterControlClass,'w-[148px] text-xs')}><option value="">Saved views ({savedViews.length})</option>{savedViews.map((v,i)=><option key={v.name} value={i}>{v.name}</option>)}</select><button title="Save current view" aria-label="Save view" onClick={()=>setSavingView(true)} className={cn('h-10 w-10 rounded-xl border flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500',theme==='light'?'border-slate-200 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200':'border-slate-700 text-slate-300 hover:bg-slate-800')}><Bookmark size={17}/></button></div>
           <div className={cn('flex items-center rounded-xl p-1 border', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
             <button
+              aria-label="Board view" aria-pressed={view === 'kanban'}
               onClick={() => setView('kanban')}
               className={cn(
                 'px-4 py-2 rounded-lg text-[12px] font-bold transition-all min-h-[36px]',
@@ -1536,9 +1538,10 @@ export const Leads = () => {
                   : (theme === 'light' ? 'text-slate-400 hover:text-slate-600' : 'text-white/40 hover:text-white/70')
               )}
             >
-              ⊞ Kanban
+              Board
             </button>
             <button
+              aria-label="List view" aria-pressed={view === 'overview'}
               onClick={() => setView('overview')}
               className={cn(
                 'px-4 py-2 rounded-lg text-[12px] font-bold transition-all min-h-[36px]',
@@ -1547,7 +1550,7 @@ export const Leads = () => {
                   : (theme === 'light' ? 'text-slate-400 hover:text-slate-600' : 'text-white/40 hover:text-white/70')
               )}
             >
-              ⊟ Overview
+              List
             </button>
           </div>
           <button
@@ -1577,17 +1580,17 @@ export const Leads = () => {
         </div>
       </div>
 
-      <section aria-label="Lead filters" className={cn('shrink-0 rounded-2xl border shadow-sm', theme==='light'?'bg-white/95 border-slate-200/80':'bg-slate-900 border-slate-700')}>
+      <section aria-label="Lead filters" className={cn('crm-lead-filters shrink-0 rounded-xl border shadow-sm',moreFilters && 'is-expanded', theme==='light'?'bg-white/95 border-slate-200/80':'bg-slate-900 border-slate-700')}>
         <div className="flex flex-wrap items-end gap-3 p-3 md:p-4">
-          <label className="flex-1 min-w-[220px] space-y-1.5">
+          <label className="crm-filter-search flex-1 min-w-0 sm:min-w-[220px] space-y-1.5">
             <span className={filterLabelClass}>Find a lead</span>
             <span className="relative block"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/><input aria-label="Search leads" placeholder="Name, phone or lead ID…" value={search} onChange={e=>changeQuery({q:e.target.value})} className={cn(filterControlClass,'pl-9 pr-8')}/>{search && <button type="button" aria-label="Clear search" onClick={()=>changeQuery({q:''})} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-600 focus-visible:ring-2 rounded"><X size={13}/></button>}</span>
           </label>
-          {isAdmin && <label className="w-full sm:w-[168px] space-y-1.5"><span className={filterLabelClass}>Lead owner</span><span className="relative block"><Users size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/><select aria-label="Employee" value={filters.assignedTo} onChange={e=>changeQuery({agent:e.target.value})} className={cn(filterControlClass,'pl-9 pr-7 appearance-none')}><option value="">All employees</option><option value="Unassigned">Unassigned</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select><ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/></span></label>}
-          <div className="space-y-1.5 max-w-full"><span className={filterLabelClass}>{financialReport ? 'Won date' : 'Created date'}</span><div className={cn('flex items-center gap-1 p-1 rounded-xl h-10 border',theme==='light'?'bg-slate-100/80 border-slate-200/60':'bg-slate-800 border-slate-700')} role="group" aria-label={financialReport ? 'Lead won period' : 'Lead creation period'}>
+          {isAdmin && <label className="crm-filter-owner w-full sm:w-[168px] space-y-1.5"><span className={filterLabelClass}>Lead owner</span><span className="relative block"><Users size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/><select aria-label="Employee" value={filters.assignedTo} onChange={e=>changeQuery({agent:e.target.value})} className={cn(filterControlClass,'pl-9 pr-7 appearance-none')}><option value="">All employees</option><option value="Unassigned">Unassigned</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select><ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/></span></label>}
+          <div className="crm-filter-period space-y-1.5 max-w-full"><span className={filterLabelClass}>{financialReport ? 'Won date' : 'Created date'}</span><div className={cn('flex items-center gap-1 p-1 rounded-xl h-10 border',theme==='light'?'bg-slate-100/80 border-slate-200/60':'bg-slate-800 border-slate-700')} role="group" aria-label={financialReport ? 'Lead won period' : 'Lead creation period'}>
             {['This Month','Last Month','Custom','All Time'].map(label=>{const selected=label==='Custom'?customDates || activeTimePreset==='Custom':!customDates && activeTimePreset===label;return <button key={label} aria-pressed={selected} onClick={()=>label==='Custom'?setCustomDates(true):applyTimePreset(label)} className={cn('px-2.5 md:px-3 h-8 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',selected?(theme==='light'?'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/60':'bg-indigo-600 text-white shadow-sm'):(theme==='light'?'text-slate-500 hover:text-slate-800 hover:bg-white/50':'text-slate-400 hover:text-white'))}>{label}</button>})}
           </div></div>
-          <div className="space-y-1.5"><span className={filterLabelClass}>Refine</span><Button variant="secondary" onClick={()=>setMoreFilters(v=>!v)} aria-expanded={moreFilters} aria-controls="advanced-lead-filters" className={cn('h-10 rounded-xl px-3 text-xs focus-visible:ring-2 focus-visible:ring-indigo-500',moreFilters?(theme==='light'?'bg-indigo-50 border-indigo-200 text-indigo-700':'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'):(theme==='light'?'border-slate-200 text-slate-600 shadow-none':'border-slate-700 text-slate-200 shadow-none'))}><Filter size={15}/> More filters {advancedFilterCount>0 && <span className="rounded-full bg-indigo-600 text-white px-1.5 py-0.5 text-[10px]">{advancedFilterCount}</span>}<ChevronDown size={13} className={moreFilters?'rotate-180':''}/></Button></div>
+          <div className="crm-filter-more space-y-1.5"><span className={filterLabelClass}>Refine</span><Button variant="secondary" onClick={()=>setMoreFilters(v=>!v)} aria-expanded={moreFilters} aria-controls="advanced-lead-filters" className={cn('h-10 rounded-xl px-3 text-xs focus-visible:ring-2 focus-visible:ring-indigo-500',moreFilters?(theme==='light'?'bg-indigo-50 border-indigo-200 text-indigo-700':'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'):(theme==='light'?'border-slate-200 text-slate-600 shadow-none':'border-slate-700 text-slate-200 shadow-none'))}><Filter size={15}/><span className="hidden sm:inline">More</span> filters {advancedFilterCount>0 && <span className="rounded-full bg-indigo-600 text-white px-1.5 py-0.5 text-[10px]">{advancedFilterCount}</span>}<ChevronDown size={13} className={moreFilters?'rotate-180':''}/></Button></div>
 
         </div>
         {(customDates || activeTimePreset==='Custom') && <div className={cn('mx-3 md:mx-4 mb-3 rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-3 text-xs',theme==='light'?'bg-indigo-50/60 text-slate-600':'bg-slate-800 text-slate-300')}><Calendar size={16} className="text-indigo-500"/><span className="font-semibold">{financialReport ? 'Custom won dates' : 'Custom creation dates'}</span><label className="flex items-center gap-2">From<input aria-label="Lead start date" type="date" value={createdFrom} onChange={e=>changeQuery({from:e.target.value,to:createdTo && e.target.value>createdTo?e.target.value:createdTo})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label><label className="flex items-center gap-2">To<input aria-label="Lead end date" type="date" value={createdTo} onChange={e=>changeQuery({to:e.target.value,from:createdFrom && e.target.value<createdFrom?e.target.value:createdFrom})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label></div>}
@@ -1666,11 +1669,12 @@ export const Leads = () => {
           </div>}
 
           {/* Mobile Kanban */}
-          {!isDesktop && <div className="flex flex-col h-[65dvh] min-h-0">
-            <div className="flex gap-2 overflow-x-auto pb-4 px-1 no-scrollbar">
+          {!isDesktop && <div className="crm-mobile-pipeline flex flex-col min-h-0">
+            <div className="flex gap-2 overflow-x-auto pb-3 px-0.5" role="group" aria-label="Pipeline stage">
               {STATUS_COLUMNS.map(status => (
                 <button
                   key={status}
+                  aria-pressed={activeMobileStatus === status}
                   onClick={() => {setActiveMobileStatus(status as LeadStatus);changeQuery({mobile:status});}}
                   className={cn('whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold border transition-all min-h-[44px]',
                     activeMobileStatus === status
@@ -1700,13 +1704,7 @@ export const Leads = () => {
       )}
 
       {/* Mobile FAB */}
-      <button
-        onClick={handleOpenModal}
-        className="md:hidden fixed bottom-24 right-6 h-14 w-14 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center z-50 hover:scale-105 active:scale-95 transition-all"
-        aria-label="Add Lead"
-      >
-        <Plus size={28} />
-      </button>
+
 
       {/* Add Lead Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Lead">
@@ -1808,10 +1806,10 @@ export const Leads = () => {
           onClose={() => setShowExport(false)}
         />
       )}
-      {savingView && <Modal isOpen={savingView} onClose={()=>setSavingView(false)} title="Save this lead view"><form onSubmit={e=>{e.preventDefault();saveView();}} className="space-y-3"><input autoFocus aria-label="View name" placeholder="e.g. Sonali this month" value={viewName} onChange={e=>setViewName(e.target.value)} maxLength={60} className={cn('w-full border rounded-lg px-3 py-2',getInputClass())}/><Button type="submit" disabled={!viewName.trim()}>Save view</Button></form>{savedViews.map(v=><div key={v.name} className="flex justify-between items-center py-2 text-sm"><span>{v.name}</span><button aria-label={`Delete saved view ${v.name}`} onClick={()=>{const next=savedViews.filter(x=>x.name!==v.name);setSavedViews(next);localStorage.setItem(`${workspaceKey}:views`,JSON.stringify(next));}}><X size={14}/></button></div>)}</Modal>}
+      {savingView && <Modal isOpen={savingView} onClose={()=>setSavingView(false)} title="Save this lead view"><form onSubmit={e=>{e.preventDefault();saveView();}} className="space-y-3"><input autoFocus aria-label="View name" placeholder="e.g. Sonali this month" value={viewName} onChange={e=>setViewName(e.target.value)} maxLength={60} className={cn('w-full border rounded-lg px-3 py-2',getInputClass())}/><Button type="submit" disabled={!viewName.trim()}>Save view</Button></form>{savedViews.map(v=><div key={v.name} className="flex justify-between items-center py-2 text-sm"><span>{v.name}</span><button aria-label={`Delete saved view ${v.name}`} onClick={()=>{const next=savedViews.filter(x=>x.name!==v.name);setSavedViews(next);localStore.setItem(`${workspaceKey}:views`,JSON.stringify(next));}}><X size={14}/></button></div>)}</Modal>}
       {panelLead && createPortal(<div className="fixed inset-0 z-[100] flex justify-end">
         <div className="absolute inset-0 bg-slate-900/20" aria-label="Close lead panel backdrop" onClick={closePanel} role="button" tabIndex={-1}/>
-        <div ref={panelRef} role="dialog" aria-modal="true" aria-label={`Lead details: ${panelLead.name}`} tabIndex={-1} className={cn('relative w-full sm:w-[min(1180px,calc(100vw-64px))] max-w-full h-full flex flex-col shadow-2xl focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none',theme==='light'?'bg-white text-slate-900':'bg-slate-900 text-white')}>
+        <div ref={panelRef} role="dialog" aria-modal="true" aria-label={`Lead details: ${panelLead.name}`} tabIndex={-1} className={cn('crm-lead-panel relative w-full sm:w-[min(1180px,calc(100vw-64px))] max-w-full h-full flex flex-col shadow-2xl focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none',theme==='light'?'bg-white text-slate-900':'bg-slate-900 text-white')}>
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 shrink-0"><button aria-label="Previous lead" disabled={panelIndex<=0} onClick={()=>movePanel(filteredLeads[panelIndex-1].id)} className="p-2 disabled:opacity-30 focus-visible:ring-2"><ChevronLeft size={18}/></button><span className="text-xs flex-1">{panelIndex>=0?`${panelIndex+1} of ${filteredLeads.length} matching leads`:'Lead no longer matches this view'}</span><button aria-label="Next lead" disabled={panelIndex<0 || panelIndex>=filteredLeads.length-1} onClick={()=>movePanel(filteredLeads[panelIndex+1].id)} className="p-2 disabled:opacity-30 focus-visible:ring-2"><ChevronRight size={18}/></button><button aria-label="Close lead details" onClick={closePanel} className="p-2 focus-visible:ring-2"><X size={18}/></button></div>
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-6" key={panelLead.id}><React.Suspense fallback={<div role="status" className="p-8 text-center text-sm">Loading complete lead details…</div>}><EmbeddedLeadDetails key={panelLead.id} leadId={panelLead.id} embedded onClose={closePanel} onDirtyChange={reportDirty}/></React.Suspense></div>
           <div className="shrink-0 border-t border-slate-200 px-4 py-3 flex justify-end"><Link to={`/leads/${panelLead.id}`} onClick={e=>{if(!allowPanelChange())e.preventDefault();}} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold focus-visible:ring-2">Open Full View →</Link></div>

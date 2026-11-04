@@ -59,26 +59,28 @@ export const PaxSelector: React.FC<PaxSelectorProps> = ({ value, onChange, readO
         <span className={cn("font-medium", getTextColor())}>{label}</span>
       </div>
       
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <button
           type="button"
+          aria-label={`Decrease ${label.toLowerCase()}`}
           onClick={() => onUpdate(-1)}
           disabled={readOnly || count <= min}
           className={cn(
-            "w-9 h-9 flex items-center justify-center rounded-lg border transition-colors",
+            "w-11 h-11 flex items-center justify-center rounded-lg border transition-colors",
             theme === 'light' ? 'border-slate-200 hover:bg-slate-50' : 'border-white/10 hover:bg-white/10',
             (readOnly || count <= min) && "opacity-30 cursor-not-allowed"
           )}
         >
           <Minus size={16} />
         </button>
-        <span className={cn("w-8 text-center font-bold text-lg", getTextColor())}>{count}</span>
+        <span className={cn("w-7 text-center font-bold text-lg", getTextColor())}>{count}</span>
         <button
           type="button"
+          aria-label={`Increase ${label.toLowerCase()}`}
           onClick={() => onUpdate(1)}
           disabled={readOnly}
           className={cn(
-            "w-9 h-9 flex items-center justify-center rounded-lg border transition-colors",
+            "w-11 h-11 flex items-center justify-center rounded-lg border transition-colors",
             theme === 'light' ? 'border-slate-200 hover:bg-slate-50' : 'border-white/10 hover:bg-white/10',
             readOnly && "opacity-30 cursor-not-allowed"
           )}
@@ -92,7 +94,7 @@ export const PaxSelector: React.FC<PaxSelectorProps> = ({ value, onChange, readO
   return (
     <div className={cn("rounded-xl border p-4 space-y-4", getBorderClass(), theme === 'light' ? 'bg-white' : 'bg-white/5')}>
       {/* Header */}
-      <div className="flex justify-between items-center border-b pb-3 border-gray-500/10">
+      <div className="flex flex-wrap gap-2 justify-between items-center border-b pb-3 border-gray-500/10">
         <span className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Passenger Composition</span>
         <div className="px-2 py-1 rounded-md bg-blue-500/20 text-blue-500 text-xs font-bold border border-blue-500/30">
           Total Pax: {value.adults + value.children}
@@ -116,6 +118,7 @@ export const PaxSelector: React.FC<PaxSelectorProps> = ({ value, onChange, readO
                   Child {idx + 1}
                 </label>
                 <input
+                  aria-label={`Child ${idx + 1} age`}
                   type="number"
                   min="0"
                   max="17"

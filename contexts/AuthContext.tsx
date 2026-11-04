@@ -3,6 +3,8 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { User } from '../types';
 import { generateId } from '../utils/helpers';
 import { supabase, TTE_TOKEN_KEY } from '../lib/supabase';
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+import { localStore } from '../lib/browserStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -41,14 +43,15 @@ const decodeJwtPayload = (token: string): any | null => {
 // A session is valid only when we hold BOTH a server-minted token and the user record.
 const getStoredUser = (): User | null => {
   try {
-    const token = localStorage.getItem(TTE_TOKEN_KEY);
-    const isAuth = localStorage.getItem('is_authenticated') === 'true';
-    const storedUser = localStorage.getItem('voyageos_user');
-    const expiry = localStorage.getItem('auth_expiry');
+    const token = localStore.getItem(TTE_TOKEN_KEY);
+    const isAuth = localStore.getItem('is_authenticated') === 'true';
+    const storedUser = localStore.getItem('voyageos_user');
+    const expiry = localStore.getItem('auth_expiry');
     const now = new Date().getTime();
     const claims = token ? decodeJwtPayload(token) : null;
     if (token && claims?.exp && claims.exp * 1000 > now && isAuth && storedUser && expiry && parseInt(expiry) > now) {
-      return JSON.parse(storedUser);
+      const parsed = JSON.parse(storedUser);
+      return parsed && typeof parsed.id === 'string' && typeof parsed.name === 'string' && ['admin', 'agent'].includes(parsed.role) ? parsed : null;
     }
   } catch {}
   return null;
@@ -82,7 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let cancelled = false;
 
     const checkSession = async () => {
-      const token = localStorage.getItem(TTE_TOKEN_KEY);
+      const token = localStore.getItem(TTE_TOKEN_KEY);
       const claims = token ? decodeJwtPayload(token) : null;
       if (!claims?.exp || claims.exp * 1000 <= Date.now()) { logout(); return; }
       // Tokens minted before this feature existed carry no claim — nothing to compare, leave them be.
@@ -108,12 +111,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (passcode: string): Promise<boolean> => {
     try {
-      const res = await fetch(`${API_BASE}/api/login`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passcode }),
-        signal: AbortSignal.timeout(20_000),
-      });
+      }, 20_000);
       if (!res.ok) return false;
       const { user: u, token } = await res.json();
       if (!u || !token) return false;
@@ -136,10 +138,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem(TTE_TOKEN_KEY);
-    localStorage.removeItem('voyageos_user');
-    localStorage.removeItem('is_authenticated');
-    localStorage.removeItem('auth_expiry');
+    localStore.removeItem(TTE_TOKEN_KEY);
+    localStore.removeItem('voyageos_user');
+    localStore.removeItem('is_authenticated');
+    localStore.removeItem('auth_expiry');
     window.location.hash = '#/login';
     window.location.reload();
   };

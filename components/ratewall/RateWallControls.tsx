@@ -64,13 +64,13 @@ const shortDate = (iso: string) => {
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 
-const Stepper: React.FC<{ value: number; set: (n: number) => void; min: number; max: number }> = ({ value, set, min, max }) => {
+const Stepper: React.FC<{ label: string; value: number; set: (n: number) => void; min: number; max: number }> = ({ label, value, set, min, max }) => {
   const { theme, getTextColor } = useTheme();
   return (
-    <div className={cn('flex items-center rounded-lg border', theme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-white/5')}>
-      <button onClick={() => set(Math.max(min, value - 1))} className="px-1.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Minus size={12} /></button>
+    <div role="group" aria-label={label} className={cn('crm-quantity flex items-center rounded-lg border', theme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-white/5')}>
+      <button type="button" aria-label={`Decrease ${label.toLowerCase()}`} disabled={value <= min} onClick={() => set(Math.max(min, value - 1))} className="px-1.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Minus size={12} /></button>
       <span className={cn('w-7 text-center text-[13px] font-bold tabular-nums', getTextColor())}>{value}</span>
-      <button onClick={() => set(Math.min(max, value + 1))} className="px-1.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Plus size={12} /></button>
+      <button type="button" aria-label={`Increase ${label.toLowerCase()}`} disabled={value >= max} onClick={() => set(Math.min(max, value + 1))} className="px-1.5 py-1.5 opacity-60 hover:opacity-100 active:scale-90 transition"><Plus size={12} /></button>
     </div>
   );
 };
@@ -88,7 +88,7 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
   const festiveChip = cn(chipBase, theme === 'light' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 hover:shadow-sm' : 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20');
 
   return (
-    <div className={cn('rounded-xl border px-3 py-2.5 transition-shadow',
+    <div className={cn('crm-rate-controls rounded-xl border px-3 py-2.5 transition-shadow',
       theme === 'light' ? 'bg-white border-slate-200 hover:shadow-[0_2px_14px_-6px_rgba(15,23,42,0.1)]' : 'bg-white/5 border-white/10')}>
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
         <div>
@@ -99,30 +99,30 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
           </select>
         </div>
 
-        <div>
+        <div className="crm-rate-date">
           <label className={labelCls}>Check-in</label>
           <div className="flex items-center gap-1">
             <button title="Previous day" onClick={() => onChange({ checkIn: addDays(values.checkIn, -1) })} className={stepBtn}><ChevronLeft size={13} /></button>
-            <input type="date" value={values.checkIn} onChange={e => e.target.value && onChange({ checkIn: e.target.value })} className={cn(fieldCls, 'font-mono')} />
+            <input aria-label="Check-in date" type="date" value={values.checkIn} onChange={e => e.target.value && onChange({ checkIn: e.target.value })} className={cn(fieldCls, 'font-mono')} />
             <button title="Next day" onClick={() => onChange({ checkIn: addDays(values.checkIn, 1) })} className={stepBtn}><ChevronRight size={13} /></button>
           </div>
         </div>
 
         <div>
           <label className={labelCls}>Nights</label>
-          <Stepper value={values.nights} set={n => onChange({ nights: n })} min={1} max={14} />
+          <Stepper label="Nights" value={values.nights} set={n => onChange({ nights: n })} min={1} max={14} />
         </div>
         <div>
           <label className={labelCls}>Rooms</label>
-          <Stepper value={values.rooms} set={n => onChange({ rooms: n })} min={1} max={20} />
+          <Stepper label="Rooms" value={values.rooms} set={n => onChange({ rooms: n })} min={1} max={20} />
         </div>
         <div>
           <label className={labelCls}>Guests</label>
-          <Stepper value={values.pax} set={n => onChange({ pax: n })} min={1} max={40} />
+          <Stepper label="Guests" value={values.pax} set={n => onChange({ pax: n })} min={1} max={40} />
         </div>
         <div>
           <label className={labelCls}>Extra mattress</label>
-          <Stepper value={values.extraMattress ?? 0} set={n => onChange({ extraMattress: n })} min={0} max={10} />
+          <Stepper label="Extra mattresses" value={values.extraMattress ?? 0} set={n => onChange({ extraMattress: n })} min={0} max={10} />
         </div>
         <div>
           <label className={labelCls}>Budget / person</label>

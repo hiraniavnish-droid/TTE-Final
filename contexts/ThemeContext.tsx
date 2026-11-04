@@ -1,6 +1,7 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ThemeMode } from '../types';
+import { localStore } from '../lib/browserStorage';
 
 interface ThemeContextType {
   theme: ThemeMode;
@@ -16,16 +17,19 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<ThemeMode>('light');
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const stored = localStore.getItem('tte:theme');
+    return stored === 'dark' || stored === 'ocean' ? stored : 'light';
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStore.setItem('tte:theme', theme);
+  }, [theme]);
 
-  // "High-Definition" Card Style: The Double Ring
-  // bg-white border border-slate-200 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] ring-1 ring-slate-900/5
-
-  const getGlassClass = (opacity = '10') => {
-    if (theme === 'ocean') return `bg-blue-900/60 backdrop-blur-xl border border-blue-600/30 shadow-2xl shadow-black/40 rounded-2xl`;
-    if (theme === 'dark') return `bg-slate-800/90 backdrop-blur-md border border-slate-600/50 shadow-xl shadow-black/30 rounded-2xl`;
-    // Light: elevated card with subtle depth
-    return `bg-white/90 backdrop-blur-sm border border-slate-200/80 shadow-[0_2px_12px_0_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 rounded-2xl`;
+  const getGlassClass = () => {
+    if (theme === 'ocean') return 'bg-[#132b3a] border border-[#2a4859] rounded-xl shadow-sm';
+    if (theme === 'dark') return 'bg-slate-800 border border-slate-700 rounded-xl shadow-sm';
+    return 'bg-white border border-slate-200 rounded-xl shadow-sm';
   };
 
   const getTextColor = () => {
@@ -40,13 +44,9 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return 'text-slate-500 font-normal';
   };
 
-  const getCardBg = () => {
-    if (theme === 'ocean') return 'bg-blue-900/50 hover:bg-blue-800/60 border border-blue-600/30 rounded-xl';
-    if (theme === 'dark') return 'bg-slate-800 hover:bg-slate-700 border border-slate-600/60 rounded-xl';
-
-    // Editorial Luxury Interactive Card
-    return 'bg-white border border-slate-200/70 shadow-[0_2px_12px_-2px_rgba(15,23,42,0.08),0_1px_3px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/[0.05] transition-all duration-200 ease-out hover:shadow-[0_8px_24px_-4px_rgba(15,23,42,0.12),0_2px_6px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 rounded-2xl';
-  };
+  const getCardBg = () => theme === 'light'
+    ? 'bg-white border border-slate-200 rounded-xl shadow-sm'
+    : 'bg-slate-800 border border-slate-700 rounded-xl';
 
   const getInputClass = () => {
     if (theme === 'light') {
