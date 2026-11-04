@@ -79,11 +79,11 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
   const { theme, getInputClass, getSecondaryTextColor } = useTheme();
 
   const labelCls = cn('text-[10px] font-bold uppercase tracking-wider mb-0.5 block', theme === 'light' ? 'text-slate-500' : 'text-white/50');
-  const fieldCls = cn('px-2 py-1.5 rounded-lg border outline-none text-[13px] transition-colors cursor-pointer', getInputClass());
+  const fieldCls = cn('px-2 py-1.5 rounded-lg border text-[13px] transition-colors cursor-pointer', getInputClass());
   const stepBtn = cn('px-1.5 py-1.5 border rounded-lg opacity-70 hover:opacity-100 active:scale-90 transition',
     theme === 'light' ? 'border-slate-200 bg-white hover:border-slate-300' : 'border-white/10 bg-white/5 hover:border-white/25');
 
-  const chipBase = 'px-2.5 py-1 rounded-full text-[10.5px] font-bold transition-all active:scale-95';
+  const chipBase = 'px-2.5 py-1 rounded-full text-[10.5px] font-bold transition-colors active:scale-95';
   const plainChip = cn(chipBase, theme === 'light' ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:shadow-sm' : 'bg-white/10 text-white/70 hover:bg-white/20');
   const festiveChip = cn(chipBase, theme === 'light' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 hover:shadow-sm' : 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20');
 
@@ -93,7 +93,7 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
         <div>
           <label className={labelCls}>City</label>
-          <select value={values.city} className={cn(fieldCls, 'w-[150px] [&>option]:text-black')} onChange={e => onChange({ city: e.target.value })}>
+          <select aria-label="City" value={values.city} className={cn(fieldCls, 'w-[150px] [&>option]:text-black')} onChange={e => onChange({ city: e.target.value })}>
             <option value="ALL">{allLabel}</option>
             {cities.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -126,7 +126,7 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
         </div>
         <div>
           <label className={labelCls}>Budget / person</label>
-          <input type="number" inputMode="decimal" min={0} step={100} placeholder="e.g. 5000"
+          <input aria-label="Budget per person" type="number" inputMode="decimal" min={0} step={100} placeholder="e.g. 5000"
             value={values.budgetPerPerson ?? ''}
             onChange={e => onChange({ budgetPerPerson: e.target.value ? Math.max(0, Number(e.target.value)) : undefined })}
             className={cn(fieldCls, 'font-mono w-[110px]')} />
@@ -135,6 +135,7 @@ export const RateWallControls: React.FC<Props> = ({ values, cities, jumps, allLa
           <div>
             <label className={labelCls}>&nbsp;</label>
             <button type="button" onClick={() => onChange({ hideOverBudget: !values.hideOverBudget })}
+              aria-pressed={!!values.hideOverBudget}
               className={cn(chipBase, 'py-1.5',
                 values.hideOverBudget
                   ? 'bg-slate-900 text-white'

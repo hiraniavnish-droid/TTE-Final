@@ -113,7 +113,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
     : 'border-white/60 bg-white/10 shadow-[0_1px_8px_-2px_rgba(255,255,255,0.15)]';
   const cellPrimary = theme === 'light' ? 'border-slate-400 border-[1.5px]' : 'border-white/40 border-[1.5px]';
   const amber = theme === 'light' ? 'text-amber-700' : 'text-amber-300';
-  const selectCls = cn('text-[10.5px] rounded-md border px-1.5 py-1 outline-none cursor-pointer transition-colors', getInputClass());
+  const selectCls = cn('text-[10.5px] rounded-md border px-1.5 py-1 cursor-pointer transition-colors', getInputClass());
 
   const renderCell = (row: WallRoomRow, variant: CellVariant) => {
     const small = variant === 'basis';
@@ -207,6 +207,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
 
     const planSelect = isPlanChoice ? (
       <select
+        aria-label={`Meal plan for ${entry.hotelName}, ${g.roomName}`}
         value={activeRow.planLabel || ''}
         onChange={e => setPlanOverride(p => ({ ...p, [g.roomName]: e.target.value }))}
         className={cn(selectCls, 'flex-1 min-w-0')}>
@@ -256,7 +257,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
       : '';
 
   return (
-    <div className={cn('group border border-l-[3px] rounded-xl px-3 py-2.5 transition-all duration-150',
+    <div className={cn('crm-rate-card group min-w-0 border border-l-[3px] rounded-xl px-3 py-2.5 transition-colors duration-150',
       theme === 'light'
         ? 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-[0_4px_18px_-6px_rgba(15,23,42,0.14)]'
         : 'bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.06]',
@@ -264,15 +265,15 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
 
       {/* Name on its own line, provenance beneath. At grid width the old
           right-pushed chip wrapped into the hotel name and read as one string. */}
-      <div className="flex items-baseline gap-1.5">
+      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
         {bandBadgeLabel && (
           <span className={cn('text-[8.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0', bandBadgeClass)}>
             {bandBadgeLabel}
           </span>
         )}
-        <span className={cn('text-[12.5px] font-bold leading-tight', getTextColor())}>{entry.hotelName}</span>
+        <h3 className={cn('min-w-0 flex-1 text-[12.5px] font-bold leading-snug break-words', getTextColor())}>{entry.hotelName}</h3>
         {entry.starLabel && (
-          <span className={cn('text-[10px] leading-relaxed ml-auto min-w-0 flex-1 text-right break-words', getSecondaryTextColor())}>{entry.starLabel}</span>
+          <p className={cn('crm-rate-provenance w-full text-[10px] leading-relaxed break-words', getSecondaryTextColor())}>{entry.starLabel}</p>
         )}
       </div>
 
@@ -346,6 +347,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
           const { planSelect, rates } = buildGroup(activeGroup);
           const roomSelect = groups.length > 1 ? (
             <select
+              aria-label={`Room type for ${entry.hotelName}`}
               value={safeRoomIdx}
               onChange={e => setRoomIdx(Number(e.target.value))}
               className={cn(selectCls, 'flex-1 min-w-0')}>
@@ -372,6 +374,7 @@ export const RateWallCard: React.FC<Props> = ({ entry, bandTone, selectedKeys, o
             types) without having to flip the dropdowns back and forth. */}
         {groups.length > 0 && (groups.length > 1 || (groups[0].rows.length > 1 && !groups[0].rows.some(r => r.planLabel === PRIMARY_PLAN))) && (
           <button type="button" onClick={() => setExpanded(v => !v)}
+            aria-expanded={expanded}
             className={cn('flex items-center gap-1 mt-2 text-[9.5px] font-semibold transition-colors hover:text-slate-900',
               theme === 'dark' && 'hover:text-white', getSecondaryTextColor())}>
             <Rows3 size={10} className="shrink-0" />

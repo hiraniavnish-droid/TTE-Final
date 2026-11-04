@@ -72,6 +72,8 @@ button, a { touch-action:manipulation; }
 .crm-main-board { overflow:hidden; }
 .crm-page { padding:28px; width:100%; max-width:1580px; margin:0 auto; }
 .crm-page-wide { max-width:none; }
+.crm-rate-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr)); gap:8px; align-items:start; }
+.crm-rate-card { overflow-wrap:break-word; }
 .crm-page-board { height:100%; padding:22px 24px; }
 .crm-data-status { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; padding:12px 16px; border:1px solid var(--crm-border); border-radius:10px; background:var(--crm-surface); margin-bottom:20px; color:var(--crm-muted); }
 .crm-data-status.has-error { border-color:#f2c29b; color:#945010; background:#fff7ed; }

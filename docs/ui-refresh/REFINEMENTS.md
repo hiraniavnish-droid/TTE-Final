@@ -52,3 +52,12 @@ Actual fictional-preview captures, not design mockups:
 ![Dashboard patterns](refinement-previews/dashboard-patterns.png)
 
 ![Mobile drawer](refinement-previews/mobile-drawer.png)
+
+
+## Trial bug fixes — 4 November 2026
+
+The reported Rajarshi hotel-card failure was reproduced: the provenance flex item could shrink to zero width, turning a description into a column over 1,000px tall. Descriptions now occupy a full row below the name, and the shared Rajarshi/Inland grid aligns cards at the top with a minimum column width that also fits narrow phones. The full supplier text remains visible.
+
+Customers destination, vendor and employee filters could reopen after selection: an implicit wrapping label activated the first button when an option disappeared. Composite controls now use neutral wrappers and retain their own accessible labels. Filter fields align at the bottom of each row. Hotel room/plan controls now have explicit accessible names and visible keyboard focus; the selection tray disables exports when empty and gives each remove button a specific name and larger target.
+
+See `bugfix-validation.json` for 54 layout checks at widths 320, 390, 768, 1024 and 1440 and the selected interaction checks, including all six lead tabs. Production and fictional-preview builds, the nine browser-resilience tests and the customer-account regression passed. Rate-wall review reports zero errors and warnings. These checks do not certify every workflow or live integration. This batch is for the separate trial URL; production main remains unchanged.

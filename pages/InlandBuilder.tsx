@@ -608,7 +608,7 @@ export const InlandBuilder: React.FC = () => {
               starts on a new line. The tier is now a badge ON each card
               (see flattenBandedWall in rateWall.ts) rather than a section
               header above a group of cards. */}
-          <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
+          <div className="crm-rate-grid">
             {visibleEntries.map(({ entry, bandId, bandLabel }) => (
               <RateWallCard key={entry.hotelId} entry={entry} preferredPlan={preferredPlan}
                 budget={budgetStatus(entry.cheapestSelling, totalBudget)}

@@ -55,11 +55,11 @@ export const RateWallTray: React.FC<Props> = ({ selections, onRemove, total, onC
               className={cn('group relative rounded-xl border px-2.5 py-2 transition-colors',
                 isLight ? 'border-slate-100 bg-slate-50/60 hover:bg-slate-50' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]')}>
               <button type="button" onClick={() => onRemove(s.row.key)}
-                title="Remove from selection"
-                className={cn('absolute top-1.5 right-1.5 p-0.5 rounded-md opacity-60 hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 transition-all', getSecondaryTextColor())}>
+                title="Remove from selection" aria-label={`Remove ${s.entry.hotelName}, ${s.row.roomName} from selection`}
+                className={cn('absolute top-1.5 right-1.5 flex items-center justify-center min-w-[32px] min-h-[32px] max-lg:min-w-[44px] rounded-md opacity-60 hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 transition-colors', getSecondaryTextColor())}>
                 <X size={12} />
               </button>
-              <div className={cn('text-[10.5px] font-bold leading-tight truncate pr-4', getTextColor())}>{s.entry.hotelName}</div>
+              <div className={cn('text-[10.5px] font-bold leading-tight break-words pr-10', getTextColor())}>{s.entry.hotelName}</div>
               <div className={cn('text-[9.5px] leading-tight truncate mt-0.5', getSecondaryTextColor())}>
                 {s.row.roomName}{s.row.planLabel ? ` · ${s.row.planLabel}` : ''}
               </div>
@@ -78,17 +78,17 @@ export const RateWallTray: React.FC<Props> = ({ selections, onRemove, total, onC
       )}
 
       <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-        <button type="button" onClick={onCopy} title="Copy as WhatsApp text"
-          className={cn('flex items-center justify-center py-1.5 rounded-lg border text-[11px] font-bold transition active:scale-[0.96]',
+        <button type="button" onClick={onCopy} disabled={!selections.length} title="Copy as WhatsApp text"
+          className={cn('flex items-center justify-center py-1.5 rounded-lg border text-[11px] font-bold transition active:scale-[0.96] disabled:opacity-50 disabled:active:scale-100',
             isLight ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50' : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10')}>
           <Copy size={13} />
         </button>
-        <button type="button" onClick={onPdf} disabled={pdfBusy} title="Download PDF"
+        <button type="button" onClick={onPdf} disabled={pdfBusy || !selections.length} title="Download PDF"
           className="flex items-center justify-center py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold transition hover:bg-slate-800 active:scale-[0.96] disabled:opacity-60 disabled:active:scale-100">
           {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
         </button>
-        <button type="button" onClick={onSend} title="Share on WhatsApp"
-          className="flex items-center justify-center py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold transition hover:bg-emerald-500 active:scale-[0.96] shadow-[0_2px_10px_-2px_rgba(16,185,129,0.5)]">
+        <button type="button" onClick={onSend} disabled={!selections.length} title="Share on WhatsApp"
+          className="flex items-center justify-center py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold transition hover:bg-emerald-500 active:scale-[0.96] shadow-[0_2px_10px_-2px_rgba(16,185,129,0.5)] disabled:opacity-50 disabled:active:scale-100">
           <Send size={13} />
         </button>
       </div>
