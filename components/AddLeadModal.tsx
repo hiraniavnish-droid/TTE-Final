@@ -1,3 +1,4 @@
+import { DateField } from './ui/WorkspaceControls';
 
 import React, { useState, useRef } from 'react';
 import { useLeads } from '../contexts/LeadContext';
@@ -25,6 +26,8 @@ export const AddLeadModal = () => {
   const { theme, getTextColor, getInputClass, getBorderClass, getSecondaryTextColor } = useTheme();
   const { user, users } = useAuth();
 
+  const [newLeadDate, setNewLeadDate] = useState('');
+  React.useEffect(() => { if (isAddLeadModalOpen) setNewLeadDate(''); }, [isAddLeadModalOpen]);
   const [newLeadServices, setNewLeadServices] = useState<string[]>([]);
   const [newLeadPax, setNewLeadPax] = useState<PaxConfig>({ adults: 2, children: 0, childAges: [] });
   const [newLeadPrefs, setNewLeadPrefs] = useState<TravelPreferencesType>({});
@@ -308,9 +311,9 @@ export const AddLeadModal = () => {
                         <input id="create-lead-destination" aria-label="Destination" name="destination" required placeholder="Where to?" className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
                      </div>
                      <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1">
+                         <div className="ui-date-on-phone space-y-1">
                             <label htmlFor="create-lead-startDate" className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Start Date</label>
-                            <input id="create-lead-startDate" aria-label="Start date" name="startDate" type="date" required className={cn("w-full bg-transparent border-b p-2 outline-none text-base transition-colors", getBorderClass(), "focus:border-slate-900", getTextColor())} />
+                            <DateField id="create-lead-startDate" label="Start date" name="startDate" required value={newLeadDate} onValueChange={setNewLeadDate}/>
                          </div>
                          <div className="space-y-1">
                             <label htmlFor="create-lead-nights" className={cn("text-[10px] font-bold uppercase opacity-60", getTextColor())}>Nights</label>

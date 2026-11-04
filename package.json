@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test:resilience": "node --experimental-strip-types --test tests/browser-resilience.test.mjs",
     "preview:ui": "node scripts/preview-ui.mjs",
-    "build:ui-preview": "VITE_SUPABASE_URL=http://127.0.0.1:3187 VITE_SUPABASE_ANON_KEY=local-ui-preview-only vite build --outDir .ui-preview"
+    "build:ui-preview": "VITE_UI_DEMO=true VITE_SUPABASE_URL=http://127.0.0.1:3187 VITE_SUPABASE_ANON_KEY=local-ui-preview-only vite build --outDir .ui-preview"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

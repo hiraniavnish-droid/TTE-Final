@@ -1,3 +1,4 @@
+import { DateField, SegmentedControl } from '../ui/WorkspaceControls';
 import { RannPdfOptions } from './RannPdfOptions';
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -348,7 +349,7 @@ export const QuoteEngineCostingPanel: React.FC<Props> = ({ lead, onSaveVendor, o
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Check-in date</label>
-              <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
+              <DateField label="Check-in date" value={checkInStr} onValueChange={setCheckInStr} className="font-mono" />
             </div>
             <div>
               <label className={labelCls}>Nights</label>

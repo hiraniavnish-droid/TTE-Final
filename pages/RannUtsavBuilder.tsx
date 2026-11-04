@@ -1,3 +1,4 @@
+import { DateField, SegmentedControl } from '../components/ui/WorkspaceControls';
 import { RannPdfOptions } from '../components/leads/RannPdfOptions';
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -423,15 +424,7 @@ export const RannUtsavBuilder: React.FC = () => {
       </div>
 
       {/* Product tabs */}
-      <div className={cn('inline-flex flex-wrap p-1 rounded-xl border mb-3', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
-        {([['tentcity', 'Rann Utsav Tent City'], ['resort', 'Rann Tent Resort'], ['compare', 'Compare Options'], ['namak', 'Namak Resort']] as [Product, string][]).map(([p, label]) => (
-          <button key={p} aria-pressed={product === p} onClick={() => { setProduct(p); setNights(2); if (p === 'resort') setOccupancy('double'); }}
-            className={cn('px-3 py-1.5 rounded-lg text-[12.5px] font-bold transition-all active:scale-[0.98]',
-              product === p ? 'bg-slate-900 text-white' : cn(theme === 'light' ? 'text-slate-500 hover:text-slate-800' : 'text-white/50 hover:text-white/80'))}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <div className="mb-4"><SegmentedControl label="Quotation product" value={product} onChange={value=>{setProduct(value as Product);setNights(2);if(value==='resort')setOccupancy('double');}} options={[{value:'tentcity',label:'Rann Utsav Tent City'},{value:'resort',label:'Rann Tent Resort'},{value:'compare',label:'Compare options'},{value:'namak',label:'Namak Resort'}]}/></div>
 
       {product === 'namak' && <React.Suspense fallback={<p className="text-sm p-4">Opening Namak calculator…</p>}><NamakCalculator /></React.Suspense>}
 
@@ -462,7 +455,7 @@ export const RannUtsavBuilder: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Check-in date</label>
-                <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
+                <DateField label="Check-in date" value={checkInStr} onValueChange={setCheckInStr} className="font-mono" />
               </div>
               <div>
                 <label className={labelCls}>Duration</label>
@@ -644,7 +637,7 @@ export const RannUtsavBuilder: React.FC = () => {
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
               <div className="col-span-2 lg:col-span-2">
                 <label className={labelCls}>Check-in date</label>
-                <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
+                <DateField label="Check-in date" value={checkInStr} onValueChange={setCheckInStr} className="font-mono" />
               </div>
               <div>
                 <label className={labelCls}>Rooms / Tents</label>

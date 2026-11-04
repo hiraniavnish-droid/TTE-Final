@@ -6,8 +6,8 @@ const stages=['New','Contacted','Proposal Sent','Discussion','Won','Lost'];
 export const leads=names.map((name,i)=>({
   id:`00000000-0000-4000-8000-${String(i+10).padStart(12,'0')}`,name,
   contact:{phone:'+910000000000',email:'demo@example.invalid'},
-  trip_details:{destination:['Rann Utsav','Kutch','Statue of Unity'][i%3],startDate:date(30+i).slice(0,10),budget:65000+i*12500,duration:3,paxConfig:{adults:2+i%3,children:i%2,childAges:i%2?[7]:[]}},
-  status:stages[i%6],temperature:i%3?'Warm':'Hot',assigned_to:user.name,source:['Website','WhatsApp','Reference'][i%3],tags:[],preferences:{},vendors:[],
+  trip_details:{destination:['Rann Utsav','Kutch','Statue of Unity'][i%3],startDate:date(30+i).slice(0,10),budget:65000+i*12500,duration:3,nights:3,paxConfig:{adults:2+i%3,children:i%2,childAges:i%2?[7]:[]}},
+  status:stages[i%6],temperature:i%3?'Warm':'Hot',assigned_to:user.name,source:['Website','WhatsApp','Reference'][i%3],tags:[],preferences:{},commercials:i%6===4?{sellingPrice:180000+i*1000,netCost:130000,vendorId:'demo-vendor'}:undefined,vendors:i%6===4?[{id:'demo-vendor-'+i,name:'Demo Tent Supplier',cost:130000,price:180000+i*1000,payments:[{id:'demo-vendor-payment-'+i,amount:50000,date:date(-1),mode:'Bank Transfer'}]}]:[],
   created_at:date(-i%5),last_status_update:date(-i%4),won_at:i%6===4?date(-1):null,lead_code:`TTE-${1000+i}`,
 }));
 export const tables={

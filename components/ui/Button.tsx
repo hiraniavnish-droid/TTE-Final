@@ -15,5 +15,5 @@ export const Button: React.FC<ButtonProps> = ({ className, variant = 'primary', 
     ghost: light ? 'bg-transparent text-slate-600 border border-transparent hover:bg-slate-100' : 'bg-transparent text-slate-300 border border-transparent hover:bg-white/10',
   };
   const sizes = { sm: 'px-3 min-h-10 text-xs', md: 'px-4 min-h-[44px] text-sm', lg: 'px-5 min-h-12 text-sm' };
-  return <button type={type} className={cn('inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2', variants[variant], sizes[size], className)} {...props}/>;
+  return <button type={type} className={cn('crm-button inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2', variants[variant], `crm-button-${variant}`, variant === 'primary' && !/(?:^|\s)(?:[\w!-]+:)*!?bg-/.test(className || '') && 'crm-button-textured', sizes[size], className)} {...props}/>;
 };

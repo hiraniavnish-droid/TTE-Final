@@ -32,6 +32,7 @@ const QuoteTrainerPractice = React.lazy(() => import('./pages/QuoteTrainerPracti
 const Availability = React.lazy(() => import('./pages/Availability').then(module => ({ default: module.Availability })));
 const RajarshiHub = React.lazy(() => import('./pages/RajarshiHub').then(module => ({ default: module.RajarshiHub })));
 const RajarshiReadyPackages = React.lazy(() => import('./pages/RajarshiReadyPackages').then(module => ({ default: module.RajarshiReadyPackages })));
+const UIDemo = React.lazy(() => import('./pages/UIDemo').then(module => ({ default: module.UIDemo })));
 const Attendance = React.lazy(() => import('./pages/Attendance').then(module => ({ default: module.Attendance })));
 
 const ProtectedRoute = () => {
@@ -66,6 +67,7 @@ function App() {
                     <Route path="/" element={<Layout />}>
                       <Route index element={<Dashboard />} />
                       <Route path="leads" element={<Leads />} />
+                      <Route path="ui-demo" element={<UIDemo />} />
                       <Route path="leads/:id" element={<LeadDetails />} />
                       <Route path="builder" element={<KutchItineraryBuilder />} />
                       <Route path="rann-utsav-builder" element={<RannUtsavBuilder />} />

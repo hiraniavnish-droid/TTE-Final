@@ -1,3 +1,4 @@
+import { DateField, SegmentedControl } from '../components/ui/WorkspaceControls';
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -247,7 +248,7 @@ export const SouTentCityBuilder: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Check-in date</label>
-                <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono')} />
+                <DateField label="Check-in date" value={checkInStr} onValueChange={setCheckInStr} className="font-mono" />
               </div>
               <div>
                 <label className={labelCls}>Nights</label>

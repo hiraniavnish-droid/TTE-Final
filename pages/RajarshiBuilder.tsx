@@ -1,3 +1,4 @@
+import { DateField } from '../components/ui/WorkspaceControls';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -419,7 +420,7 @@ export const RajarshiBuilder: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelCls}>Check-in</label>
-                        <input type="date" value={leg.checkIn} onChange={e => updateLeg(leg.id, { checkIn: e.target.value })} className={cn(inputCls, 'font-mono')} />
+                        <DateField label="Hotel check-in date" value={leg.checkIn} onValueChange={value => updateLeg(leg.id, { checkIn: value })} className="font-mono" />
                       </div>
                       <div>
                         <label className={labelCls}>Nights</label>

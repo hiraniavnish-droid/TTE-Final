@@ -1,7 +1,8 @@
 import { isFinancialLead } from '../lib/financialLeadFilter';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useCountUp } from '../hooks/useCountUp';
+import { AnimatedNumber, TrendChart } from '../components/ui/WorkspaceVisuals';
+import { DateField } from '../components/ui/WorkspaceControls';
 import { RadialGauge } from '../components/ui/RadialGauge';
 import { ActivityHeatmap } from '../components/ActivityHeatmap';
 import { Card } from '../components/ui/Card';
@@ -526,9 +527,9 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
 // --- Standard Agent Dashboard Components ---
 
 const KPICard = ({ collectedLabel = 'Collected', pendingLabel = 'Pending', title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick, delta, deltaLabel, emptyHint, extraFaded, collected, pending, loading }: any) => {
-    const animated = useCountUp(typeof rawValue === 'number' ? rawValue : 0, 300);
+
     const empty = typeof rawValue === 'number' && rawValue === 0;
-    const displayValue = empty && value === 'TBD' ? '₹0' : typeof rawValue === 'number' && formatFn ? formatFn(animated) : value;
+    const displayValue = empty && value === 'TBD' ? '₹0' : typeof rawValue === 'number' && formatFn ? <AnimatedNumber value={rawValue} format={formatFn}/> : value;
     return <div className="crm-kpi" role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick}
       onKeyDown={event => { if (onClick && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onClick(); } }}>
       <div className="crm-kpi-title"><span>{title}</span><Icon size={17} aria-hidden="true"/></div>
@@ -787,6 +788,16 @@ export const Dashboard = () => {
       return allLeads.filter(l => l.assignedTo === viewAsAgent);
   }, [user, leads, allLeads, viewAsAgent]);
 
+  const enquiryTrend = useMemo(() => {
+    const range = customOverride ?? getPeriodRange(timeFilter);
+    const buckets = new Map<string,number>();
+    dashboardLeads.forEach(lead => {
+      const date = new Date(lead.createdAt);
+      if (Number.isNaN(date.getTime()) || (range.start && date < range.start) || (range.end && date > range.end)) return;
+      const key = businessDate(date); buckets.set(key,(buckets.get(key)||0)+1);
+    });
+    return [...buckets].sort(([a],[b])=>a.localeCompare(b)).map(([key,value])=>({label:new Date(key+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',...(timeFilter==='All Time'?{year:'2-digit' as const}:{})}),value}));
+  }, [dashboardLeads,timeFilter,customOverride]);
   const stats = useMemo(() => getDashboardStats(dashboardLeads, timeFilter, customOverride ?? undefined, paymentSummary), [dashboardLeads, timeFilter, customOverride, paymentSummary]);
 
   const prevStats = useMemo(() => {
@@ -1115,7 +1126,7 @@ export const Dashboard = () => {
                 title="New-stage Leads"
                 value={stats.pendingCount}
                 rawValue={stats.pendingCount}
-                formatFn={(n: number) => String(n)}
+                formatFn={(n: number) => Math.round(n).toLocaleString('en-IN')}
                 subtext={staleActiveCount > 0 ? `+ ${staleActiveCount} stale active` : "Untouched, status: New"}
                 icon={Clock}
                 colorClass="bg-rose-500"
@@ -1470,28 +1481,26 @@ export const Dashboard = () => {
               {/* Date pickers — appear below pill when Custom is active */}
               {showCustomRange && (
                 <div className={cn(
-                  "flex items-center gap-1.5 p-1 pl-2 rounded-xl border text-xs font-semibold animate-scale-pop",
+                  "crm-dashboard-date-range flex items-center gap-1.5 p-1 pl-2 rounded-xl border text-xs font-semibold animate-scale-pop",
                   theme === 'light' ? "bg-white border-slate-300" : "bg-slate-800 border-slate-600/50"
                 )}>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">From</span>
-                  <input
-                    type="date"
-                    aria-label="Start date"
+                  <DateField
+                    label="Start date"
                     max={customEnd || undefined}
                     value={customStart}
-                    onChange={e => { setCustomStart(e.target.value); if (e.target.value > customEnd) setCustomEnd(e.target.value); }}
+                    onValueChange={value => { setCustomStart(value); if (value > customEnd) setCustomEnd(value); }}
                     className={cn(
                       "text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 bg-transparent cursor-pointer",
                       theme === 'light' ? "text-slate-800" : "text-white"
                     )}
                   />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</span>
-                  <input
-                    type="date"
-                    aria-label="End date"
+                  <DateField
+                    label="End date"
                     min={customStart || undefined}
                     value={customEnd}
-                    onChange={e => { setCustomEnd(e.target.value); if (e.target.value < customStart) setCustomStart(e.target.value); }}
+                    onValueChange={value => { setCustomEnd(value); if (value < customStart) setCustomStart(value); }}
                     className={cn(
                       "text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 bg-transparent cursor-pointer",
                       theme === 'light' ? "text-slate-800" : "text-white"
@@ -1513,6 +1522,7 @@ export const Dashboard = () => {
         <>
           {[
             kpiSection,
+            <Card><TrendChart title="Enquiry trend" description="Enquiries created in the selected period, grouped by day" data={enquiryTrend}/></Card>,
             compareSection,
             <ActivityMonitor logs={activityLogs} />,
             <ActivityHeatmap logs={activityLogs} />,
@@ -1542,6 +1552,7 @@ export const Dashboard = () => {
             operationsSection,
             priorityGridSection,
             kpiSection,
+            <Card><TrendChart title="Enquiry trend" description="Enquiries created in the selected period, grouped by day" data={enquiryTrend}/></Card>,
             mobileAnalyticsBar,
             pipelineSection ? <div className={showOnMobile('pipeline')}>{pipelineSection}</div> : null,
             <div className={showOnMobile('funnel')}>{analyticsSection}</div>,

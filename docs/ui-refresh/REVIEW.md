@@ -49,3 +49,7 @@ The browser resilience suite now contains nine tests, including this legacy-view
 ## Follow-up: remove the desktop top bar
 
 The user identified the full-width desktop header as wasted space. Desktop pages now reclaim its 72px: New lead is in the sidebar, search stays in the sidebar, and the theme switch sits beside the account menu. Actions remain available in collapsed navigation. The duplicate Leads-page add button is removed, and sidebar spacing is tightened. Phones and tablets retain the compact header because they do not show the desktop sidebar.
+
+## 21st-inspired inner-page refinements — 4 November 2026
+
+All 16 shortlisted patterns are adapted into the review branch and documented in [REFINEMENTS.md](REFINEMENTS.md). The protected `/#/ui-demo` tour gives an interactive example for each. The final fictional preview passed 51 layout checks at 320/390/768/1024/1440px, plus keyboard, nested-dialog, failed-save, selection/export, date-value and async-feedback checks. Evidence is in [refinement-validation.json](refinement-validation.json). No runtime dependency was added. Production main remains unmerged; existing pricing-verifier, full-typecheck and bundle-size limitations described above still apply.

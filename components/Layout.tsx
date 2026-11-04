@@ -26,6 +26,7 @@ const navigation = [
   { path: '/suppliers', label: 'Suppliers', icon: Handshake, group: 'Operations' },
   { path: '/attendance', label: 'Attendance', icon: CalendarCheck, group: 'Operations' },
   { path: '/quote-trainer', label: 'Quote trainer', icon: GraduationCap, group: 'Operations' },
+  ...((import.meta as any).env?.VITE_UI_DEMO === 'true' ? [{ path: '/ui-demo', label: 'Refinement demos', icon: Compass, group: 'Workspace' }] : []),
   { path: '/team-settings', label: 'Team settings', icon: ShieldCheck, group: 'Operations', admin: true },
 ];
 

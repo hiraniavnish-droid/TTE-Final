@@ -1,3 +1,5 @@
+import { TableToolbar, SegmentedControl, DateField, SearchSelect } from '../components/ui/WorkspaceControls';
+import { EmptyState } from '../components/ui/WorkspaceVisuals';
 import { cleanLeadWorkspaceQuery } from '../lib/leadWorkspaceQuery';
 import { localStore, sessionStore, readStoredArray, readStoredRecord } from '../lib/browserStorage';
 import { isFinancialLead } from '../lib/financialLeadFilter';
@@ -1092,18 +1094,9 @@ const ExportPanel: React.FC<{
   const toggleCol = (key: string) => setSelected(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn('relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden', theme === 'dark' ? 'bg-slate-900 border border-white/10' : 'bg-white')}>
-        <div className={cn('flex items-center justify-between px-5 py-4 border-b shrink-0', getBorderClass())}>
-          <div>
-            <h2 className={cn('text-lg font-bold', getTextColor())}>Export Leads</h2>
-            <p className={cn('text-[12px]', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>{rows.length} lead{rows.length === 1 ? '' : 's'} will be exported</p>
-          </div>
-          <button onClick={onClose} className={cn('p-2 rounded-full', theme === 'light' ? 'hover:bg-slate-100 text-slate-400' : 'hover:bg-white/10 text-white/50')}><X size={18} /></button>
-        </div>
-
-        <div className="p-5 flex flex-col gap-4 overflow-y-auto">
+    <Modal isOpen onClose={onClose} title="Export leads" size="wide">
+      <p className="ui-muted text-sm">{rows.length} lead{rows.length === 1 ? '' : 's'} will be exported</p>
+        <div className="ui-export-body flex flex-col gap-4 mt-4">
           {/* Stage filter */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn('text-[11px] font-bold uppercase tracking-wide', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>Stage</span>
@@ -1171,27 +1164,11 @@ const ExportPanel: React.FC<{
           </div>
         </div>
 
-        <div className={cn('flex items-center justify-end gap-2 px-5 py-4 border-t shrink-0', getBorderClass())}>
-          <button
-            onClick={handleCopy}
-            disabled={rows.length === 0 || cols.length === 0}
-            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all disabled:opacity-40',
-              theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30')}
-          >
-            {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
-            {copied ? 'Copied!' : 'Copy to Clipboard'}
-          </button>
-          <button
-            onClick={handleDownload}
-            disabled={rows.length === 0 || cols.length === 0}
-            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40',
-              theme === 'light' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-900 hover:bg-white/90')}
-          >
-            <Download size={15} /> Download CSV
-          </button>
+        <div className="ui-export-footer flex items-center justify-end gap-2 border-t border-slate-500/10">
+          <Button variant="secondary" onClick={handleCopy} disabled={rows.length === 0 || cols.length === 0}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied!' : 'Copy to Clipboard'}</Button>
+          <Button onClick={handleDownload} disabled={rows.length === 0 || cols.length === 0}><Download size={15}/>Download CSV</Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -1246,6 +1223,8 @@ export const Leads = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newLeadServices, setNewLeadServices] = useState<string[]>([]);
+  const [newLeadDate, setNewLeadDate] = useState('');
+  useEffect(() => { if (isModalOpen) setNewLeadDate(''); }, [isModalOpen]);
   const [newLeadPax, setNewLeadPax] = useState<PaxConfig>({ adults: 2, children: 0, childAges: [] });
   const [newLeadPrefs, setNewLeadPrefs] = useState<TravelPreferencesType>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1500,59 +1479,23 @@ export const Leads = () => {
         {/* Buttons */}
         <div className="crm-lead-actions flex flex-wrap items-center gap-2 shrink-0">
           <div className={cn("crm-saved-views flex gap-1.5 items-center",moreFilters && "is-visible")}><select aria-label="Saved views" value="" onChange={e=>{if(!e.target.value)return;const v=savedViews[Number(e.target.value)];if(v)setSearchParams(v.query || 'view=kanban',{replace:true});}} className={cn(filterControlClass,'w-[148px] text-xs')}><option value="">Saved views ({savedViews.length})</option>{savedViews.map((v,i)=><option key={v.name} value={i}>{v.name}</option>)}</select><button title="Save current view" aria-label="Save view" onClick={()=>setSavingView(true)} className={cn('h-10 w-10 rounded-xl border flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500',theme==='light'?'border-slate-200 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200':'border-slate-700 text-slate-300 hover:bg-slate-800')}><Bookmark size={17}/></button></div>
-          <div className={cn('flex items-center rounded-xl p-1 border', theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')}>
-            <button
-              aria-label="Board view" aria-pressed={view === 'kanban'}
-              onClick={() => setView('kanban')}
-              className={cn(
-                'px-4 py-2 rounded-lg text-[12px] font-bold transition-all min-h-[36px]',
-                view === 'kanban'
-                  ? (theme === 'light' ? 'bg-slate-100 text-indigo-600' : 'bg-white/20 text-white')
-                  : (theme === 'light' ? 'text-slate-400 hover:text-slate-600' : 'text-white/40 hover:text-white/70')
-              )}
-            >
-              Board
-            </button>
-            <button
-              aria-label="List view" aria-pressed={view === 'overview'}
-              onClick={() => setView('overview')}
-              className={cn(
-                'px-4 py-2 rounded-lg text-[12px] font-bold transition-all min-h-[36px]',
-                view === 'overview'
-                  ? (theme === 'light' ? 'bg-slate-100 text-indigo-600' : 'bg-white/20 text-white')
-                  : (theme === 'light' ? 'text-slate-400 hover:text-slate-600' : 'text-white/40 hover:text-white/70')
-              )}
-            >
-              List
-            </button>
-          </div>
-          <button
-            disabled={isLoading || !!loadError} onClick={() => setShowExport(true)}
-            className={cn(
-              'hidden md:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all',
-              theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30'
-            )}
-          >
-            <Download size={15} /> Export
-          </button>
+          <SegmentedControl label="Lead view" value={view} onChange={value => setView(value as 'kanban' | 'overview')} options={[{value:'kanban',label:'Board'},{value:'overview',label:'List'}]}/>
+
 
         </div>
       </div>
 
       <section aria-label="Lead filters" className={cn('crm-lead-filters shrink-0 rounded-xl border shadow-sm',moreFilters && 'is-expanded', theme==='light'?'bg-white/95 border-slate-200/80':'bg-slate-900 border-slate-700')}>
         <div className="flex flex-wrap items-end gap-3 p-3 md:p-4">
-          <label className="crm-filter-search flex-1 min-w-0 sm:min-w-[220px] space-y-1.5">
-            <span className={filterLabelClass}>Find a lead</span>
-            <span className="relative block"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/><input aria-label="Search leads" placeholder="Name, phone or lead ID…" value={search} onChange={e=>changeQuery({q:e.target.value})} className={cn(filterControlClass,'pl-9 pr-8')}/>{search && <button type="button" aria-label="Clear search" onClick={()=>changeQuery({q:''})} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-600 focus-visible:ring-2 rounded"><X size={13}/></button>}</span>
-          </label>
-          {isAdmin && <label className="crm-filter-owner w-full sm:w-[168px] space-y-1.5"><span className={filterLabelClass}>Lead owner</span><span className="relative block"><Users size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/><select aria-label="Employee" value={filters.assignedTo} onChange={e=>changeQuery({agent:e.target.value})} className={cn(filterControlClass,'pl-9 pr-7 appearance-none')}><option value="">All employees</option><option value="Unassigned">Unassigned</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select><ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/></span></label>}
+          <div className="crm-filter-search flex-1 min-w-0 sm:min-w-[220px] space-y-1.5"><span className={filterLabelClass}>Find a lead</span><TableToolbar label="Leads" search={search} onSearch={value=>changeQuery({q:value})} placeholder="Name, phone or lead ID…" onExport={()=>setShowExport(true)} exportDisabled={isLoading || !!loadError}/></div>
+          {isAdmin && <div className="crm-filter-owner w-full sm:w-[168px] space-y-1.5"><span className={filterLabelClass}>Lead owner</span><SearchSelect label="Employee" value={filters.assignedTo} onChange={value=>changeQuery({agent:value})} placeholder="All employees" options={[{value:'Unassigned',label:'Unassigned'},...users.map(u=>({value:u.name,label:u.name}))]}/></div>}
           <div className="crm-filter-period space-y-1.5 max-w-full"><span className={filterLabelClass}>{financialReport ? 'Won date' : 'Created date'}</span><div className={cn('flex items-center gap-1 p-1 rounded-xl h-10 border',theme==='light'?'bg-slate-100/80 border-slate-200/60':'bg-slate-800 border-slate-700')} role="group" aria-label={financialReport ? 'Lead won period' : 'Lead creation period'}>
             {['This Month','Last Month','Custom','All Time'].map(label=>{const selected=label==='Custom'?customDates || activeTimePreset==='Custom':!customDates && activeTimePreset===label;return <button key={label} aria-pressed={selected} onClick={()=>label==='Custom'?setCustomDates(true):applyTimePreset(label)} className={cn('px-2.5 md:px-3 h-8 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',selected?(theme==='light'?'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/60':'bg-indigo-600 text-white shadow-sm'):(theme==='light'?'text-slate-500 hover:text-slate-800 hover:bg-white/50':'text-slate-400 hover:text-white'))}>{label}</button>})}
           </div></div>
           <div className="crm-filter-more space-y-1.5"><span className={filterLabelClass}>Refine</span><Button variant="secondary" onClick={()=>setMoreFilters(v=>!v)} aria-expanded={moreFilters} aria-controls="advanced-lead-filters" className={cn('h-10 rounded-xl px-3 text-xs focus-visible:ring-2 focus-visible:ring-indigo-500',moreFilters?(theme==='light'?'bg-indigo-50 border-indigo-200 text-indigo-700':'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'):(theme==='light'?'border-slate-200 text-slate-600 shadow-none':'border-slate-700 text-slate-200 shadow-none'))}><Filter size={15}/><span className="hidden sm:inline">More</span> filters {advancedFilterCount>0 && <span className="rounded-full bg-indigo-600 text-white px-1.5 py-0.5 text-[10px]">{advancedFilterCount}</span>}<ChevronDown size={13} className={moreFilters?'rotate-180':''}/></Button></div>
 
         </div>
-        {(customDates || activeTimePreset==='Custom') && <div className={cn('mx-3 md:mx-4 mb-3 rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-3 text-xs',theme==='light'?'bg-indigo-50/60 text-slate-600':'bg-slate-800 text-slate-300')}><Calendar size={16} className="text-indigo-500"/><span className="font-semibold">{financialReport ? 'Custom won dates' : 'Custom creation dates'}</span><label className="flex items-center gap-2">From<input aria-label="Lead start date" type="date" value={createdFrom} onChange={e=>changeQuery({from:e.target.value,to:createdTo && e.target.value>createdTo?e.target.value:createdTo})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label><label className="flex items-center gap-2">To<input aria-label="Lead end date" type="date" value={createdTo} onChange={e=>changeQuery({to:e.target.value,from:createdFrom && e.target.value<createdFrom?e.target.value:createdFrom})} className={cn(filterControlClass,'h-8 w-auto px-2 text-xs')}/></label></div>}
+        {(customDates || activeTimePreset==='Custom') && <div className={cn('mx-3 md:mx-4 mb-3 rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-3 text-xs',theme==='light'?'bg-indigo-50/60 text-slate-600':'bg-slate-800 text-slate-300')}><Calendar size={16} className="text-indigo-500"/><span className="font-semibold">{financialReport ? 'Custom won dates' : 'Custom creation dates'}</span><label className="flex items-center gap-2">From<DateField label="Lead start date" value={createdFrom} onValueChange={value=>changeQuery({from:value,to:createdTo && value>createdTo?value:createdTo})} max={createdTo || undefined}/></label><label className="flex items-center gap-2">To<DateField label="Lead end date" value={createdTo} onValueChange={value=>changeQuery({to:value,from:createdFrom && value<createdFrom?value:createdFrom})} min={createdFrom || undefined}/></label></div>}
         {moreFilters && <div id="advanced-lead-filters" className={cn('px-3 md:px-4 py-3 border-t',theme==='light'?'bg-slate-50/60 border-slate-100':'bg-slate-800/40 border-slate-700')}>
           <div className="flex items-center justify-between mb-2.5"><span className={cn('text-xs font-semibold',getTextColor())}>Refine your results</span>{advancedFilterCount>0 && <button onClick={()=>changeQuery({status:'',pay:'',destination:'',temperature:''})} className="text-xs text-indigo-600 font-semibold focus-visible:ring-2 rounded">Reset advanced</button>}</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr] gap-3">
@@ -1571,19 +1514,7 @@ export const Leads = () => {
       {/* Content */}
       {(isLoading || loadError) && <div role="status" className="shrink-0 flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-xs mb-2">{loadError || (leads.length ? `Loaded ${leads.length} leads. Loading older leads; counts and filters will update…` : 'Loading your leads…')}{loadError && <button className="font-bold underline" onClick={retryLoad}>Retry</button>}</div>}
       {isLoading && filteredLeads.length === 0 ? <div role="status">Loading leads…</div> : loadError && leads.length === 0 ? <div>Unable to load leads. Use Retry above.</div> : filteredLeads.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] animate-in fade-in zoom-in-95 duration-500">
-          <div className={cn('w-24 h-24 rounded-full flex items-center justify-center mb-6', theme === 'light' ? 'bg-blue-50 text-blue-400' : 'bg-white/5 text-white/30')}>
-            {hasActiveFilters ? <SearchX size={48} /> : <Users size={48} />}
-          </div>
-          <h2 className={cn('text-2xl font-bold tracking-tight mb-2', getTextColor())}>{hasActiveFilters ? 'No matches found' : 'No leads yet'}</h2>
-          <p className={cn('max-w-xs mx-auto mb-8 text-center', getSecondaryTextColor())}>
-            {hasActiveFilters ? "We couldn't find any leads matching your filters." : 'Your pipeline is looking empty. Add your first potential client.'}
-          </p>
-          {hasActiveFilters
-            ? <Button onClick={clearFilters} variant="secondary">Clear Filters</Button>
-            : <Button onClick={handleOpenModal} className="hidden md:flex shadow-xl shadow-blue-500/20"><Plus size={18} /> Create First Lead</Button>
-          }
-        </div>
+        <EmptyState title={hasActiveFilters ? 'No leads match this view' : 'Your next journey starts here'} description={hasActiveFilters ? 'Try another search or clear your filters to see more enquiries.' : 'Add your first enquiry and keep every conversation, quotation and follow-up together.'} icon={hasActiveFilters ? SearchX : Users} action={{label:hasActiveFilters ? 'Clear filters' : 'Create first lead',onClick:hasActiveFilters ? clearFilters : handleOpenModal}}/>
       ) : view === 'overview' ? (
         <OverviewGrid
           allLeads={leads}
@@ -1705,9 +1636,9 @@ export const Leads = () => {
                 <input name="destination" required placeholder="Where to?" className={cn('w-full bg-transparent border-b p-2 outline-none text-base transition-colors', getBorderClass(), 'focus:border-blue-500', getTextColor())} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
+                <div className="ui-date-on-phone space-y-1">
                   <label className={cn('text-[10px] font-bold uppercase opacity-60', getTextColor())}>Start Date</label>
-                  <input name="startDate" type="date" required className={cn('w-full bg-transparent border-b p-2 outline-none text-base transition-colors', getBorderClass(), 'focus:border-blue-500', getTextColor())} />
+                  <DateField label="New lead start date" name="startDate" required value={newLeadDate} onValueChange={setNewLeadDate}/>
                 </div>
                 <div className="space-y-1">
                   <label className={cn('text-[10px] font-bold uppercase opacity-60', getTextColor())}>Nights</label>

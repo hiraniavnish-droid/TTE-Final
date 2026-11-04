@@ -1,3 +1,5 @@
+import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -9,6 +11,8 @@ import { usePaymentSummary } from '../hooks/usePaymentSummary';
 import { LeadCodeChip } from '../components/ui/LeadCodeChip';
 import { BookingDetailsDialog } from '../components/BookingDetailsDialog';
 import { bookingVendors, totalVendors, matchesPayment, groupVendorBalances, PaymentState, VendorBalance } from '../lib/customerAccounts';
+import { TableToolbar, SearchSelect, DateField, SegmentedControl } from '../components/ui/WorkspaceControls';
+import { DataTable, TableColumn, MetricCard } from '../components/ui/WorkspaceVisuals';
 import { Card } from '../components/ui/Card';
 import { Lead } from '../types';
 import { STATUS_COLUMNS } from '../constants';
@@ -109,19 +113,10 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
 
   const toggleCol = (key: string) => setSelected(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <button tabIndex={-1} aria-label="Close export backdrop" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label="Export accounts" className={cn('relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden', theme !== 'light' ? 'bg-slate-900 border border-white/10' : 'bg-white')}>
-        <div className={cn('flex items-center justify-between px-5 py-4 border-b shrink-0', getBorderClass())}>
-          <div>
-            <h2 className={cn('text-lg font-bold', getTextColor())}>Export Accounts</h2>
-            <p className={cn('text-[12px]', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>{filtered.length} booking{filtered.length === 1 ? '' : 's'} will be exported</p>
-          </div>
-          <button aria-label="Close export" onClick={onClose} className={cn('p-2 rounded-full', theme === 'light' ? 'hover:bg-slate-100 text-slate-400' : 'hover:bg-white/10 text-white/50')}><X size={18} /></button>
-        </div>
-
-        <div className="p-5 flex flex-col gap-4 overflow-y-auto">
+  return (
+    <Modal isOpen onClose={onClose} title="Export accounts" size="wide">
+      <p className="ui-muted text-sm">{filtered.length} booking{filtered.length === 1 ? '' : 's'} will be exported</p>
+        <div className="ui-export-body flex flex-col gap-4 mt-4">
           {/* Stage filter */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn('text-[11px] font-bold uppercase tracking-wide', theme === 'light' ? 'text-slate-400' : 'text-white/40')}>Stage</span>
@@ -189,27 +184,11 @@ const ExportPanel: React.FC<{ rows: AccountRow[]; onClose: () => void }> = ({ ro
           </div>
         </div>
 
-        <div className={cn('flex items-center justify-end gap-2 px-5 py-4 border-t shrink-0', getBorderClass())}>
-          <button
-            onClick={handleCopy}
-            disabled={filtered.length === 0 || cols.length === 0}
-            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors disabled:opacity-40',
-              theme === 'light' ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/80 hover:border-white/30')}
-          >
-            {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
-            {copied ? 'Copied!' : 'Copy to Clipboard'}
-          </button>
-          <button
-            onClick={handleDownload}
-            disabled={filtered.length === 0 || cols.length === 0}
-            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40',
-              theme === 'light' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-900 hover:bg-white/90')}
-          >
-            <Download size={15} /> Download CSV
-          </button>
+        <div className="ui-export-footer flex items-center justify-end gap-2 border-t border-slate-500/10">
+          <Button variant="secondary" onClick={handleCopy} disabled={filtered.length === 0 || cols.length === 0}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied!' : 'Copy to Clipboard'}</Button>
+          <Button onClick={handleDownload} disabled={filtered.length === 0 || cols.length === 0}><Download size={15}/>Download CSV</Button>
         </div>
-      </div>
-    </div>, document.body
+    </Modal>
   );
 };
 
@@ -228,6 +207,8 @@ export const Customers = () => {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('recent');
+  const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
+  const [visibleColumns, setVisibleColumns] = useState(['customer','destination','date','collected','paid','vendors','agent','open']);
   const [view, setView] = useState<'bookings' | 'vendors'>('bookings');
   const [visibleRows, setVisibleRows] = useState(50);
   const [showExport, setShowExport] = useState(false);
@@ -278,6 +259,8 @@ export const Customers = () => {
       return new Date(b.lead.wonAt || b.lead.lastStatusUpdate || b.lead.createdAt).getTime() - new Date(a.lead.wonAt || a.lead.lastStatusUpdate || a.lead.createdAt).getTime();
     });
   }, [rows, searchQuery, destinationFilter, agentFilter, vendorFilter, statusFilter, paymentFilter, collectionFilter, from, to, sort, view]);
+  useEffect(() => { setSelectedBookings([]); }, [searchQuery, destinationFilter, agentFilter, vendorFilter, statusFilter, paymentFilter, collectionFilter, from, to, view]);
+  const selectedRows = filteredRows.filter(row => selectedBookings.includes(row.lead.id));
   const vendorGroups = useMemo(() => groupVendorBalances(filteredRows), [filteredRows]);
   const totals = useMemo(() => filteredRows.reduce((s, r) => ({ collected: s.collected + r.collected, paid: s.paid + r.vendor.paid, owed: s.owed + r.vendor.owed }), { collected: 0, paid: 0, owed: 0 }), [filteredRows]);
   const hasActiveFilters = !!(searchQuery || destinationFilter || agentFilter || vendorFilter || statusFilter || paymentFilter || collectionFilter || from || to);
@@ -295,26 +278,45 @@ export const Customers = () => {
   };
   const shownCount = view === 'vendors' ? vendorGroups.length : filteredRows.length;
 
+  const bookingColumns: TableColumn<AccountRow>[] = [
+    {key:'customer',label:'Customer / TTE ID',sortValue:r=>r.lead.name,render:r=><div><label className="flex items-center gap-2"><input type="checkbox" aria-label={`Select booking ${r.lead.leadCode || r.lead.name}`} checked={selectedBookings.includes(r.lead.id)} onChange={()=>setSelectedBookings(current=>current.includes(r.lead.id)?current.filter(id=>id!==r.lead.id):[...current,r.lead.id])}/><strong>{r.lead.name}</strong></label><div className="mt-1"><LeadCodeChip code={r.lead.leadCode}/></div><small className="ui-muted">{r.lead.contact?.phone || '—'}</small></div>},
+    {key:'destination',label:'Destination',sortValue:r=>r.lead.tripDetails?.destination || '',render:r=>r.lead.tripDetails?.destination || '—'},
+    {key:'date',label:'Booked',sortValue:r=>r.lead.wonAt || '',render:r=>r.lead.wonAt ? formatDate(r.lead.wonAt) : r.lead.status === 'Won' ? 'Date not recorded' : r.lead.status},
+    {key:'collected',label:'Collected',align:'right',sortValue:r=>r.collected,render:r=>paymentSummaryLoaded ? fmtAmt(r.collected) : '—'},
+    {key:'paid',label:'Vendor paid',align:'right',sortValue:r=>r.vendor.paid,render:r=><div>{fmtAmt(r.vendor.paid)}{r.vendor.owed>0&&<small className="block text-amber-600">{fmtAmt(r.vendor.owed)} owed</small>}</div>},
+    {key:'vendors',label:'Vendors',render:r=>r.vendorNames || '—'},
+    ...(user?.role === 'admin' ? [{key:'agent',label:'Agent',render:(r:AccountRow)=>r.lead.assignedTo || 'Unassigned'}] : []),
+    {key:'open',label:'Booking',render:r=><button type="button" className="crm-button text-xs font-semibold text-blue-600 py-2" aria-label={`View booking ${r.lead.leadCode || r.lead.name}`} onClick={()=>setSelectedLead(r.lead.id)}>View booking ↗</button>},
+  ];
+  const vendorColumns: TableColumn<VendorBalance & {bookings:Set<string>}>[] = [
+    {key:'vendor',label:'Vendor',sortValue:r=>r.name,render:r=><strong>{r.name}</strong>},
+    {key:'bookings',label:'Bookings',sortValue:r=>r.bookings.size,render:r=>r.bookings.size},
+    {key:'cost',label:'Vendor cost',align:'right',sortValue:r=>r.cost,render:r=>fmtAmt(r.cost)},
+    {key:'paid',label:'Vendor paid',align:'right',sortValue:r=>r.paid,render:r=>fmtAmt(r.paid)},
+    {key:'owed',label:'Outstanding',align:'right',sortValue:r=>r.owed,render:r=>fmtAmt(r.owed)},
+    {key:'open',label:'Bookings',render:r=><button type="button" className="crm-button text-xs font-semibold text-blue-600 py-2" onClick={()=>{setVendorFilter(r.key);setView('bookings');}}>View bookings ↗</button>},
+  ];
   return <div className={cn('relative min-h-[calc(100vh-100px)] space-y-4', getTextColor())}>
     <div className="flex items-center justify-between gap-3 flex-wrap">
       <div><h1 className="text-2xl font-bold tracking-tight">Customers <span className={cn('text-sm font-medium ml-2', muted)}>{filteredRows.length} of {rows.length} bookings</span></h1><p className={cn('text-sm mt-1', muted)}>Booking-wise collections and vendor payments. Legacy sales excluded.</p></div>
-      <button disabled={!ready || !paymentSummaryLoaded || invalidDates} onClick={() => view === 'vendors' ? exportVendors() : setShowExport(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold disabled:opacity-40"><Download size={15} />{view === 'vendors' ? 'Export vendor balances' : 'Export CSV'}</button>
+
     </div>
 
     <Card className="space-y-3">
-      <label className="flex items-center gap-3"><Search size={18} className="opacity-40 shrink-0" /><input aria-label="Search bookings" placeholder="Search name, phone, TTE ID, destination or vendor…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('w-full px-3 py-2 text-sm', getInputClass())} /></label>
+      <TableToolbar selectionCount={view === 'bookings' ? selectedRows.length : 0} onClearSelection={()=>setSelectedBookings([])} label="Bookings" search={searchQuery} onSearch={setSearchQuery} placeholder="Name, phone, TTE ID, destination or vendor…" columns={view === 'bookings' ? bookingColumns.map(c => ({key:c.key,label:c.label,visible:visibleColumns.includes(c.key)})) : undefined} onToggleColumn={key => setVisibleColumns(current => current.includes(key) ? current.filter(k => k !== key) : [...current,key])} onExport={() => view === 'vendors' ? exportVendors() : setShowExport(true)} exportDisabled={!ready || !paymentSummaryLoaded || invalidDates}/>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <label className="space-y-1"><span className={labelCls}>Destination</span><select aria-label="Destination" value={destinationFilter} onChange={e => setDestinationFilter(e.target.value)} className={selectCls}><option value="">All destinations</option>{destinationOptions.map(d => <option key={d}>{d}</option>)}</select></label>
-        <label className="space-y-1"><span className={labelCls}>Vendor</span><select aria-label="Vendor" value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className={selectCls}><option value="">All vendors</option>{vendorOptions.map(v => <option key={v.key} value={v.key}>{v.name}</option>)}</select></label>
+        <label className="space-y-1"><span className={labelCls}>Destination</span><SearchSelect label="Destination" value={destinationFilter} onChange={setDestinationFilter} options={destinationOptions.map(d => ({value:d,label:d}))} placeholder="All destinations"/></label>
+        <label className="space-y-1"><span className={labelCls}>Vendor</span><SearchSelect label="Vendor" value={vendorFilter} onChange={setVendorFilter} options={vendorOptions.map(v => ({value:v.key,label:v.name}))} placeholder="All vendors"/></label>
         <label className="space-y-1"><span className={labelCls}>Vendor payment</span><select aria-label="Vendor payment" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value as PaymentState)} className={selectCls}><option value="">All payment states</option><option value="outstanding">Outstanding (unpaid + partial)</option><option value="unpaid">Not paid</option><option value="partial">Partially paid</option><option value="paid">Fully paid</option><option value="no-cost">No vendor cost entered</option></select></label>
         <label className="space-y-1"><span className={labelCls}>Customer collection</span><select aria-label="Customer collection" disabled={!paymentSummaryLoaded} value={collectionFilter} onChange={e => setCollectionFilter(e.target.value)} className={selectCls}><option value="">All collections</option><option value="pending">Collection pending</option><option value="uncollected">Nothing collected</option><option value="partial">Partially collected</option><option value="collected">Fully collected</option></select></label>
-        <label className="space-y-1"><span className={labelCls}>Booking done from</span><input aria-label="Booking done from" type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} className={selectCls} /></label>
-        <label className="space-y-1"><span className={labelCls}>Booking done to</span><input aria-label="Booking done to" type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} className={selectCls} /></label>
-        {user?.role === 'admin' && <label className="space-y-1"><span className={labelCls}>Agent</span><select aria-label="Agent" value={agentFilter} onChange={e => setAgentFilter(e.target.value)} className={selectCls}><option value="">All agents</option><option value="__unassigned">Unassigned</option>{agentOptions.map(a => <option key={a}>{a}</option>)}</select></label>}
+        <label className="ui-booking-date space-y-1"><span className={labelCls}>Booking done from</span><DateField label="Booking done from" value={from} onValueChange={setFrom} max={to || undefined}/></label>
+        <label className="ui-booking-date space-y-1"><span className={labelCls}>Booking done to</span><DateField label="Booking done to" value={to} onValueChange={setTo} min={from || undefined}/></label>
+        {user?.role === 'admin' && <label className="space-y-1"><span className={labelCls}>Agent</span><SearchSelect label="Agent" value={agentFilter} onChange={setAgentFilter} options={[{value:'__unassigned',label:'Unassigned'},...agentOptions.map(a => ({value:a,label:a}))]} placeholder="All agents"/></label>}
         <label className="space-y-1"><span className={labelCls}>Stage</span><select aria-label="Stage" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}><option value="">All stages</option>{STATUS_COLUMNS.map(s => <option key={s}>{s}</option>)}</select></label>
       </div>
       <div className="flex items-center justify-between flex-wrap gap-3 border-t border-slate-500/10 pt-3">
-        <div className="flex rounded-lg border border-slate-500/20 p-1 gap-1" aria-label="Accounts view">{(['bookings', 'vendors'] as const).map(v => <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className={cn('px-3 py-1.5 rounded-md text-xs font-semibold', view === v ? 'bg-indigo-600 text-white' : 'hover:bg-slate-500/10')}>{v === 'bookings' ? 'Bookings' : 'By vendor'}</button>)}</div>
+        <SegmentedControl label="Accounts view" value={view} onChange={value => setView(value as 'bookings' | 'vendors')} options={[{value:'bookings',label:'Bookings'},{value:'vendors',label:'By vendor'}]}/>
         <div className="flex items-center gap-3"><label className="flex items-center gap-2 text-xs">Sort<select aria-label="Sort bookings" value={sort} onChange={e => setSort(e.target.value)} className={selectCls}><option value="recent">Newest booking</option><option value="owed">Highest outstanding</option><option value="collected">Highest collected</option><option value="name">Customer name</option></select></label>{hasActiveFilters && <button onClick={clearFilters} className="text-xs font-semibold underline whitespace-nowrap">Clear filters</button>}</div>
       </div>
       {vendorFilter && <p className={cn('text-xs', muted)}>Vendor paid, outstanding and exports show only {vendorOptions.find(v => v.key === vendorFilter)?.name}. Collections remain the full booking amount.</p>}
@@ -327,32 +329,18 @@ export const Customers = () => {
     </div>}
 
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-label="Filtered account totals">
-      {[['Matching bookings', ready ? filteredRows.length : '…'], ['Collected', ready && paymentSummaryLoaded ? fmtAmt(totals.collected) : '—'], ['Vendor paid', ready ? fmtAmt(totals.paid) : '—'], ['Vendor outstanding', ready ? fmtAmt(totals.owed) : '—']].map(([label, value]) => <Card key={label} className="!p-3"><div className={labelCls}>{label}</div><div className={cn('text-lg font-bold mt-1 font-mono', label === 'Vendor outstanding' && 'text-amber-600')}>{value}</div></Card>)}
+      <MetricCard label="Matching bookings" value={ready ? filteredRows.length : null}/>
+      <MetricCard label="Collected" value={ready && paymentSummaryLoaded ? totals.collected : null} format={fmtAmt}/>
+      <MetricCard label="Vendor paid" value={ready ? totals.paid : null} format={fmtAmt}/>
+      <MetricCard featured label="Vendor outstanding" value={ready ? totals.owed : null} format={fmtAmt}/>
+
     </div>
 
     <Card noPadding className="overflow-hidden">
-      <div className="overflow-x-auto">
-        {view === 'vendors' ? <table className="w-full text-sm text-left min-w-[620px]" aria-label="Vendor balances">
-          <thead className="bg-slate-500/5 border-b border-slate-500/10"><tr>{['Vendor', 'Bookings', 'Vendor cost', 'Vendor paid', 'Outstanding', ''].map((h, i) => <th key={i} className={cn(thCls, i > 1 && 'text-right')}>{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-slate-500/10">{vendorGroups.slice(0, visibleRows).map(v => <tr key={v.key} className="hover:bg-slate-500/5"><td className="p-4 font-semibold">{v.name}</td><td className="p-4">{v.bookings.size}</td><td className="p-4 text-right font-mono">{fmtAmt(v.cost)}</td><td className="p-4 text-right font-mono">{fmtAmt(v.paid)}</td><td className="p-4 text-right font-mono font-bold text-amber-600">{fmtAmt(v.owed)}</td><td className="p-4 text-right"><button className="px-3 py-2 rounded-lg border border-slate-500/20 text-xs font-bold whitespace-nowrap" onClick={() => { setVendorFilter(v.key); setView('bookings'); }}>View bookings</button></td></tr>)}</tbody>
-        </table> : <table className="w-full text-left border-collapse min-w-[900px]" aria-label="Booking accounts">
-          <thead className="bg-slate-500/5 border-b border-slate-500/10"><tr>{['Customer / TTE ID', 'Destination', 'Booking done', 'Collected', 'Vendor paid', 'Vendor(s)', ...(user?.role === 'admin' ? ['Agent'] : []), 'Booking'].map(h => <th key={h} className={cn(thCls, ['Collected', 'Vendor paid', 'Booking'].includes(h) && 'text-right')}>{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-slate-500/10">{filteredRows.slice(0, visibleRows).map(({ lead, collected, vendor, vendorNames }) => <tr key={lead.id} className="hover:bg-slate-500/5">
-            <td className="p-4"><div className="font-bold text-sm">{lead.name}</div><div className="mt-1"><LeadCodeChip code={lead.leadCode} /></div><div className={cn('flex items-center gap-1 text-[11px] mt-1 whitespace-nowrap', muted)}><Phone size={10} />{lead.contact?.phone || '—'}</div></td>
-            <td className="p-4 text-sm max-w-[200px]">{lead.tripDetails?.destination || '—'}</td>
-            <td className="p-4 text-xs whitespace-nowrap">{lead.wonAt ? formatDate(lead.wonAt) : lead.status === 'Won' ? 'Date not recorded' : lead.status}</td>
-            <td className="p-4 text-right font-mono font-bold text-sm text-emerald-600">{paymentSummaryLoaded ? fmtAmt(collected) : '—'}</td>
-            <td className="p-4 text-right font-mono text-sm whitespace-nowrap">{fmtAmt(vendor.paid)}{vendor.owed > 0 && <div className="text-[10px] font-sans font-semibold text-amber-600 mt-1">{fmtAmt(vendor.owed)} owed</div>}</td>
-            <td className="p-4 text-xs max-w-[220px]" title={vendorNames}>{vendorNames}</td>
-            {user?.role === 'admin' && <td className="p-4"><span className={cn('px-2 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 whitespace-nowrap', getAgentColor(lead.assignedTo))}><UserCheck size={10} />{lead.assignedTo || 'Unassigned'}</span></td>}
-            <td className="p-4 text-right"><button aria-label={`View booking ${lead.leadCode || lead.name}`} onClick={() => setSelectedLead(lead.id)} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-500/20 hover:bg-slate-500/10">View</button></td>
-          </tr>)}</tbody>
-        </table>}
-        {shownCount === 0 && <div className="p-10 text-center"><User size={24} className="mx-auto opacity-30 mb-2" /><p className="font-semibold">{isLoading ? 'Loading bookings…' : 'No bookings match these filters'}</p><p className={cn('text-sm mt-1', muted)}>Try clearing a filter or changing the booking dates.</p></div>}
-      </div>
+      {view === 'vendors' ? <DataTable key="vendors" label="Vendor balances" rows={vendorGroups} limit={visibleRows} columns={vendorColumns} rowKey={row=>row.key} onClearFilters={clearFilters}/> : <DataTable key={`bookings-${sort}`} label="Booking accounts" rows={filteredRows} limit={visibleRows} columns={bookingColumns.filter(c=>visibleColumns.includes(c.key))} rowKey={row=>row.lead.id} onClearFilters={clearFilters}/>}
     </Card>
     {visibleRows < shownCount && <button className="w-full rounded-lg border border-slate-500/20 p-3 text-sm font-semibold" onClick={() => setVisibleRows(n => n + 50)}>Show more ({shownCount - visibleRows} remaining)</button>}
-    {showExport && ready && paymentSummaryLoaded && <ExportPanel rows={filteredRows} onClose={() => setShowExport(false)} />}
+    {showExport && ready && paymentSummaryLoaded && <ExportPanel rows={selectedRows.length ? selectedRows : filteredRows} onClose={() => setShowExport(false)} />}
     {selectedLead && <BookingDetailsDialog leadId={selectedLead} onClose={closeBooking} />}
   </div>;
 };
