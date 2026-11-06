@@ -11,6 +11,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { FileDropZone } from '../ui/WorkspaceVisuals';
 import { Modal } from '../ui/Modal';
 import { FileText, Plus, Eye, Download, Share2, Trash2, Loader2, File as FileIcon, Globe, FileWarning } from 'lucide-react';
 import {
@@ -37,6 +38,10 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
   const [docs, setDocs] = useState<LeadAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadType, setUploadType] = useState<DocType>('Other');
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadMessage, setUploadMessage] = useState('');
+  const uploadLock = useRef(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [oversizeNudge, setOversizeNudge] = useState<{ file: File; docType: DocType } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -55,32 +60,31 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
   };
 
   const doUpload = async (file: File, docType: DocType) => {
-    setUploading(true);
+    if (uploadLock.current) return;
+    uploadLock.current = true;
+    setUploading(true); setUploadStatus('uploading'); setUploadMessage(file.name);
     try {
       const doc = await uploadAttachment(leadId, file, docType, uploadedBy);
       setDocs(prev => [doc, ...prev]);
       toast.success('File uploaded');
+      setUploadStatus('success'); setUploadMessage(`${file.name} uploaded successfully.`);
     } catch (err: any) {
       toast.error(err?.message || 'Upload failed');
+      setUploadStatus('error'); setUploadMessage(err?.message || 'Upload failed. Choose the file again to retry.');
     } finally {
-      setUploading(false);
+      setUploading(false); uploadLock.current = false;
     }
   };
 
-  const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file next time
-    if (!file) return;
-
-    if (file.size > HARD_LIMIT_BYTES) {
-      toast.error(`"${file.name}" is ${fmtSize(file.size)} — the maximum allowed is 25 MB.`, { duration: 6000 });
-      return;
-    }
-    if (file.size > SOFT_LIMIT_BYTES) {
-      setOversizeNudge({ file, docType: pendingDocType.current });
-      return;
-    }
-    await doUpload(file, pendingDocType.current);
+  const queueFile = (file: File, docType: DocType) => {
+    if (uploadLock.current) return;
+    if (file.size > HARD_LIMIT_BYTES) { setUploadStatus('error'); setUploadMessage(`“${file.name}” is ${fmtSize(file.size)}. The maximum is 25 MB.`); return; }
+    if (file.size > SOFT_LIMIT_BYTES) { setOversizeNudge({ file, docType }); return; }
+    void doUpload(file, docType);
+  };
+  const handleFileChosen = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (file) queueFile(file, pendingDocType.current);
   };
 
   const openLink = async (doc: LeadAttachment, download: boolean) => {
@@ -146,6 +150,10 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
 
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChosen} disabled={uploading} />
 
+      <div className="p-4 space-y-3">
+        <label className="block text-xs font-semibold">Document category<select aria-label="Document category" value={uploadType} disabled={uploading} onChange={event => setUploadType(event.target.value as DocType)} className="block mt-2 w-full rounded-lg border border-slate-500/20 p-2.5 bg-transparent">{DOC_TYPES.map(type => <option key={type}>{type}</option>)}</select></label>
+        <FileDropZone onFile={file => queueFile(file, uploadType)} status={uploadStatus} message={uploadMessage} disabled={loading}/>
+      </div>
       <div className="p-2.5 space-y-2">
         {loading ? (
           <div className="py-4 text-center opacity-40 text-xs">Loading…</div>
@@ -159,7 +167,7 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
                     {docType}{items.length > 0 && <span className="ml-1.5 opacity-60">({items.length})</span>}
                   </span>
                   <button onClick={() => startUpload(docType)} disabled={uploading}
-                    title={`Add ${docType}`}
+                    aria-label={`Add ${docType}`} title={`Add ${docType}`}
                     className={cn('flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold transition disabled:opacity-50',
                       theme === 'light' ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-white/50 hover:text-white hover:bg-white/10')}>
                     {uploading ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />} Add
@@ -168,7 +176,7 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
                 {items.length > 0 && (
                   <div className="px-1.5 pb-1.5 space-y-1">
                     {items.map(doc => (
-                      <div key={doc.id} className={cn('p-1.5 rounded-md flex items-center gap-2',
+                      <div key={doc.id} className={cn('ui-document-row p-1.5 rounded-md flex items-center gap-2',
                         theme === 'light' ? 'bg-slate-50 hover:bg-slate-100' : 'bg-white/5 hover:bg-white/10')}>
                         <FileIcon size={13} className="shrink-0 opacity-40" />
                         <div className="flex-1 min-w-0">
@@ -177,15 +185,15 @@ export const DocumentsPanel: React.FC<{ leadId: string; uploadedBy: string }> = 
                             {formatDate(doc.createdAt)}{doc.fileSize ? ` · ${fmtSize(doc.fileSize)}` : ''}{doc.uploadedBy ? ` · ${doc.uploadedBy}` : ''}
                           </p>
                         </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
+                        <div className="ui-document-actions flex items-center gap-0.5 shrink-0">
                           {busyId === doc.id ? (
                             <Loader2 size={13} className="animate-spin opacity-50 mx-2" />
                           ) : (
                             <>
-                              <button onClick={() => openLink(doc, false)} title="View" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-black/5 transition"><Eye size={12.5} /></button>
-                              <button onClick={() => openLink(doc, true)} title="Download" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-black/5 transition"><Download size={12.5} /></button>
-                              <button onClick={() => shareToClient(doc)} title="Share on WhatsApp" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-black/5 transition"><Share2 size={12.5} /></button>
-                              <button onClick={() => remove(doc)} title="Delete" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-red-50 hover:text-red-500 transition"><Trash2 size={12.5} /></button>
+                              <button onClick={() => openLink(doc, false)} aria-label="View document" title="View" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-black/5 transition"><Eye size={12.5} /></button>
+                              <button onClick={() => openLink(doc, true)} aria-label="Download document" title="Download" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-black/5 transition"><Download size={12.5} /></button>
+                              <button onClick={() => shareToClient(doc)} aria-label="Share on WhatsApp document" title="Share on WhatsApp" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-black/5 transition"><Share2 size={12.5} /></button>
+                              <button onClick={() => remove(doc)} aria-label="Delete document" title="Delete" className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-red-50 hover:text-red-500 transition"><Trash2 size={12.5} /></button>
                             </>
                           )}
                         </div>

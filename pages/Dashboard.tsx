@@ -1,7 +1,8 @@
 import { isFinancialLead } from '../lib/financialLeadFilter';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useCountUp } from '../hooks/useCountUp';
+import { AnimatedNumber, TrendChart } from '../components/ui/WorkspaceVisuals';
+import { DateField } from '../components/ui/WorkspaceControls';
 import { RadialGauge } from '../components/ui/RadialGauge';
 import { ActivityHeatmap } from '../components/ActivityHeatmap';
 import { Card } from '../components/ui/Card';
@@ -392,7 +393,7 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2">
-                <div className="flex items-center justify-between gap-2 mb-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                     <div className="flex items-center gap-2">
                         <div className={cn("p-1.5 rounded bg-amber-500/10 text-amber-500")}>
                             <Crown size={18} />
@@ -526,105 +527,22 @@ const AdminLeaderboard = ({ leads }: { leads: Lead[] }) => {
 // --- Standard Agent Dashboard Components ---
 
 const KPICard = ({ collectedLabel = 'Collected', pendingLabel = 'Pending', title, value, rawValue, formatFn, subtext, breakdown, icon: Icon, colorClass, onClick, delta, deltaLabel, emptyHint, extraFaded, collected, pending, loading }: any) => {
-    const { getTextColor, theme } = useTheme();
-    const animated = useCountUp(typeof rawValue === 'number' ? rawValue : 0, 1200);
-    const displayValue = (typeof rawValue === 'number' && formatFn)
-      ? formatFn(animated)
-      : value;
 
-    const isEmpty = (typeof rawValue === 'number' && rawValue === 0);
-
-    return (
-        // ── Double-Bezel outer shell ──────────────────────────────────────────
-        <div className={cn(
-            "h-full p-[2px] rounded-[1.75rem] transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]",
-            onClick ? "cursor-pointer group hover:-translate-y-1 active:scale-[0.97]" : "",
-            theme === 'light'
-                ? cn(
-                    "bg-gradient-to-br from-slate-200/80 via-slate-100/40 to-transparent",
-                    "shadow-[0_4px_24px_-4px_rgba(15,23,42,0.08),0_1px_4px_rgba(15,23,42,0.04)]",
-                    onClick ? "hover:shadow-[0_16px_48px_-8px_rgba(15,23,42,0.14),0_4px_12px_rgba(15,23,42,0.06)]" : ""
-                )
-                : "bg-gradient-to-br from-white/[0.08] to-white/[0.03] shadow-lg shadow-black/20"
-        )}>
-            {/* ── Inner core ───────────────────────────────────────────────── */}
-            <div
-                onClick={onClick}
-                className={cn(
-                    "h-full p-5 md:p-6 rounded-[calc(1.75rem-2px)] relative overflow-hidden flex flex-col",
-                    theme === 'light'
-                        ? "bg-white shadow-[inset_0_1px_0_rgba(255,255,255,1)]"
-                        : "bg-slate-800/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                )}
-            >
-                {/* Top accent stripe */}
-                <div className={cn("absolute top-0 left-0 right-0 h-[3px] rounded-t-[calc(1.75rem-2px)]", colorClass)} />
-                <div className="flex justify-between items-start mb-4 mt-1">
-                    <div className={cn("p-2 rounded-xl", colorClass)}>
-                        <Icon size={18} className="text-white" />
-                    </div>
-                    {onClick && (
-                        <div className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]",
-                            "opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 scale-90 group-hover:scale-100",
-                            theme === 'light' ? "bg-slate-100" : "bg-white/10"
-                        )}>
-                            <ArrowRight size={12} className={theme === 'light' ? "text-slate-500" : "text-white/60"} />
-                        </div>
-                    )}
-                </div>
-                <div className="relative z-10">
-                    <p className={cn("text-[9px] font-semibold uppercase tracking-[0.18em] opacity-45 mb-1.5", getTextColor())}>{title}</p>
-                    {loading ? (
-                        <div className="space-y-2 py-1">
-                            <div className={cn("h-7 w-28 rounded-lg animate-pulse", theme === 'light' ? 'bg-slate-100' : 'bg-white/10')} />
-                            <div className={cn("h-3 w-20 rounded animate-pulse", theme === 'light' ? 'bg-slate-100' : 'bg-white/10')} />
-                        </div>
-                    ) : (
-                    <>
-                    <h3 className={cn("text-2xl md:text-3xl font-bold tracking-tight tabular-nums", getTextColor())}>{displayValue}</h3>
-                    {delta && (
-                        <div className="flex items-center gap-1 mt-1.5">
-                            <span className={cn(
-                                "text-[10px] font-semibold tabular-nums",
-                                delta.isUp === true ? 'text-emerald-500' : delta.isUp === false ? 'text-rose-500' : 'opacity-40'
-                            )}>{delta.text}</span>
-                            {deltaLabel && <span className={cn("text-[10px] opacity-40", getTextColor())}>vs {deltaLabel}</span>}
-                        </div>
-                    )}
-                    {breakdown ? (
-                        <div className={cn("text-[9px] mt-2.5 pt-2 border-t border-dashed border-gray-500/15 font-mono opacity-70", getTextColor())}>
-                            {breakdown}
-                        </div>
-                    ) : (
-                        subtext && <p className={cn("text-[9px] mt-1.5 opacity-40 truncate", getTextColor())}>{subtext}</p>
-                    )}
-                    {isEmpty && emptyHint && (
-                        <p className={cn("text-[9px] mt-1.5 italic opacity-40", getTextColor())}>{emptyHint}</p>
-                    )}
-                    {/* Simple Collected / Pending split — always sums to the headline value above */}
-                    {typeof collected === 'number' && !isEmpty && (
-                        <div className="flex items-center gap-3 mt-2">
-                            <div>
-                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>{collectedLabel}</p>
-                                <p className={cn("text-sm font-extrabold tabular-nums", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>{collected === 0 ? '₹0' : formatCurrency(collected)}</p>
-                            </div>
-                            <div>
-                                <p className={cn("text-[8.5px] font-bold uppercase tracking-wider opacity-40", getTextColor())}>{pendingLabel}</p>
-                                <p className={cn("text-sm font-bold tabular-nums opacity-60", getTextColor())}>{pending === 0 ? '₹0' : formatCurrency(pending)}</p>
-                            </div>
-                        </div>
-                    )}
-                    {/* Reference line(s) — e.g. paid/owed to vendors */}
-                    {extraFaded && (Array.isArray(extraFaded) ? extraFaded : [extraFaded]).filter(Boolean).map((line: string, i: number) => (
-                        <p key={i} className={cn("text-[10px] mt-1 opacity-45 truncate", getTextColor())}>{line}</p>
-                    ))}
-                    </>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
+    const empty = typeof rawValue === 'number' && rawValue === 0;
+    const displayValue = empty && value === 'TBD' ? '₹0' : typeof rawValue === 'number' && formatFn ? <AnimatedNumber value={rawValue} format={formatFn}/> : value;
+    return <div className="crm-kpi" role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick}
+      onKeyDown={event => { if (onClick && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onClick(); } }}>
+      <div className="crm-kpi-title"><span>{title}</span><Icon size={17} aria-hidden="true"/></div>
+      {loading ? <div className="h-8 w-24 bg-slate-100 rounded animate-pulse mt-3" role="status" aria-label={`Loading ${title}`}/> : <>
+        <h3 className="crm-kpi-value">{displayValue}</h3>
+        {delta && <p className="crm-kpi-caption"><span className={delta.isUp === true ? 'text-emerald-600' : delta.isUp === false ? 'text-rose-600' : ''}>{delta.text}</span>{deltaLabel && ` vs ${deltaLabel}`}</p>}
+        {subtext && <p className="crm-kpi-caption">{subtext}</p>}
+        {breakdown && !empty && <div className="crm-kpi-breakdown">{breakdown}</div>}
+        {empty && emptyHint && <p className="crm-kpi-caption">{emptyHint}</p>}
+        {typeof collected === 'number' && !empty && <div className="crm-kpi-split"><div><span>{collectedLabel}</span><strong>{collected === 0 ? '₹0' : formatCurrency(collected)}</strong></div><div><span>{pendingLabel}</span><strong>{pending === 0 ? '₹0' : formatCurrency(pending)}</strong></div></div>}
+        {extraFaded && (Array.isArray(extraFaded) ? extraFaded : [extraFaded]).filter(Boolean).map((line:string,i:number) => <p key={i} className="crm-kpi-caption">{line}</p>)}
+      </>}
+    </div>;
 };
 
 // --- Logic Helpers ---
@@ -870,6 +788,16 @@ export const Dashboard = () => {
       return allLeads.filter(l => l.assignedTo === viewAsAgent);
   }, [user, leads, allLeads, viewAsAgent]);
 
+  const enquiryTrend = useMemo(() => {
+    const range = customOverride ?? getPeriodRange(timeFilter);
+    const buckets = new Map<string,number>();
+    dashboardLeads.forEach(lead => {
+      const date = new Date(lead.createdAt);
+      if (Number.isNaN(date.getTime()) || (range.start && date < range.start) || (range.end && date > range.end)) return;
+      const key = businessDate(date); buckets.set(key,(buckets.get(key)||0)+1);
+    });
+    return [...buckets].sort(([a],[b])=>a.localeCompare(b)).map(([key,value])=>({label:new Date(key+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',...(timeFilter==='All Time'?{year:'2-digit' as const}:{})}),value}));
+  }, [dashboardLeads,timeFilter,customOverride]);
   const stats = useMemo(() => getDashboardStats(dashboardLeads, timeFilter, customOverride ?? undefined, paymentSummary), [dashboardLeads, timeFilter, customOverride, paymentSummary]);
 
   const prevStats = useMemo(() => {
@@ -898,8 +826,8 @@ export const Dashboard = () => {
     navigate(path);
   };
 
-  const hotLeads = useMemo(() => dashboardLeads
-        .filter((l) => l.temperature === 'Hot' && l.status !== 'Won' && l.status !== 'Lost')
+  const recentLeads = useMemo(() => dashboardLeads
+        .filter((l) => l.status !== 'Won' && l.status !== 'Lost')
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5), [dashboardLeads]);
 
@@ -1078,12 +1006,12 @@ export const Dashboard = () => {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-full flex flex-col">
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2"><Briefcase size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold tracking-tight", getTextColor())}>Priority Leads</h3></div>
+                <div className="flex items-center gap-2"><Briefcase size={16} className={getSecondaryTextColor()} /><h3 className={cn("font-bold tracking-tight", getTextColor())}>Recent enquiries</h3></div>
                 <Link to="/leads" className="text-xs text-blue-500 hover:underline">View All</Link>
             </div>
             <div className="space-y-3">
-                {hotLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No hot leads.</div> :
-                    hotLeads.map(lead => (
+                {recentLeads.length === 0 ? <div className="text-center py-8 opacity-50 text-sm">No active enquiries.</div> :
+                    recentLeads.map(lead => (
                         <Link key={lead.id} to={`/leads/${lead.id}`} className={cn(
                             "flex items-center justify-between p-3 rounded-2xl border group",
                             "transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5",
@@ -1128,11 +1056,11 @@ export const Dashboard = () => {
   );
 
   const kpiSection = (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 items-stretch">
+    <div className="crm-kpi-grid">
         {/* Revenue — double-wide anchor card */}
         <motion.div
-            className="col-span-2 h-full"
-            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            className="h-full"
+            initial={false}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 0.6, delay: 0, ease: [0.32, 0.72, 0, 1] }}
         >
@@ -1156,7 +1084,7 @@ export const Dashboard = () => {
         </motion.div>
         <motion.div
             className="h-full"
-            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            initial={false}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 0.6, delay: 0.07, ease: [0.32, 0.72, 0, 1] }}
         >
@@ -1181,17 +1109,16 @@ export const Dashboard = () => {
             />
         </motion.div>
         <motion.div
-            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            initial={false}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 0.6, delay: 0.14, ease: [0.32, 0.72, 0, 1] }}
-            onClick={() => handleNav('/leads?status=Won,Lost')}
-            className="cursor-pointer h-full"
+            className="h-full"
         >
-            <RadialGauge value={stats.winRate} label="Win Rate" subtext={deltas?.winRate ? `${deltas.winRate.text} vs ${periodLabel}` : "Won / closed leads created in period"} />
+            <RadialGauge onClick={() => handleNav('/leads?status=Won,Lost')} value={stats.winRate} label="Win Rate" subtext={deltas?.winRate ? `${deltas.winRate.text} vs ${periodLabel}` : "Won / closed leads created in period"} />
         </motion.div>
         <motion.div
             className="h-full"
-            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            initial={false}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 0.6, delay: 0.21, ease: [0.32, 0.72, 0, 1] }}
         >
@@ -1199,7 +1126,7 @@ export const Dashboard = () => {
                 title="New-stage Leads"
                 value={stats.pendingCount}
                 rawValue={stats.pendingCount}
-                formatFn={(n: number) => String(n)}
+                formatFn={(n: number) => Math.round(n).toLocaleString('en-IN')}
                 subtext={staleActiveCount > 0 ? `+ ${staleActiveCount} stale active` : "Untouched, status: New"}
                 icon={Clock}
                 colorClass="bg-rose-500"
@@ -1409,15 +1336,15 @@ export const Dashboard = () => {
     const pulse = theme === 'light' ? 'bg-slate-100' : 'bg-white/5';
     return (
       <div className="space-y-6 md:space-y-8 pb-20 px-2 md:px-0">
-        <div className="flex items-center justify-between">
-          <div className={cn('h-7 w-64 rounded-lg animate-pulse', pulse)} />
-          <div className={cn('h-9 w-72 rounded-lg animate-pulse', pulse)} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className={cn('h-7 w-48 max-w-full rounded-lg animate-pulse', pulse)} />
+          <div className={cn('h-9 w-60 max-w-full rounded-lg animate-pulse', pulse)} />
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-          <div className={cn('col-span-2 h-40 rounded-[1.75rem] animate-pulse', pulse)} />
-          <div className={cn('h-40 rounded-[1.75rem] animate-pulse', pulse)} />
-          <div className={cn('h-40 rounded-[1.75rem] animate-pulse', pulse)} />
-          <div className={cn('h-40 rounded-[1.75rem] animate-pulse', pulse)} />
+          <div className={cn('col-span-2 h-40 rounded-xl animate-pulse', pulse)} />
+          <div className={cn('h-40 rounded-xl animate-pulse', pulse)} />
+          <div className={cn('h-40 rounded-xl animate-pulse', pulse)} />
+          <div className={cn('h-40 rounded-xl animate-pulse', pulse)} />
         </div>
         <div className={cn('h-64 rounded-2xl animate-pulse', pulse)} />
         <div className={cn('h-96 rounded-2xl animate-pulse', pulse)} />
@@ -1426,16 +1353,16 @@ export const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-20 px-2 md:px-0">
+    <div className="crm-dashboard space-y-6 relative pb-4 min-w-0">
 
       {/* Header — compact toolbar row */}
-      <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="min-w-0 flex items-baseline gap-2.5 flex-wrap">
+      <div className="crm-dashboard-header relative flex flex-col gap-4">
+          <div className="min-w-0">
             <h1 className={cn("text-2xl font-bold tracking-tight", getTextColor())}>
               {getGreeting(user?.name || 'Expert')}
             </h1>
-            <span className={cn("text-[11px] font-semibold hidden lg:inline truncate", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
-              {quote}
+            <span className={cn("block text-sm mt-2", theme === 'light' ? 'text-slate-400' : 'text-white/40')}>
+              Your enquiries, bookings and team activity in one place.
             </span>
           </div>
 
@@ -1554,28 +1481,26 @@ export const Dashboard = () => {
               {/* Date pickers — appear below pill when Custom is active */}
               {showCustomRange && (
                 <div className={cn(
-                  "flex items-center gap-1.5 p-1 pl-2 rounded-xl border text-xs font-semibold animate-scale-pop",
+                  "crm-dashboard-date-range flex items-center gap-1.5 p-1 pl-2 rounded-xl border text-xs font-semibold animate-scale-pop",
                   theme === 'light' ? "bg-white border-slate-300" : "bg-slate-800 border-slate-600/50"
                 )}>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">From</span>
-                  <input
-                    type="date"
-                    aria-label="Start date"
+                  <DateField
+                    label="Start date"
                     max={customEnd || undefined}
                     value={customStart}
-                    onChange={e => { setCustomStart(e.target.value); if (e.target.value > customEnd) setCustomEnd(e.target.value); }}
+                    onValueChange={value => { setCustomStart(value); if (value > customEnd) setCustomEnd(value); }}
                     className={cn(
                       "text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 bg-transparent cursor-pointer",
                       theme === 'light' ? "text-slate-800" : "text-white"
                     )}
                   />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</span>
-                  <input
-                    type="date"
-                    aria-label="End date"
+                  <DateField
+                    label="End date"
                     min={customStart || undefined}
                     value={customEnd}
-                    onChange={e => { setCustomEnd(e.target.value); if (e.target.value < customStart) setCustomStart(e.target.value); }}
+                    onValueChange={value => { setCustomEnd(value); if (value < customStart) setCustomStart(value); }}
                     className={cn(
                       "text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 bg-transparent cursor-pointer",
                       theme === 'light' ? "text-slate-800" : "text-white"
@@ -1597,6 +1522,7 @@ export const Dashboard = () => {
         <>
           {[
             kpiSection,
+            <Card><TrendChart title="Enquiry trend" description="Enquiries created in the selected period, grouped by day" data={enquiryTrend}/></Card>,
             compareSection,
             <ActivityMonitor logs={activityLogs} />,
             <ActivityHeatmap logs={activityLogs} />,
@@ -1626,6 +1552,7 @@ export const Dashboard = () => {
             operationsSection,
             priorityGridSection,
             kpiSection,
+            <Card><TrendChart title="Enquiry trend" description="Enquiries created in the selected period, grouped by day" data={enquiryTrend}/></Card>,
             mobileAnalyticsBar,
             pipelineSection ? <div className={showOnMobile('pipeline')}>{pipelineSection}</div> : null,
             <div className={showOnMobile('funnel')}>{analyticsSection}</div>,

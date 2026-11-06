@@ -1,17 +1,20 @@
+import { sessionStore } from '../lib/browserStorage';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { WorkspaceTabs, TabPanel, DateField, SearchSelect, SaveChangesBar } from '../components/ui/WorkspaceControls';
+import { ActivityTimeline, EmptyState } from '../components/ui/WorkspaceVisuals';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { DialButton } from '../components/ui/DialButton';
 import { ServiceSelector } from '../components/ServiceSelector';
-import { PaxSelector } from '../components/PaxSelector'; 
+import { PaxSelector } from '../components/PaxSelector';
 import { TravelPreferences } from '../components/TravelPreferences';
-import { WorkflowStepper } from '../components/WorkflowStepper'; 
+import { WorkflowStepper } from '../components/WorkflowStepper';
 import { VendorManagementModal } from '../components/VendorManagementModal'; // NEW
 import { VendorPaymentModal } from '../components/VendorPaymentModal';
 import { QuoteEngineCostingPanel } from '../components/leads/QuoteEngineCostingPanel';
@@ -23,13 +26,13 @@ import { InteractionType, Interaction, Reminder, LeadStatus, Commercials, Lead, 
 import { formatCurrency, formatCompactCurrency, formatDate, generateId, cn } from '../utils/helpers';
 import { triggerConfetti } from '../utils/celebration';
 import toast from 'react-hot-toast';
-import { 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Calendar, 
-  Users, 
-  Tag, 
+import {
+  Phone,
+  Mail,
+  MapPin,
+  Calendar,
+  Users,
+  Tag,
   ArrowLeft,
   Clock,
   MessageCircle,
@@ -70,12 +73,12 @@ const generateVendorBrief = (lead: Lead): string => {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + nights);
 
-    const services = lead.interestedServices && lead.interestedServices.length > 0 
-      ? lead.interestedServices.join(', ') 
+    const services = lead.interestedServices && lead.interestedServices.length > 0
+      ? lead.interestedServices.join(', ')
       : 'Not Specified';
-      
+
     const paxString = `${lead.tripDetails.paxConfig.adults} Adults, ${lead.tripDetails.paxConfig.children} Children ${lead.tripDetails.paxConfig.children > 0 ? `(${lead.tripDetails.paxConfig.childAges.join(', ')} yrs)` : ''}`;
-    
+
     const prefs = lead.preferences || {};
     const prefString = [
         prefs.hotel ? `🏨 ${prefs.hotel}` : '',
@@ -124,7 +127,7 @@ const CommercialsView: React.FC<CommercialsViewProps> = ({ lead, commercials, on
 
     const sellingPrice = commercials.sellingPrice || 0;
     const netCost = commercials.netCost || 0;
-    
+
     const grossProfit = sellingPrice - netCost;
     const marginPercent = sellingPrice > 0 ? (grossProfit / sellingPrice) * 100 : 0;
 
@@ -295,18 +298,23 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
   const [interactionSentiment, setInteractionSentiment] = useState<Sentiment>('Neutral');
   const [isReminderModalOpen, setReminderModalOpen] = useState(false);
   // toast handled by react-hot-toast globally
-  
+
   // Gatekeeper States
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | null>(null);
 
+  const [detailTab, setDetailTab] = useState('overview');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const lead = leads.find(l => l.id === id);
   const [formData, setFormData] = useState<Lead | undefined>(lead);
 
   useEffect(() => {
-    if (lead) setFormData(lead);
-  }, [lead]);
+    if (lead && !isEditing) setFormData(lead);
+  }, [lead, isEditing]);
+
+  useEffect(() => { setIsEditing(false); setProfileError(''); setDetailTab('overview'); }, [id]);
 
   useEffect(() => { onDirtyChange?.(isEditing && !!lead && !!formData && JSON.stringify(formData)!==JSON.stringify(lead)); }, [isEditing,formData,lead,onDirtyChange]);
 
@@ -321,7 +329,7 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
       if (isRevert) {
           const clickedIndex = WORKFLOW_ORDER.indexOf(status);
           const previousStatus = clickedIndex > 0 ? WORKFLOW_ORDER[clickedIndex - 1] : 'New';
-          if (lead.status === previousStatus) return; 
+          if (lead.status === previousStatus) return;
           const logMessage = `System: Status reverted to ${previousStatus} (undid ${stepName}).`;
           updateLeadStatus(lead.id, previousStatus, logMessage);
       } else {
@@ -370,17 +378,17 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
           sellingPrice: totalPrice,
           netCost: totalCost,
           vendorId: vendors[0].id,
-          taxAmount: 0 
+          taxAmount: 0
       };
 
       const updatedLead = { ...formData!, vendors, commercials: newCommercials };
       setFormData(updatedLead); // Update local state
       updateLead(leadId, { vendors, commercials: newCommercials }); // Update context
-      
+
       // 2. Resume Status Change
       if (pendingStatus) {
           updateLeadStatus(leadId, pendingStatus);
-          
+
           if (pendingStatus === 'Proposal Sent') {
                   toast.success('Proposal prepared & status updated!');
           }
@@ -434,10 +442,14 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
     setReminderModalOpen(false);
   };
 
-  const handleSaveProfile = () => {
-      if (!formData) return;
-      updateLead(lead.id, formData);
-      setIsEditing(false);
+  const discardProfile = () => { setFormData(lead); setIsEditing(false); setProfileError(''); };
+  const handleSaveProfile = async () => {
+      if (!formData || profileSaving) return;
+      if (!formData.name.trim()) { setProfileError('Please enter the client name.'); return; }
+      setProfileSaving(true); setProfileError('');
+      try { await updateLead(lead.id, formData, { throwOnError: true }); setIsEditing(false); toast.success('Lead changes saved'); }
+      catch (error: any) { setProfileError(error?.message || 'Changes could not be saved. Your edits are still here.'); }
+      finally { setProfileSaving(false); }
   };
 
   const handleDeleteLead = async () => {
@@ -464,16 +476,189 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
   };
 
   const editInputClass = cn(
-      "bg-transparent border-b border-gray-500/30 focus:border-slate-900 outline-none w-full transition-colors pb-1 text-sm font-medium", 
+      "bg-transparent border-b border-gray-500/30 focus:border-slate-900 outline-none w-full transition-colors pb-1 text-sm font-medium",
       getTextColor()
+  );
+
+  const profileContent = (
+<fieldset disabled={profileSaving}><Card>
+                  <div className="flex items-center gap-2.5 mb-3 border-b border-gray-500/10 pb-3">
+                      <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
+                          <User size={18} strokeWidth={2.5} />
+                      </div>
+                      <h3 className={cn("text-base font-bold font-serif", getTextColor())}>Trip Profile</h3>
+
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                      {/* Contact */}
+                      <div className="space-y-4">
+                          <h4 className={cn("text-xs font-bold uppercase tracking-wider opacity-50", getTextColor())}>Contact Info</h4>
+                          <div className="space-y-3">
+                              <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Name</label>
+                                  {isEditing ? (
+                                      <input
+                                          aria-label="Name" value={formData.name}
+                                          onChange={e => setFormData({...formData, name: e.target.value})}
+                                          className={editInputClass}
+                                          placeholder="Client name"
+                                      />
+                                  ) : (
+                                      <span className="text-sm font-semibold">{lead.name}</span>
+                                  )}
+                              </div>
+                              <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Phone</label>
+                                  {isEditing ? (
+                                      <input
+                                          aria-label="Phone" value={formData.contact.phone}
+                                          onChange={e => setFormData({...formData, contact: {...formData.contact, phone: e.target.value}})}
+                                          className={editInputClass}
+                                      />
+                                  ) : (
+                                      <div className="flex items-center justify-between">
+                                          <span className="font-mono text-sm">{lead.contact.phone}</span>
+                                          <div className="flex gap-2">
+                                              <DialButton phoneNumber={lead.contact.phone} className="w-8 h-8" />
+                                              <a aria-label={`Message ${lead.name} on WhatsApp`} href={`https://wa.me/${lead.contact.phone.replace(/[^0-9]/g, '')}`} target="_blank" className={cn("w-8 h-8 flex items-center justify-center rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-all active:scale-90")}>
+                                                  <MessageCircle size={14} strokeWidth={2.5} />
+                                              </a>
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+                              <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Email</label>
+                                  {isEditing ? (
+                                      <input
+                                          aria-label="Email" value={formData.contact.email}
+                                          onChange={e => setFormData({...formData, contact: {...formData.contact, email: e.target.value}})}
+                                          className={editInputClass}
+                                      />
+                                  ) : (
+                                      <span className="text-sm">{lead.contact.email || '-'}</span>
+                                  )}
+                              </div>
+                              <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Assigned To</label>
+                                  {isEditing && user?.role === 'admin' ? (
+                                      <SearchSelect label="Assigned employee" value={formData.assignedTo || 'Unassigned'} allowClear={false} disabled={profileSaving} options={[{ value: 'Unassigned', label: 'Unassigned' }, ...users.filter(u => u.role === 'agent').map(u => ({ value: u.name, label: u.name }))]} onChange={value => setFormData({...formData, assignedTo: value === 'Unassigned' ? null : value})} />
+                                  ) : (
+                                      <span className="text-sm font-medium">{(!lead.assignedTo || lead.assignedTo === 'System' || lead.assignedTo === 'Unassigned') ? 'Admin' : lead.assignedTo}</span>
+                                  )}
+                              </div>
+                              <div>
+                                  <label className="text-[10px] opacity-50 block mb-1">Lead Source</label>
+                                  <span className="text-sm font-medium">{lead.source || 'Manual CRM entry'}</span>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Key Details */}
+                      <div className="space-y-4">
+                          <h4 className={cn("text-xs font-bold uppercase tracking-wider opacity-50", getTextColor())}>Trip Basics</h4>
+                          <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="text-[10px] opacity-50 block mb-1">Destination</label>
+                                      {isEditing ? (
+                                          <input
+                                              aria-label="Destination" value={formData.tripDetails.destination}
+                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, destination: e.target.value}})}
+                                              className={editInputClass}
+                                          />
+                                      ) : (
+                                          <span className="text-sm font-medium">{lead.tripDetails.destination}</span>
+                                      )}
+                                  </div>
+                                  <div className="ui-trip-date">
+                                      <label className="text-[10px] opacity-50 block mb-1">Start Date</label>
+                                      {isEditing ? (
+                                          <DateField label="Trip start date"
+                                              value={formData.tripDetails.startDate}
+                                              onValueChange={value => setFormData({...formData, tripDetails: {...formData.tripDetails, startDate: value}})}
+
+                                          />
+                                      ) : (
+                                          <span className="text-sm font-mono">{formatDate(lead.tripDetails.startDate)}</span>
+                                      )}
+                                  </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="text-[10px] opacity-50 block mb-1">Nights</label>
+                                      {isEditing ? (
+                                          <input
+                                              type="number"
+                                              min={1}
+                                              aria-label="Nights" value={formData.tripDetails.nights ?? ''}
+                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, nights: e.target.value ? Number(e.target.value) : undefined}})}
+                                              className={editInputClass}
+                                          />
+                                      ) : (
+                                          <span className="text-sm font-mono">{lead.tripDetails.nights ? `${lead.tripDetails.nights} Nights` : '—'}</span>
+                                      )}
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] opacity-50 block mb-1">Budget</label>
+                                      {isEditing ? (
+                                          <input
+                                              type="number"
+                                              aria-label="Budget" value={formData.tripDetails.budget}
+                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, budget: Number(e.target.value)}})}
+                                              className={editInputClass}
+                                          />
+                                      ) : (
+                                          <span className="text-sm font-mono font-bold text-emerald-600">{formatCurrency(lead.tripDetails.budget)}</span>
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-gray-500/10">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-2">
+                              <PaxSelector
+                                  value={formData.tripDetails.paxConfig}
+                                  onChange={(p) => setFormData({...formData, tripDetails: {...formData.tripDetails, paxConfig: p}})}
+                                  readOnly={!isEditing}
+                              />
+                          </div>
+                          <div className="space-y-2">
+                              <TravelPreferences
+                                  value={formData.preferences}
+                                  onChange={(p) => setFormData({...formData, preferences: p})}
+                                  readOnly={!isEditing}
+                              />
+                          </div>
+                      </div>
+                  </div>
+
+                  {Object.keys(lead.tripDetails.websiteFields || {}).length > 0 && (
+                      <div className="mt-6 pt-5 border-t border-gray-500/10">
+                          <p className={cn("text-xs font-bold uppercase tracking-wider opacity-50 mb-3", getTextColor())}>Website Enquiry Details</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+                              {Object.entries(lead.tripDetails.websiteFields || {}).map(([label, value]) => (
+                                  <div key={label} className="min-w-0">
+                                      <p className="text-[10px] uppercase tracking-wide opacity-45 mb-0.5">{label}</p>
+                                      <p className="text-sm font-medium break-words">{value}</p>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+              </Card></fieldset>
   );
 
   return (
     <div className={cn("max-w-[1680px] mx-auto relative pb-10", !embedded && "animate-in fade-in slide-in-from-right-8 duration-500")}>
-      
+
 
       {/* --- Gatekeeper Modal --- */}
-      <VendorManagementModal 
+      <VendorManagementModal
           isOpen={isVendorModalOpen}
           onClose={() => setIsVendorModalOpen(false)}
           leadId={lead.id}
@@ -483,20 +668,15 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row justify-between items-start gap-3 mb-3">
           <div>
-              <div className="flex items-center gap-2.5 mb-2">
-                  <Button variant="ghost" onClick={() => { if(embedded){onClose?.();return;} const target=sessionStorage.getItem(`tte-lead-workspace:${user?.id || 'anonymous'}:return`); navigate(target?.startsWith('/leads?') ? target : '/leads'); }} aria-label="Back to lead workspace" className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
+              <div className="crm-lead-heading flex items-center gap-2.5 mb-2">
+                  <Button disabled={profileSaving} variant="ghost" onClick={() => { if(embedded){onClose?.();return;} const target=sessionStore.getItem(`tte-lead-workspace:${user?.id || 'anonymous'}:return`); navigate(target?.startsWith('/leads?') ? target : '/leads'); }} aria-label="Back to lead workspace" className="p-0 h-auto hover:bg-transparent opacity-40 hover:opacity-100 active:scale-90 transition">
                       <ArrowLeft size={20} strokeWidth={2.5} />
                   </Button>
-                  <h1 className={cn("text-xl md:text-2xl font-bold font-serif tracking-tight", getTextColor())}>{lead.name}</h1>
+                  <h1 className={cn("min-w-0 text-xl md:text-2xl font-bold tracking-tight break-words", getTextColor())}>{lead.name}</h1>
                   <LeadCodeChip code={lead.leadCode} size="md" />
-                  <span className={cn(
-                      "text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded border",
-                      lead.temperature === 'Hot' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-600 border-slate-200'
-                  )}>
-                      {lead.temperature}
-                  </span>
+
               </div>
-              
+
               <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-sm", getSecondaryTextColor())}>
                   <div className="flex items-center gap-1.5">
                       <MapPin size={15} strokeWidth={2} className="opacity-50" />
@@ -521,7 +701,7 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
           </div>
 
           <div className="flex flex-wrap gap-2 w-full lg:w-auto justify-start lg:justify-end">
-              <Button variant="secondary" onClick={() => setIsEditing(!isEditing)}>
+              <Button variant="secondary" disabled={profileSaving} onClick={() => { if (isEditing) discardProfile(); else { setIsEditing(true); setDetailTab('trip'); } }}>
                   {isEditing ? <X size={16} /> : <Pencil size={16} />}
                   {isEditing ? 'Cancel Edit' : 'Edit Lead'}
               </Button>
@@ -543,230 +723,16 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
                       <XCircle size={16} /> Mark as Lost
                   </Button>
               )}
-              <Button variant="danger" onClick={handleDeleteLead} className="hidden sm:flex">
+              <Button aria-label="Delete lead" variant="danger" onClick={handleDeleteLead} className="hidden sm:flex">
                   <Trash2 size={16} />
               </Button>
           </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-
-          {/* LEFT COLUMN (2/3): Workflow, Profile, Commercials */}
-          <div className="xl:col-span-2 space-y-4">
-              
-              {/* Workflow Stepper */}
-              <Card>
+      <WorkspaceTabs id="lead-detail" label="Lead sections" value={detailTab} onChange={setDetailTab} options={[{ value: 'overview', label: 'Overview' }, { value: 'trip', label: 'Trip details' }, { value: 'quotes', label: 'Quotations' }, { value: 'payments', label: 'Payments' }, { value: 'activity', label: 'Activity & chat' }, { value: 'documents', label: 'Documents' }]}/>
+      <TabPanel id="lead-detail" value="overview" active={detailTab}>{detailTab === 'overview' && <div className="grid grid-cols-1 xl:grid-cols-3 gap-4"><div className="xl:col-span-2 space-y-4"><Card>
                   <WorkflowStepper currentStatus={lead.status} onStepClick={handleStepClick} />
-              </Card>
-
-              {/* Editable Profile */}
-              <Card>
-                  <div className="flex items-center gap-2.5 mb-3 border-b border-gray-500/10 pb-3">
-                      <div className={cn("p-2 rounded-lg", theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white')}>
-                          <User size={18} strokeWidth={2.5} />
-                      </div>
-                      <h3 className={cn("text-base font-bold font-serif", getTextColor())}>Trip Profile</h3>
-                      {isEditing && (
-                          <Button size="sm" onClick={handleSaveProfile} className="ml-auto bg-green-600 hover:bg-green-700 text-white border-none">
-                              <Save size={16} /> Save Changes
-                          </Button>
-                      )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                      {/* Contact */}
-                      <div className="space-y-4">
-                          <h4 className={cn("text-xs font-bold uppercase tracking-wider opacity-50", getTextColor())}>Contact Info</h4>
-                          <div className="space-y-3">
-                              <div>
-                                  <label className="text-[10px] opacity-50 block mb-1">Name</label>
-                                  {isEditing ? (
-                                      <input
-                                          value={formData.name}
-                                          onChange={e => setFormData({...formData, name: e.target.value})}
-                                          className={editInputClass}
-                                          placeholder="Client name"
-                                      />
-                                  ) : (
-                                      <span className="text-sm font-semibold">{lead.name}</span>
-                                  )}
-                              </div>
-                              <div>
-                                  <label className="text-[10px] opacity-50 block mb-1">Phone</label>
-                                  {isEditing ? (
-                                      <input
-                                          value={formData.contact.phone}
-                                          onChange={e => setFormData({...formData, contact: {...formData.contact, phone: e.target.value}})}
-                                          className={editInputClass}
-                                      />
-                                  ) : (
-                                      <div className="flex items-center justify-between">
-                                          <span className="font-mono text-sm">{lead.contact.phone}</span>
-                                          <div className="flex gap-2">
-                                              <DialButton phoneNumber={lead.contact.phone} className="w-8 h-8" />
-                                              <a href={`https://wa.me/${lead.contact.phone.replace(/[^0-9]/g, '')}`} target="_blank" className={cn("w-8 h-8 flex items-center justify-center rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-all active:scale-90")}>
-                                                  <MessageCircle size={14} strokeWidth={2.5} />
-                                              </a>
-                                          </div>
-                                      </div>
-                                  )}
-                              </div>
-                              <div>
-                                  <label className="text-[10px] opacity-50 block mb-1">Email</label>
-                                  {isEditing ? (
-                                      <input
-                                          value={formData.contact.email}
-                                          onChange={e => setFormData({...formData, contact: {...formData.contact, email: e.target.value}})}
-                                          className={editInputClass}
-                                      />
-                                  ) : (
-                                      <span className="text-sm">{lead.contact.email || '-'}</span>
-                                  )}
-                              </div>
-                              <div>
-                                  <label className="text-[10px] opacity-50 block mb-1">Assigned To</label>
-                                  {isEditing && user?.role === 'admin' ? (
-                                      <select
-                                          value={formData.assignedTo || 'Unassigned'}
-                                          onChange={e => setFormData({...formData, assignedTo: e.target.value === 'Unassigned' ? null : e.target.value})}
-                                          className={cn(editInputClass, "[&>option]:text-black")}
-                                      >
-                                          <option value="Unassigned">Unassigned</option>
-                                          {users.filter(u => u.role === 'agent').map(u => (
-                                              <option key={u.id} value={u.name}>{u.name}</option>
-                                          ))}
-                                      </select>
-                                  ) : (
-                                      <span className="text-sm font-medium">{(!lead.assignedTo || lead.assignedTo === 'System' || lead.assignedTo === 'Unassigned') ? 'Admin' : lead.assignedTo}</span>
-                                  )}
-                              </div>
-                              <div>
-                                  <label className="text-[10px] opacity-50 block mb-1">Lead Source</label>
-                                  <span className="text-sm font-medium">{lead.source || 'Manual CRM entry'}</span>
-                              </div>
-                          </div>
-                      </div>
-
-                      {/* Key Details */}
-                      <div className="space-y-4">
-                          <h4 className={cn("text-xs font-bold uppercase tracking-wider opacity-50", getTextColor())}>Trip Basics</h4>
-                          <div className="space-y-3">
-                              <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                      <label className="text-[10px] opacity-50 block mb-1">Destination</label>
-                                      {isEditing ? (
-                                          <input 
-                                              value={formData.tripDetails.destination} 
-                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, destination: e.target.value}})}
-                                              className={editInputClass}
-                                          />
-                                      ) : (
-                                          <span className="text-sm font-medium">{lead.tripDetails.destination}</span>
-                                      )}
-                                  </div>
-                                  <div>
-                                      <label className="text-[10px] opacity-50 block mb-1">Start Date</label>
-                                      {isEditing ? (
-                                          <input 
-                                              type="date"
-                                              value={formData.tripDetails.startDate} 
-                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, startDate: e.target.value}})}
-                                              className={editInputClass}
-                                          />
-                                      ) : (
-                                          <span className="text-sm font-mono">{formatDate(lead.tripDetails.startDate)}</span>
-                                      )}
-                                  </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                      <label className="text-[10px] opacity-50 block mb-1">Nights</label>
-                                      {isEditing ? (
-                                          <input
-                                              type="number"
-                                              min={1}
-                                              value={formData.tripDetails.nights ?? ''}
-                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, nights: e.target.value ? Number(e.target.value) : undefined}})}
-                                              className={editInputClass}
-                                          />
-                                      ) : (
-                                          <span className="text-sm font-mono">{lead.tripDetails.nights ? `${lead.tripDetails.nights} Nights` : '—'}</span>
-                                      )}
-                                  </div>
-                                  <div>
-                                      <label className="text-[10px] opacity-50 block mb-1">Budget</label>
-                                      {isEditing ? (
-                                          <input
-                                              type="number"
-                                              value={formData.tripDetails.budget}
-                                              onChange={e => setFormData({...formData, tripDetails: {...formData.tripDetails, budget: Number(e.target.value)}})}
-                                              className={editInputClass}
-                                          />
-                                      ) : (
-                                          <span className="text-sm font-mono font-bold text-emerald-600">{formatCurrency(lead.tripDetails.budget)}</span>
-                                      )}
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="mt-8 pt-6 border-t border-gray-500/10">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <div className="space-y-2">
-                              <PaxSelector 
-                                  value={formData.tripDetails.paxConfig} 
-                                  onChange={(p) => setFormData({...formData, tripDetails: {...formData.tripDetails, paxConfig: p}})}
-                                  readOnly={!isEditing}
-                              />
-                          </div>
-                          <div className="space-y-2">
-                              <TravelPreferences 
-                                  value={formData.preferences} 
-                                  onChange={(p) => setFormData({...formData, preferences: p})}
-                                  readOnly={!isEditing}
-                              />
-                          </div>
-                      </div>
-                  </div>
-
-                  {Object.keys(lead.tripDetails.websiteFields || {}).length > 0 && (
-                      <div className="mt-6 pt-5 border-t border-gray-500/10">
-                          <p className={cn("text-xs font-bold uppercase tracking-wider opacity-50 mb-3", getTextColor())}>Website Enquiry Details</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
-                              {Object.entries(lead.tripDetails.websiteFields || {}).map(([label, value]) => (
-                                  <div key={label} className="min-w-0">
-                                      <p className="text-[10px] uppercase tracking-wide opacity-45 mb-0.5">{label}</p>
-                                      <p className="text-sm font-medium break-words">{value}</p>
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-                  )}
-              </Card>
-
-              {/* Commercials Section (Modified to open Vendor Modal) */}
-              <CommercialsView
-                  lead={lead}
-                  commercials={formData.commercials || { sellingPrice: 0, netCost: 0, vendorId: '' }}
-                  onEdit={() => setIsVendorModalOpen(true)}
-                  onSaveVendor={handleSaveGeneratedVendor}
-                  onLogNote={handleLogQuoteNote}
-              />
-          </div>
-
-          {/* RIGHT COLUMN (1/3): Timeline & Tasks */}
-          <div className="space-y-3">
-
-              {/* WhatsApp Two-Way Chat */}
-              <WhatsAppChatWidget lead={lead} compact />
-
-              {/* Razorpay Payment Collection */}
-              <PaymentLinkWidget lead={lead} />
-
-              {/* Quick Actions */}
-              <div className="grid grid-cols-2 gap-3">
+              </Card>{profileContent}</div><aside className="space-y-4"><div className="grid grid-cols-2 gap-3">
                   <Button className="w-full justify-center" onClick={() => setReminderModalOpen(true)}>
                       <Clock size={16} /> Set Reminder
                   </Button>
@@ -777,13 +743,7 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
                   }}>
                       <Mail size={16} /> Email
                   </Button>
-              </div>
-
-              {/* Documents — hotel vouchers, payment bills, etc. */}
-              <DocumentsPanel leadId={lead.id} uploadedBy={user?.name || 'Unknown'} />
-
-              {/* Tasks List */}
-              <Card noPadding className="max-h-[300px] flex flex-col">
+              </div><Card noPadding className="max-h-[300px] flex flex-col">
                   <div className={cn("p-4 border-b border-gray-500/10 flex justify-between items-center", theme === 'light' ? 'bg-slate-50/50' : 'bg-white/5')}>
                       <span className={cn("text-xs font-bold uppercase tracking-wider opacity-60", getTextColor())}>Pending Tasks</span>
                       <span className={cn("text-xs px-2 py-0.5 rounded-full font-bold", theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-white/10 text-white')}>{reminders.filter(r => !r.isCompleted).length}</span>
@@ -804,27 +764,27 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
                           </div>
                       ))}
                   </div>
-              </Card>
-
-              {/* Timeline Feed */}
-              <div className="space-y-4">
-                  <div className={cn("flex items-center gap-2 opacity-50 px-1", getTextColor())}>
-                      <History size={14} />
-                      <span className="text-xs font-bold uppercase tracking-wider">Interaction History</span>
-                  </div>
-
-                  {/* Add Note Input */}
-                  <Card noPadding className="p-3">
+              </Card><Card><h3 className="text-sm font-bold mb-4">Recent activity</h3><ActivityTimeline events={interactions.slice(0,3)}/><Button variant="ghost" onClick={() => setDetailTab('activity')}>View all activity</Button></Card></aside></div>}</TabPanel>
+      <TabPanel id="lead-detail" value="trip" active={detailTab}>{detailTab === 'trip' && profileContent}</TabPanel>
+      <TabPanel id="lead-detail" value="quotes" active={detailTab}>{detailTab === 'quotes' && <CommercialsView
+                  lead={lead}
+                  commercials={formData.commercials || { sellingPrice: 0, netCost: 0, vendorId: '' }}
+                  onEdit={() => setIsVendorModalOpen(true)}
+                  onSaveVendor={handleSaveGeneratedVendor}
+                  onLogNote={handleLogQuoteNote}
+              />}</TabPanel>
+      <TabPanel id="lead-detail" value="payments" active={detailTab}>{detailTab === 'payments' && <div className="max-w-3xl"><PaymentLinkWidget lead={lead}/></div>}</TabPanel>
+      <TabPanel id="lead-detail" value="activity" active={detailTab}>{detailTab === 'activity' && <div className="grid grid-cols-1 xl:grid-cols-2 gap-4"><div className="space-y-4"><Card noPadding className="p-3">
                       <form onSubmit={handleLogInteraction}>
                           <div className="relative">
                               <input
-                                  placeholder="Log a call, note, or update..."
+                                  aria-label="Log a call, note or update" placeholder="Log a call, note, or update..."
                                   className={cn("w-full bg-transparent text-sm outline-none pr-10", getInputClass(), "border-none shadow-none focus:ring-0")}
                                   value={interactionText}
                                   onChange={(e) => setInteractionText(e.target.value)}
                               />
                               <button
-                                  type="submit"
+                                  aria-label="Save interaction" type="submit"
                                   disabled={!interactionText.trim()}
                                   className={cn(
                                       "absolute right-0 top-1/2 -translate-y-1/2 p-1.5 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90",
@@ -858,52 +818,9 @@ export const LeadDetails = ({ leadId, embedded = false, onClose, onDirtyChange }
                               </div>
                           )}
                       </form>
-                  </Card>
-
-                  {/* Timeline Items */}
-                  <div className="space-y-4 pl-4 border-l-2 border-gray-200/50 ml-2 relative">
-                      {interactions.map((interaction) => (
-                          <div key={interaction.id} className="relative group">
-                              <div className={cn(
-                                  "absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm transition-colors",
-                                  interaction.type === 'StatusChange' ? 'bg-slate-800' :
-                                  interaction.type === 'Call' ? 'bg-blue-400' : 'bg-gray-400'
-                              )} />
-                              
-                              <div className={cn("p-3 rounded-xl border transition-all hover:shadow-sm", theme === 'light' ? 'bg-white border-slate-100' : 'bg-white/5 border-white/10')}>
-                                  <div className="flex justify-between items-start mb-1">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className={cn("text-[10px] font-bold uppercase tracking-wider opacity-60", getTextColor())}>
-                                              {interaction.type}
-                                          </span>
-                                          {interaction.sentiment && interaction.sentiment !== 'Neutral' && (
-                                              <span className={cn(
-                                                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none inline-flex items-center gap-1",
-                                                  interaction.sentiment === 'Positive'
-                                                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                                      : 'bg-rose-100 text-rose-700 border-rose-200'
-                                              )}>
-                                                  {interaction.sentiment === 'Positive' ? <ThumbsUp size={9} strokeWidth={2.5} /> : <ThumbsDown size={9} strokeWidth={2.5} />}
-                                                  {interaction.sentiment}
-                                              </span>
-                                          )}
-                                      </div>
-                                      <span className="text-[10px] font-mono opacity-40">
-                                          {formatDate(interaction.timestamp)}
-                                      </span>
-                                  </div>
-                                  <p className={cn("text-sm", getTextColor())}>{interaction.content}</p>
-                              </div>
-                          </div>
-                      ))}
-                      {interactions.length === 0 && (
-                          <p className="text-xs opacity-40 italic pl-2">No history yet.</p>
-                      )}
-                  </div>
-              </div>
-
-          </div>
-      </div>
+                  </Card><Card><ActivityTimeline events={interactions.map(interaction => ({ ...interaction, content: interaction.content, type: interaction.sentiment && interaction.sentiment !== 'Neutral' ? `${interaction.type} · ${interaction.sentiment}` : interaction.type }))}/></Card></div><WhatsAppChatWidget lead={lead}/></div>}</TabPanel>
+      <TabPanel id="lead-detail" value="documents" active={detailTab}>{detailTab === 'documents' && <div className="max-w-3xl"><DocumentsPanel leadId={lead.id} uploadedBy={user?.name || 'Unknown'}/></div>}</TabPanel>
+      <SaveChangesBar dirty={isEditing && JSON.stringify(formData) !== JSON.stringify(lead)} saving={profileSaving} error={profileError} onSave={handleSaveProfile} onDiscard={discardProfile}/>
 
       {/* Reminder Modal */}
       <Modal isOpen={isReminderModalOpen} onClose={() => setReminderModalOpen(false)} title="Set Follow-up">

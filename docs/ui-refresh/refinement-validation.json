@@ -1,0 +1,546 @@
+{
+  "date": "2026-11-04",
+  "branch": "codex/crm-ui-mobile-refresh",
+  "environment": "Local read-only CRM preview with fictional records",
+  "responsive": {
+    "checks": 51,
+    "passed": 51,
+    "widths": [
+      320,
+      390,
+      768,
+      1024,
+      1440
+    ],
+    "results": [
+      {
+        "documentWidth": 320,
+        "heading": "A more thoughtful CRM.",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "16-part demo",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "A more thoughtful CRM.",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "16-part demo",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "A more thoughtful CRM.",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "16-part demo",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "A more thoughtful CRM.",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "16-part demo",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "A more thoughtful CRM.",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "16-part demo",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Customers 2 of 12 bookings",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Customer accounts",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Customers 2 of 12 bookings",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Customer accounts",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Customers 2 of 12 bookings",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Customer accounts",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Customers 2 of 12 bookings",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Customer accounts",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Customers 2 of 12 bookings",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Customer accounts",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Leads",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Lead board",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Leads",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Lead board",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Leads",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Lead board",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Leads",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Lead board",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Leads",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Lead board",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Leads",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Lead list",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Leads",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Lead list",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Leads",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Lead list",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Leads",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Lead list",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Leads",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Lead list",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Rann Utsav Quotation",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Rann quotation",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Rann Utsav Quotation",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Rann quotation",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Rann Utsav Quotation",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Rann quotation",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Rann Utsav Quotation",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Rann quotation",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Rann Utsav Quotation",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Rann quotation",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Good Evening, Design Reviewer",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Dashboard",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Good Evening, Design Reviewer",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Dashboard",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Good Evening, Design Reviewer",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Dashboard",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Good Evening, Design Reviewer",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Dashboard",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Good Evening, Design Reviewer",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Dashboard",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Lead overview",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Lead overview",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Lead overview",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Lead overview",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Lead overview",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Lead quotations",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Lead quotations",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Lead quotations",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Lead quotations",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Lead quotations",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Payments",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Payments",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Payments",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Payments",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Payments",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Payments",
+        "pass": true
+      },
+      {
+        "documentWidth": 1024,
+        "heading": "Payments",
+        "mainScrollWidth": 792,
+        "mainWidth": 792,
+        "width": 1024,
+        "label": "Payments",
+        "pass": true
+      },
+      {
+        "documentWidth": 1440,
+        "heading": "Payments",
+        "mainScrollWidth": 1208,
+        "mainWidth": 1208,
+        "width": 1440,
+        "label": "Payments",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Lead documents",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Lead documents",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Lead documents",
+        "pass": true
+      },
+      {
+        "documentWidth": 320,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 320,
+        "mainWidth": 320,
+        "width": 320,
+        "label": "Lead activity",
+        "pass": true
+      },
+      {
+        "documentWidth": 390,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 390,
+        "mainWidth": 390,
+        "width": 390,
+        "label": "Lead activity",
+        "pass": true
+      },
+      {
+        "documentWidth": 768,
+        "heading": "Demo · Aarav Shah",
+        "mainScrollWidth": 768,
+        "mainWidth": 768,
+        "width": 768,
+        "label": "Lead activity",
+        "pass": true
+      }
+    ]
+  },
+  "interactions": {
+    "keyboard_tabs": "passed: arrow-key selection updates the corresponding panel",
+    "nested_dialogs": "passed: calendar selection retains date-only value; closing restores the trigger; Tab wraps inside the parent drawer",
+    "save_demo": "passed: failure retains edits; retry success removes the dirty bar",
+    "real_lead_save_failure": "passed: a rejected update retains the edited name and shows an error; Discard restores saved data",
+    "table": "passed: search narrows rows, numeric header sorts correctly, columns can be hidden, selection is visible",
+    "customer_vendor_drilldown": "passed: matching vendor totals and View bookings preserve the vendor filter",
+    "selected_booking_csv": "passed: selecting TTE-1004 produces exactly one exported booking, preserving existing columns and balances",
+    "demo_csv": "passed: three fictional rows exported with names, destinations, stages and amounts",
+    "async_select": "passed: debounced search for Meera yields one matching option and Enter selects it",
+    "upload_demo": "passed: synthetic-file success and failure messages; no bytes transmitted or stored",
+    "command_menu": "passed: searching TTE-1000 and pressing Enter opens that lead",
+    "feedback_and_motion": "passed: error-state retry changes the view, primary demo action responds, disabled control stays disabled, value update changes to ₹2,05,000",
+    "chart": "passed: changing the demo period updates both its metric and chart data summary",
+    "new_lead_calendar": "passed: selecting 15 November stores 2026-11-15 in the existing named native form input",
+    "custom_dates_phone": "passed: both Dashboard custom date inputs remain usable at 320px; input width approximately 160px",
+    "mobile_export": "passed: 320px dialog/body fit, selected CSV contains one booking, Escape closes and restores Export focus",
+    "calendar_320px": "passed: calendar width 266px fits its 286px container, using 36px day cells and the CRM accent"
+  },
+  "automated": {
+    "productionBuild": "passed",
+    "fictionalPreviewBuild": "passed",
+    "browserResilience": "9 passed",
+    "customerAccounts": "passed",
+    "financialLeadFilter": "passed",
+    "dashboardPeriods": "passed",
+    "21stReview": {
+      "controls": "0 errors, 0 warnings",
+      "visuals": "0 errors, 0 warnings",
+      "demo": "0 errors, 0 warnings"
+    },
+    "typescript": {
+      "diagnostics": 38,
+      "newRefinementDiagnostics": 0,
+      "status": "Existing repository diagnostics remain; see REVIEW.md"
+    }
+  },
+  "limitations": [
+    "Browser viewport emulation, not physical iOS/Android keyboard testing",
+    "No successful live CRM mutation, real payment, customer message or live R2 upload performed",
+    "Reduced-motion support is implemented; OS preference switching was not exercised",
+    "Existing broad pricing verification discrepancies and large-bundle warnings remain"
+  ],
+  "screenshots": [
+    ".ui-qa/refinement-demo-desktop.png",
+    ".ui-qa/refinement-demo-bento.png",
+    ".ui-qa/refinement-drawer-mobile.png",
+    ".ui-qa/refinement-dashboard-desktop.png"
+  ],
+  "themeChecks": [
+    {
+      "main": 390,
+      "scroll": 390,
+      "theme": "dark",
+      "width": 390
+    },
+    {
+      "main": 390,
+      "scroll": 390,
+      "theme": "ocean",
+      "width": 390
+    },
+    {
+      "main": 390,
+      "scroll": 390,
+      "theme": "light",
+      "width": 390
+    }
+  ]
+}

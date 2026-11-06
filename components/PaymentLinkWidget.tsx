@@ -1,3 +1,4 @@
+import { localStore } from '../lib/browserStorage';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
@@ -101,7 +102,7 @@ interface DocRecord {
 
 const authHeaders = (): Record<string, string> => {
   try {
-    const token = localStorage.getItem(TTE_TOKEN_KEY);
+    const token = localStore.getItem(TTE_TOKEN_KEY);
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 };

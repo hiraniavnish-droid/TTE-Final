@@ -1,5 +1,6 @@
 
 import React, { Suspense } from 'react';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -31,6 +32,7 @@ const QuoteTrainerPractice = React.lazy(() => import('./pages/QuoteTrainerPracti
 const Availability = React.lazy(() => import('./pages/Availability').then(module => ({ default: module.Availability })));
 const RajarshiHub = React.lazy(() => import('./pages/RajarshiHub').then(module => ({ default: module.RajarshiHub })));
 const RajarshiReadyPackages = React.lazy(() => import('./pages/RajarshiReadyPackages').then(module => ({ default: module.RajarshiReadyPackages })));
+const UIDemo = React.lazy(() => import('./pages/UIDemo').then(module => ({ default: module.UIDemo })));
 const Attendance = React.lazy(() => import('./pages/Attendance').then(module => ({ default: module.Attendance })));
 
 const ProtectedRoute = () => {
@@ -41,24 +43,9 @@ const ProtectedRoute = () => {
   return <Outlet />;
 };
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
-  declare readonly props: { children: React.ReactNode };
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(error: Error) { console.error('CRM page failed to render:', error); }
-  render() {
-    if (this.state.failed) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center bg-slate-50 text-slate-800">
-      <h1 className="text-xl font-bold">This page could not load</h1>
-      <p>Reload to get the latest CRM version. Your saved data is safe.</p>
-      <button className="rounded-lg bg-blue-600 px-5 py-3 text-white" onClick={() => window.location.reload()}>Reload CRM</button>
-    </div>;
-    return this.props.children;
-  }
-}
-
 function App() {
   return (
-    <ErrorBoundary>
+    <AppErrorBoundary>
       <AuthProvider>
         <ThemeProvider>
           <TaskProvider>
@@ -80,6 +67,7 @@ function App() {
                     <Route path="/" element={<Layout />}>
                       <Route index element={<Dashboard />} />
                       <Route path="leads" element={<Leads />} />
+                      <Route path="ui-demo" element={<UIDemo />} />
                       <Route path="leads/:id" element={<LeadDetails />} />
                       <Route path="builder" element={<KutchItineraryBuilder />} />
                       <Route path="rann-utsav-builder" element={<RannUtsavBuilder />} />
@@ -108,7 +96,7 @@ function App() {
           </TaskProvider>
         </ThemeProvider>
       </AuthProvider>
-    </ErrorBoundary>
+    </AppErrorBoundary>
   );
 }
 

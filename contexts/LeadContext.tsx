@@ -19,7 +19,7 @@ interface LeadContextType {
   retryLoad: () => void;
   addLead: (lead: Lead) => Promise<void>;
   addLeads: (leads: Lead[]) => Promise<void>;
-  updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
+  updateLead: (id: string, updates: Partial<Lead>, options?: { throwOnError?: boolean }) => Promise<void>;
   updateLeadStatus: (id: string, status: LeadStatus, customLog?: string) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
   addInteraction: (interaction: Interaction) => void;
@@ -389,7 +389,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
 
-  const updateLead = async (id: string, updates: Partial<Lead>) => {
+  const updateLead = async (id: string, updates: Partial<Lead>, options?: { throwOnError?: boolean }) => {
     try {
         const before = internalLeads.find(l => l.id === id);
         const dbUpdates = mapLeadToDB(updates);
@@ -419,6 +419,7 @@ export const LeadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     } catch (err) {
         console.error('Supabase Update Error:', err);
+        if (options?.throwOnError) throw err;
     }
   };
 

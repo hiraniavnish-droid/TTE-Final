@@ -1,3 +1,4 @@
+import { sessionStore } from '../lib/browserStorage';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Papa from 'papaparse';
@@ -681,10 +682,10 @@ export const BlockedRates = () => {
     // Try cache first (unless forcing a refresh)
     if (!forceRefresh) {
       try {
-        const raw = sessionStorage.getItem(RATES_CACHE_KEY);
+        const raw = sessionStore.getItem(RATES_CACHE_KEY);
         if (raw) {
           const cached = JSON.parse(raw);
-          if (Date.now() - cached.timestamp < RATES_CACHE_TTL) {
+          if (cached && Array.isArray(cached.data) && cached.data.every(row => row && typeof row === 'object') && Date.now() - cached.timestamp < RATES_CACHE_TTL) {
             setRates(cached.data);
             setFromCache(true);
             setLoading(false);
@@ -704,7 +705,7 @@ export const BlockedRates = () => {
         const data = res.data as HotelRate[];
         setRates(data);
         setLoading(false);
-        try { sessionStorage.setItem(RATES_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+        try { sessionStore.setItem(RATES_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() })); } catch {}
       },
       error: err => { setError(err.message); setLoading(false); },
     });

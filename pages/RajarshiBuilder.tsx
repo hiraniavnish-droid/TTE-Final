@@ -1,3 +1,4 @@
+import { DateField } from '../components/ui/WorkspaceControls';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -419,7 +420,7 @@ export const RajarshiBuilder: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelCls}>Check-in</label>
-                        <input type="date" value={leg.checkIn} onChange={e => updateLeg(leg.id, { checkIn: e.target.value })} className={cn(inputCls, 'font-mono')} />
+                        <DateField label="Hotel check-in date" value={leg.checkIn} onValueChange={value => updateLeg(leg.id, { checkIn: value })} className="font-mono" />
                       </div>
                       <div>
                         <label className={labelCls}>Nights</label>
@@ -548,7 +549,7 @@ export const RajarshiBuilder: React.FC = () => {
               starts on a new line. The tier is now a badge ON each card
               (see flattenBandedWall in rateWall.ts) rather than a section
               header above a group of cards. */}
-          <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
+          <div className="crm-rate-grid">
             {visibleEntries.map(({ entry, bandId, bandLabel }) => (
               <RateWallCard key={entry.hotelId} entry={entry} preferredPlan={preferredPlan}
                 budget={budgetStatus(entry.cheapestSelling, totalBudget)}

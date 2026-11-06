@@ -1,0 +1,530 @@
+{
+  "date": "2026-11-04",
+  "environment": "Chrome viewport emulation against localhost fictional read-only preview",
+  "layoutChecks": [
+    {
+      "route": "customers",
+      "width": 320,
+      "heading": "Customers 2 of 12 bookings",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "payments",
+      "width": 320,
+      "heading": "Payments",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "leads",
+      "width": 320,
+      "heading": "Leads",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "builder",
+      "width": 320,
+      "heading": "Itinerary Hub",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "rajarshi-builder/hotels",
+      "width": 320,
+      "heading": "Rajarshi Travels",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "inland-builder",
+      "width": 320,
+      "heading": "Inland Tourways",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "sou-hotels-builder",
+      "width": 320,
+      "heading": "Statue of Unity Hotels",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "rann-utsav-builder",
+      "width": 320,
+      "heading": "Rann Utsav Quotation",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "",
+      "width": 320,
+      "heading": "Good Evening, Design Reviewer",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "reminders",
+      "width": 320,
+      "heading": "Action Center",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "availability",
+      "width": 320,
+      "heading": "Tent City inventory desk",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "attendance",
+      "width": 320,
+      "heading": "Time, well accounted for.",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "blocked-rates",
+      "width": 320,
+      "heading": "Blocked Hotel Rates",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "suppliers",
+      "width": 320,
+      "heading": "Suppliers",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "team-settings",
+      "width": 320,
+      "heading": "Team Management",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "sou-tent-city-builder",
+      "width": 320,
+      "heading": "SOU Tent City-1 Quotation",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "rajarshi-builder/packages",
+      "width": 320,
+      "heading": "Ready Packages",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "quote-trainer",
+      "width": 320,
+      "heading": "Quotation Trainer \u2014 Statue of Unity",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "route": "",
+      "width": 390,
+      "heading": "Good Evening, Design Reviewer",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "customers",
+      "width": 390,
+      "heading": "Customers 2 of 12 bookings",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "payments",
+      "width": 390,
+      "heading": "Payments",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "leads",
+      "width": 390,
+      "heading": "Leads",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "rajarshi-builder/hotels",
+      "width": 390,
+      "heading": "Rajarshi Travels",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "inland-builder",
+      "width": 390,
+      "heading": "Inland Tourways",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "sou-hotels-builder",
+      "width": 390,
+      "heading": "Statue of Unity Hotels",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "availability",
+      "width": 390,
+      "heading": "Tent City inventory desk",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "reminders",
+      "width": 390,
+      "heading": "Action Center",
+      "mainWidth": 390,
+      "scrollWidth": 390,
+      "skinny": []
+    },
+    {
+      "route": "",
+      "width": 768,
+      "heading": "Good Evening, Design Reviewer",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "customers",
+      "width": 768,
+      "heading": "Customers 2 of 12 bookings",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "payments",
+      "width": 768,
+      "heading": "Payments",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "leads",
+      "width": 768,
+      "heading": "Leads",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "rajarshi-builder/hotels",
+      "width": 768,
+      "heading": "Rajarshi Travels",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "inland-builder",
+      "width": 768,
+      "heading": "Inland Tourways",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "sou-hotels-builder",
+      "width": 768,
+      "heading": "Statue of Unity Hotels",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "availability",
+      "width": 768,
+      "heading": "Tent City inventory desk",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "reminders",
+      "width": 768,
+      "heading": "Action Center",
+      "mainWidth": 768,
+      "scrollWidth": 768,
+      "skinny": []
+    },
+    {
+      "route": "",
+      "width": 1024,
+      "heading": "Good Evening, Design Reviewer",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "customers",
+      "width": 1024,
+      "heading": "Customers 2 of 12 bookings",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "payments",
+      "width": 1024,
+      "heading": "Payments",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "leads",
+      "width": 1024,
+      "heading": "Leads",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "rajarshi-builder/hotels",
+      "width": 1024,
+      "heading": "Rajarshi Travels",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "inland-builder",
+      "width": 1024,
+      "heading": "Inland Tourways",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "sou-hotels-builder",
+      "width": 1024,
+      "heading": "Statue of Unity Hotels",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "availability",
+      "width": 1024,
+      "heading": "Tent City inventory desk",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "reminders",
+      "width": 1024,
+      "heading": "Action Center",
+      "mainWidth": 792,
+      "scrollWidth": 792,
+      "skinny": []
+    },
+    {
+      "route": "",
+      "width": 1440,
+      "heading": "Good Evening, Design Reviewer",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "customers",
+      "width": 1440,
+      "heading": "Customers 2 of 12 bookings",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "payments",
+      "width": 1440,
+      "heading": "Payments",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "leads",
+      "width": 1440,
+      "heading": "Leads",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "rajarshi-builder/hotels",
+      "width": 1440,
+      "heading": "Rajarshi Travels",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "inland-builder",
+      "width": 1440,
+      "heading": "Inland Tourways",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "sou-hotels-builder",
+      "width": 1440,
+      "heading": "Statue of Unity Hotels",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "availability",
+      "width": 1440,
+      "heading": "Tent City inventory desk",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    },
+    {
+      "route": "reminders",
+      "width": 1440,
+      "heading": "Action Center",
+      "mainWidth": 1208,
+      "scrollWidth": 1208,
+      "skinny": []
+    }
+  ],
+  "interactionChecks": [
+    {
+      "name": "Lead tab Trip details",
+      "heading": "Demo \u00b7 Aarav Shah",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "name": "Lead tab Quotations",
+      "heading": "Demo \u00b7 Aarav Shah",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "name": "Lead tab Payments",
+      "heading": "Demo \u00b7 Aarav Shah",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "name": "Lead tab Activity & chat",
+      "heading": "Demo \u00b7 Aarav Shah",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "name": "Lead tab Documents",
+      "heading": "Demo \u00b7 Aarav Shah",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "name": "Lead tab Overview",
+      "heading": "Demo \u00b7 Aarav Shah",
+      "mainWidth": 320,
+      "scrollWidth": 320,
+      "skinny": []
+    },
+    {
+      "name": "Customer destination closes after option click",
+      "pass": true
+    },
+    {
+      "name": "Vendor dropdown closes",
+      "pass": true
+    },
+    {
+      "name": "Agent dropdown keyboard selection closes",
+      "pass": true
+    },
+    {
+      "name": "Selected booking export contains one booking",
+      "pass": true
+    },
+    {
+      "name": "Export drawer closes on Escape",
+      "pass": true
+    },
+    {
+      "name": "Expanded rate card retains selection",
+      "pass": true
+    },
+    {
+      "name": "Changing displayed room retains prior selected rate",
+      "pass": true
+    },
+    {
+      "name": "Removing rate disables empty-tray exports",
+      "pass": true
+    }
+  ],
+  "confirmedDefects": [
+    "Hotel provenance shrank to zero width and exceeded 1,000px in height; grid stretched adjacent cards.",
+    "Customer destination/vendor/agent dropdowns reopened after choosing an option because a wrapping label activated their trigger."
+  ],
+  "checks": [
+    "Production build passed",
+    "UI preview build passed",
+    "9 browser-resilience tests passed",
+    "Customer financial account regression passed",
+    "Rate-wall deterministic review: 0 errors, 0 warnings"
+  ],
+  "limits": [
+    "Fictional read-only data; live integration writes were not tested.",
+    "Viewport emulation is not a physical-device test.",
+    "54 layout combinations and selected interactions do not prove every CRM workflow is bug-free."
+  ]
+}

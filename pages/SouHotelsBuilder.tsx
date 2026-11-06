@@ -1,3 +1,4 @@
+import { DateField } from '../components/ui/WorkspaceControls';
 // ============================================================
 // Statue of Unity Hotels — quotation builder.
 //
@@ -313,7 +314,7 @@ export const SouHotelsBuilder: React.FC = () => {
               <div className="w-[142px]">
                 <label className={labelCls}>Check-in</label>
                 <div className="flex gap-1">
-                  <input type="date" value={checkInStr} onChange={e => setCheckInStr(e.target.value)} className={cn(inputCls, 'font-mono py-1.5 flex-1 min-w-0')} />
+                  <DateField label="Hotel check-in date" value={checkInStr} onValueChange={setCheckInStr} className="flex-1" />
                   <FestiveDatePicker value={checkInStr} onChange={setCheckInStr} />
                 </div>
               </div>

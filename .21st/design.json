@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "project": {
+    "name": "The Tourism Experts CRM",
+    "productType": "Travel agency CRM",
+    "stack": [
+      "react",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "styles/crm.css",
+      "contexts/ThemeContext.tsx"
+    ],
+    "components": [
+      "components/ui"
+    ],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "light with dark and ocean alternatives",
+    "colors": {
+      "background": "#f5f7fa",
+      "surface": "#ffffff",
+      "text": "#182536",
+      "muted": "#66758a",
+      "accent": "#2859dc",
+      "border": "#e3e8ef"
+    },
+    "typography": {
+      "body": "Plus Jakarta Sans, system-ui",
+      "headings": "same family, compact hierarchy"
+    },
+    "spacing": {},
+    "radius": {
+      "cards": "12px",
+      "controls": "8px"
+    },
+    "shadows": {},
+    "motion": {},
+    "density": "Compact operational workspace; touch layouts below 1024px"
+  },
+  "components": {
+    "installed": [
+      "AuroraBackground",
+      "Button",
+      "Card",
+      "DialButton",
+      "GridBackground",
+      "IncrementalList",
+      "LeadCodeChip",
+      "Modal",
+      "PageLoader",
+      "RadialGauge",
+      "Skeleton",
+      "Sparkline",
+      "UserAvatar",
+      "WorkspaceTabs",
+      "SegmentedControl",
+      "DateField",
+      "SearchSelect",
+      "TableToolbar",
+      "SaveChangesBar",
+      "AnimatedNumber",
+      "EmptyState",
+      "MetricCard",
+      "TrendChart",
+      "ActivityTimeline",
+      "FileDropZone",
+      "DataTable"
+    ],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "Preserve TTE identity, existing roles, workflows and financial calculations.",
+      "Keep every section accessible on mobile. Use 44px touch controls, scrollable forms and visible focus.",
+      "Recover failed release assets without deleting local tasks or saved records."
+    ],
+    "avoid": []
+  },
+  "decisions": [
+    "4 November 2026: User requested a cohesive professional refresh and fixes for phone layout failures and returning-browser load errors. Use a restrained blue and slate system, grouped desktop navigation, four mobile destinations plus a complete More menu, consistent shared controls and clean metric cards.",
+    "Replace runtime Tailwind CDN generation with bundled, versioned CSS. Preserve all existing server integrations and quotation engines.",
+    "4 November 2026: Remove Hot/Warm/Cold classification from visible CRM cards, forms, filters, grouping and export choices. Retire legacy saved-view temperature filters so they cannot silently hide enquiries. Keep the existing API/database field compatible with integrations.",
+    "4 November 2026: Remove the desktop top bar to reclaim its full 72px. Keep search, New lead and theme controls in the sidebar; retain the compact mobile header where the sidebar is hidden.",
+    "4 November 2026: User approved implementing all 16 shortlisted refinements. Adapt the researched interaction patterns into shared React components, retain compact desktop space, use mobile drawers and card tables, tactile primary actions, explicit save/error/upload feedback and reduced-motion-aware metric transitions. Provide a protected interactive tour with fictional examples; preserve existing roles, quotation calculations and storage integrations."
+  ],
+  "evidence": [
+    {
+      "fact": "components.installed",
+      "source": "components/ui"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-11-04T09:54:10.804Z"
+}

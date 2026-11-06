@@ -1,0 +1,324 @@
+{
+  "checkedAt": "2026-11-04",
+  "accountFreeViewsRemaining": 2,
+  "fullSourceViewsUsed": 0,
+  "scope": "Catalog listings, visible usage examples and selected live previews; no component source unlocked or installed.",
+  "picks": [
+    {
+      "dependencies": [
+        "import { Badge } from '@/components/ui/badge-2';",
+        "import { Button } from '@/components/ui/button-1';",
+        "import { Card, CardContent, CardHeader, CardTitle, CardToolbar } from '@/components/ui/card';",
+        "import {",
+        "import { ArrowDown, ArrowUp, MoreHorizontal, Pin, Settings, Share2, Trash, TriangleAlert } from 'lucide-react';"
+      ],
+      "license": "MIT License",
+      "title": "Statistics Card 2",
+      "url": "https://21st.dev/@sean0205/components/statistics-card-2"
+    },
+    {
+      "license": "MIT License",
+      "text": "Kibo UI\n/\nTable\nSearch\nK\nUpgrade\n2 free\nFeedback\nTable\n\nTable views are used to display data in a tabular format. They are useful for displaying large amounts of data in a structured way.\n\nKibo UI\nby\nHayden Bleasel\nCopy prompt\nSave\nRemix\nCLI\nReport\nUsage.tsx\nComponent.tsx\nCopy\n\"use client\";\n\nimport {\n  TableBody,\n  TableCell,\n  TableColumnHeader,\n  TableHead,\n  TableHeader,\n  TableHeaderGroup,\n  TableProvider,\n  TableRow,\n} from \"@/components/ui/data-table\";\nimport {\n  addMonths,\n  endOfMonth,\n  startOfMonth,\n  subDays,\n  subMonths,\n} from \"date-fns\";\nimport type { ColumnDef } from \"@tanstack/react-table\";\nimport { ChevronRightIcon } from \"lucide-react\";\nimport Image from \"next/image\";\n\nconst today = new Date();\n\nconst exampleStatuses = [\n  { id: \"1\", name: \"Planned\", color: \"#6B7280\" },\n  { id: \"2\", name: \"In Progress\", color: \"#F59E0B\" },\n  { id: \"3\", name: \"Done\", color: \"#10B981\" },\n]\n\nconst exampleFeatures = [\n  {\n    id: \"1\",\n    name: \"AI Scene Analysis\",\n    startAt: startOfMonth(subMonths(today, 6)),\n    endAt: subDays(endOfMonth(today), 5),\n    status: exampleStatuses[0],\n    group: { id: \"1\", name: \"Core AI Features\" },\n    product: { id: \"1\", name: \"Video Editor Pro\" },\n    owner: {\n      id: \"1\",\n      image: \"https://cdn.21st.dev/assets/mirror/54/54484be9004d64fc7ae6a2bdccc791f5f9502fbd23841ada359a8d3d7c1aedc8.svg\",\n      name: \"Alice Johnson\",\n    },\n    initiative: { id: \"1\", name: \"AI Integration\" },\n    release: { id: \"1\", name: \"v1.0\" },\n  },\n  {\n    id: \"2\",\n    name: \"Collaborative Editing\",\n    startAt: startOfMonth(subMonths(today, 5)),\n    endAt: subDays(endOfMonth(today), 5),\n    status: exampleStatuses[1],\n    group: { id: \"2\", name: \"Collaboration Tools\" },\n    product: { id: \"1\", name: \"Video Editor Pro\" },\n    owner: {\n      id: \"2\",\n      image: \"https://cdn.21st.dev/assets/mirror/a2/a25e21cd9d9f92c7447a525c9e0230bcbe10d447791ebce65d6127cfb40f2698.svg\",\n      name: \"Bob Smith\",\n    },\n    initiative: { id: \"2\", name: \"Real-time Collaboration\" },\n    release: { id: \"1\", name: \"v1.0\" },\n  },\n  {\n    id: \"3\",\n    name: \"AI-Powered Color Grading\",\n    startAt: startOfMonth(subMonths(today, 4)),\n    endAt: subDays(endOfMonth(today), 5),\n    status: exampleStatuses[2],\n    group: { id: \"1\", name: \"Core AI Features\" },\n    product: { id: \"1\", name: \"Video Editor Pro\" },\n    owner: {\n      id: \"3\",\n      image: \"https://cdn.21st.dev/assets/mirror/97/97261900dab8e48c557cd76aba91b73bc989b48c386504341100a7b28bb9a701.svg\",\n      name: \"Charlie Brown\",\n    },\n    initiative: { id: \"1\", name: \"AI Integration\" },\n    release: { id: \"2\", name: \"v1.1\" },\n  },\n  {\n    id: \"4\",\n    name: \"Real-time Video Chat\",\n    startAt: startOfMonth(subMonths(today, 3)),\n    endAt: subDays(endOfMonth(today), 12),\n    status: exampleStatuses[0],\n    group: { id: \"2\", name: \"Collaboration Tools\" },\n    product: { id: \"1\", name: \"Video Editor Pro\" },\n    owner: {\n      id: \"4\",\n      image: \"https://cdn.21st.dev/assets/mirror/60/6093366096f9348ceb484ab6f77c7eb9f2f5de67a712d9d0ce3402a2a69b0aeb.svg\",\n      name: \"Diana Prince\",\n    },\n    initiative: { id: \"2\", name: \"Real-time Collaboration\" },\n    release: { id: \"2\", name: \"v1.1\" },\n  },\n  {\n    id: \"5\",\n    name: \"AI Voice-to-Text Subtitles\",\n    startAt: startOfMonth(subMonths(today, 2)),\n    endAt: subDays(endOfMonth(today), 5),\n    status: exampleStatuses[1],\n    group: { id: \"1\", name: \"Core AI Features\" },\n    product: { id: \"1\", name: \"Video Editor Pro\" },\n    owner: {\n      id: \"5\",\n      image: \"https://cdn.21st.dev/assets/mirror/6c/6c654fd6db0027932893f8f274741c473490e3f2192d9b315b2a40eb7c9c3ef0.svg\",\n      name: \"Ethan Hunt\",\n    },\n    initiative: { id: \"1\", name: \"AI Integration\" },\n    release: { id: \"2\", name: \"v1.1\" },\n  },\n  {\n    id: \"6\",\n    name: \"Cloud Asset Management\",\n    startAt: startOfMonth(subMonths(today, 1)),\n    endAt: endOfMonth(today),\n    status: exampleStatuses[2],\n    group: { id: \"3\", name: \"Cloud Infrastructure\" },\n    product: { id: \"1\", name: \"Video Editor Pro\" },\n    owner: {\n      id: \"6\",\n      image: \"https://cdn.21st.dev/assets/mirror/56/566957498a7dccbf0db4884dd0169b586b30210cbea1a43678491c0c9c037738.svg\",\n      name: \"Fiona Gallagh",
+      "title": "Table",
+      "url": "https://21st.dev/@haydenbleasel/components/data-table"
+    },
+    {
+      "description": "redpangilinan\n/\nCredenza\nSearch\nK\nUpgrade\n2 free\nFeedback\nCredenza\n\nReady-made responsive modal component for shadcn/ui.\n\nDialog for desktop and Drawer for mobile\n\nby redpangilinan\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { Button } from \"@/components/ui/button\"",
+        "import {",
+        "} from \"@/components/ui/credenza\""
+      ],
+      "license": "MIT License",
+      "title": "Credenza",
+      "url": "https://21st.dev/@redpangilinan/components/credenza"
+    },
+    {
+      "description": "Ruixen UI\n/\nCapsule Tabs\nSearch\nK\nUpgrade\n2 free\nFeedback\nCapsule Tabs\n\nThis Scrollable Capsule Tabs component is designed to handle a large number of tabs elegantly. It displays a limited number of tabs at a time (visibleCount) and allows users to navigate through them using left/right arrows or pagination dots. The active tab is highlighted, and its corresponding content is displayed below. This layout is ideal for dashboards, analytics menus, or any interface where space is limited but many options need to be accessible. The smooth hover effects, pill-shaped tabs, and responsive design make it visually appealing and user-friendly.\n\nShow more\nRuixen UI\nby\nRuixen\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import CapsuleTabs from \"@/components/ui/capsule-tabs\";"
+      ],
+      "title": "Capsule Tabs",
+      "url": "https://21st.dev/@ruixen.ui/components/capsule-tabs"
+    },
+    {
+      "description": "YS\nYadwinder Singh\n/\nVercel Tabs\nSearch\nK\nUpgrade\n2 free\nFeedback\nVercel Tabs\n\nTabs in Vercel style\n\nYS\nby Yadwinder Singh\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { Tabs } from \"@/components/ui/vercel-tabs\""
+      ],
+      "license": "MIT License",
+      "title": "Vercel Tabs",
+      "url": "https://21st.dev/@yadwinder/components/vercel-tabs"
+    },
+    {
+      "description": "Origin UI\n/\nCalendar [React Day Picker]\n/\nDate picker\nSearch\nK\nUpgrade\n2 free\nFeedback\nCalendar [React Day Picker]\n\nCalendar [React Day Picker]\n\nOrigin UI\nby\nOrigin UI\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { cn } from \"@/lib/utils\";",
+        "import { Button } from \"@/components/ui/button\";",
+        "import { Calendar } from \"@/components/ui/calendar\";",
+        "import { Label } from \"@/components/ui/label\";",
+        "import { Popover, PopoverContent, PopoverTrigger } from \"@/components/ui/popover\";",
+        "import { format } from \"date-fns\";",
+        "import { CalendarIcon } from \"lucide-react\";",
+        "import { useId, useState } from \"react\";"
+      ],
+      "license": "MIT License",
+      "title": "Calendar [React Day Picker]",
+      "url": "https://21st.dev/@originui/components/calendar/date-picker"
+    },
+    {
+      "description": "cult ui\n/\nTexture Button\nSearch\nK\nUpgrade\n2 free\nTexture Button\n\nA button with numorphic undertones\n\ncult ui\nby\ncult/ui\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { ChevronLeft, Trash, X } from \"lucide-react\"",
+        "import { TextureButton } from \"@/components/ui/texture-button\""
+      ],
+      "license": "MIT License",
+      "title": "Texture Button",
+      "url": "https://21st.dev/@cult-ui/components/texture-button"
+    },
+    {
+      "description": "shadcn/ui\n/\nEmpty\n/\nDefault\nSearch\nK\nUpgrade\n2 free\nFeedback\nEmpty\n\nHere is Empty components\n\nshadcn/ui\nby\nshadcn\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { IconFolderCode } from \"@tabler/icons-react\"",
+        "import { ArrowUpRightIcon } from \"lucide-react\"",
+        "import { Button } from \"@/components/ui/button\"",
+        "import {",
+        "} from \"@/components/ui/empty\""
+      ],
+      "title": "Empty",
+      "url": "https://21st.dev/@shadcn/components/empty"
+    },
+    {
+      "description": "Serafim\n/\nEmpty State\nSearch\nK\nEmpty State\n\nEmpty state card with shadcn/ui buttons.\n\nInspired by @AndyRyanWeir\n\nby Serafim\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { EmptyState } from \"@/components/ui/empty-state\"",
+        "import { ",
+        "} from \"lucide-react\""
+      ],
+      "license": "MIT License",
+      "title": "Empty State",
+      "url": "https://21st.dev/@serafimcloud/components/empty-state"
+    },
+    {
+      "description": "Motion Primitives\n/\nSliding Number\n/\nSlider\nSearch\nK\nFeedback\nSliding Number\n\nA component that slides numbers.\n\nMotion Primitives\nby\nJulien Thibeaut\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { SlidingNumber } from '@/components/ui/sliding-number';",
+        "import { useState } from 'react';"
+      ],
+      "license": "MIT License",
+      "title": "Sliding Number",
+      "url": "https://21st.dev/@ibelick/components/sliding-number/slider"
+    },
+    {
+      "description": "7Ovr\n/\nActivity Timeline\nSearch\nK\nFeedback\nActivity Timeline\n\nA vertical timeline that groups a team's recent activity by day, showing each actor's avatar, action, target, and relative timestamp connected by a rail.\n\n7Ovr\nby\nOliver\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import Timeline3 from \"@/components/ui/timeline-3\";"
+      ],
+      "license": "MIT-0",
+      "title": "Activity Timeline",
+      "url": "https://21st.dev/@olewandowski1/components/timeline-3"
+    },
+    {
+      "description": "Sonu kumar\n/\nDashboard With Collapsible Sidebar\nSearch\nK\nUpgrade\n2 free\nFeedback\nDashboard With Collapsible Sidebar\n\nThis React code implements a dashboard with a collapsible sidebar featuring various options, a dark mode toggle, and displays various statistics and recent activity. It uses Lucide-React for icons and manages a dark/light theme via CSS class manipulation.\n\nSK\nby Sonu kumar\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { Example } from \"@/components/ui/dashboard-with-collapsible-sidebar\";"
+      ],
+      "title": "Dashboard With Collapsible Sidebar",
+      "url": "https://21st.dev/@uniquesonu/components/dashboard-with-collapsible-sidebar"
+    },
+    {
+      "description": "UI Layouts\n/\nStats Bento\nSearch\nK\nUpgrade\n2 free\nFeedback\nStats Bento\n\nA responsive bento-grid stats section that highlights key metrics like market share, growth, awards, and ratings in mixed-size cards.\n\nUI Layouts\nby\nui layout\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import StatsBento from \"@/components/ui/stats-bento\";"
+      ],
+      "license": "MIT License",
+      "title": "Stats Bento",
+      "url": "https://21st.dev/@uilayout.contact/components/stats-bento"
+    },
+    {
+      "description": "ReUI\n/\nLine Charts 4\nSearch\nK\nFeedback\nLine Charts 4\n\nLine charts designed to present key metrics and insights. Each chart features unique layouts, data visualizations, and styling options. Perfect for dashboards, admin panels, and analytics pages.\n\nReUI\nby\nSean Hello\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import React from 'react';",
+        "import { Button } from '@/components/ui/button-1';",
+        "import { Card, CardContent, CardHeader, CardTitle, CardToolbar } from '@/components/ui/card';",
+        "import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/line-charts-4';",
+        "import {",
+        "} from '@/components/ui/dropdown-menu';",
+        "import { Calendar, Download, Filter, MoreHorizontal, RefreshCw, Share2 } from 'lucide-react';",
+        "import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';"
+      ],
+      "license": "MIT License",
+      "title": "Line Charts 4",
+      "url": "https://21st.dev/@sean0205/components/line-charts-4"
+    },
+    {
+      "description": "rds_agi\n/\nAsync Select\nSearch\nK\nUpgrade\n2 free\nFeedback\nAsync Select\n\nAsync Select component built with React & shadcn/ui\n\nRA\nby rds_agi\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": true,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import React, { useState } from \"react\";",
+        "import Image from \"next/image\";",
+        "import { AsyncSelect } from \"@/components/ui/async-select\";"
+      ],
+      "license": "MIT License",
+      "title": "Async Select",
+      "url": "https://21st.dev/@rudrodip/components/async-select"
+    },
+    {
+      "description": "Cnippet\n/\nPromise Toast\nSearch\nK\nPromise Toast\n\nA button that triggers a promise-based toast notification, cycling through loading, success, and error states as an async task resolves.\n\nCnippet\nby\nCN\nCnippet\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { CircleCheckIcon } from \"lucide-react\";",
+        "import PromiseToast from \"@/components/ui/promise-toast\";",
+        "import { ToastProvider } from \"@/components/ui/toast\";"
+      ],
+      "title": "Promise Toast",
+      "url": "https://21st.dev/@cnippet-dev/components/promise-toast"
+    },
+    {
+      "description": "Ephraim Duncan\n/\nFile Upload\n/\nSimple File Upload\nSearch\nK\nUpgrade\n2 free\nFeedback\nFile Upload\n\nHere is File Upload component\n\nby Ephraim Duncan\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { Button } from \"@/components/ui/button\";",
+        "import {",
+        "} from \"@/components/ui/card\";",
+        "import { Input } from \"@/components/ui/input\";",
+        "import { Label } from \"@/components/ui/label\";"
+      ],
+      "title": "File Upload",
+      "url": "https://21st.dev/@ephraimduncan/components/file-upload-1/simple-file-upload"
+    },
+    {
+      "description": "YS\nYadwinder Singh\n/\nSave Changes Toast\nSearch\nK\nFeedback\nSave Changes Toast\n\nClerk.dev save changes toast\n\nYS\nby Yadwinder Singh\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { useState } from \"react\"",
+        "import { ToastSave } from \"@/components/ui/toast-save\""
+      ],
+      "license": "MIT License",
+      "title": "Save Changes Toast",
+      "url": "https://21st.dev/@yadwinder/components/toast-save"
+    },
+    {
+      "description": "HextaUI\n/\nFile Upload\nSearch\nK\nFeedback\nFile Upload\n\nInteractive and animated file upload component with drag-and-drop and progress animations.\n\nHextaUI\nby\nPreet Suthar\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import FileUpload from \"@/components/ui/file-upload\""
+      ],
+      "license": "MIT License",
+      "title": "File Upload",
+      "url": "https://21st.dev/@preetsuthar17/components/file-upload"
+    },
+    {
+      "description": "@uai\n/\nData Table Toolbar\nSearch\nK\nData Table Toolbar\n\nA composable toolbar for data tables that bundles row search, a column-visibility popover, an export action, and an animated bulk-actions bar for selected rows.\n\n@uai\nby\nVM\nVictor Mesquita\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import DataTableToolbar, {",
+        "} from \"@/components/ui/data-table-toolbar\";"
+      ],
+      "license": "MIT License",
+      "title": "Data Table Toolbar",
+      "url": "https://21st.dev/@skovhm/components/data-table-toolbar"
+    },
+    {
+      "description": "Uai\n/\nCommand Menu\nSearch\nK\nCommand Menu\n\nSearch and run grouped actions with full keyboard navigation, a height animation between result sets, and reduced-motion support.\n\nUai\nby\nVI\nVictor\nCopy prompt\nSave\nRemix\nCLI\n",
+      "flags": {
+        "motion": false,
+        "next": false,
+        "reducedMotion": false
+      },
+      "imports": [
+        "import { Download, FilePlus2, FolderOpen, Settings, UserPlus } from \"lucide-react\";",
+        "import { useState } from \"react\";",
+        "import {",
+        "} from \"@/components/ui/command-menu\";"
+      ],
+      "license": "MIT License",
+      "title": "Command Menu",
+      "url": "https://21st.dev/@victor-teles/components/command-menu"
+    }
+  ]
+}

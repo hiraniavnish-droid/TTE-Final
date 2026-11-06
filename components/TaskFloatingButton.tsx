@@ -1,3 +1,4 @@
+import { localStore } from '../lib/browserStorage';
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -40,7 +41,7 @@ export const TaskFloatingButton: React.FC = () => {
   const handleOpenTask = (taskId: string) => {
     navigate('/reminders');
     setOpen(false);
-    localStorage.setItem('tte_open_task', taskId);
+    localStore.setItem('tte_open_task', taskId);
   };
 
   return (

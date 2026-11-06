@@ -1,3 +1,5 @@
+import { SegmentedControl, SearchSelect, TableToolbar } from '../components/ui/WorkspaceControls';
+import { EmptyState } from '../components/ui/WorkspaceVisuals';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -237,21 +239,7 @@ export const Payments = () => {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
-        {([['all', 'All'], ['created', 'Pending'], ['paid', 'Paid'], ['unassigned', 'Unassigned']] as [FilterKey, string][]).map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setFilter(k)}
-            className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all shrink-0 active:scale-[0.97]',
-              filter === k
-                ? 'bg-slate-900 border-slate-900 text-white'
-                : (theme === 'light' ? 'bg-white border-slate-200 text-slate-500 hover:border-slate-400' : 'bg-white/5 border-white/10 text-white/50'))}
-          >
-            {label}
-            <span className={cn('tabular-nums', filter === k ? 'text-white/70' : 'opacity-50')}>{counts[k]}</span>
-          </button>
-        ))}
-      </div>
+      <div className="mb-4"><SegmentedControl label="Payment status" value={filter} onChange={value=>setFilter(value as FilterKey)} options={([['all','All'],['created','Pending'],['paid','Paid'],['unassigned','Unassigned']] as [FilterKey,string][]).map(([value,label])=>({value,label:`${label} · ${counts[value]}`}))}/></div>
 
       {/* List */}
       {loading ? (
@@ -261,16 +249,7 @@ export const Payments = () => {
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center mb-4', theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-white/5 text-white/30')}>
-            <CreditCard size={28} strokeWidth={2} />
-          </div>
-          <h3 className={cn('text-base font-bold mb-1', getTextColor())}>{filter === 'all' ? 'No payments yet' : 'Nothing here'}</h3>
-          <p className={cn('text-sm mb-5', getSecondaryTextColor())}>
-            {filter === 'all' ? 'Create a payment link and share it with any customer.' : 'Try a different filter.'}
-          </p>
-          {filter === 'all' && <Button onClick={openCreate}><Plus size={16} /> New Payment</Button>}
-        </div>
+        <EmptyState title={filter === 'all' ? 'Ready for your first payment' : 'No payments in this view'} description={filter === 'all' ? 'Create a payment link and share it when your customer is ready.' : 'Choose another status to see more payment records.'} icon={CreditCard} action={{label:filter==='all'?'New payment':'Show all payments',onClick:filter==='all'?openCreate:()=>setFilter('all')}}/>
       ) : (
         <div className="space-y-2.5">
           {visible.map(rec => {
@@ -380,11 +359,7 @@ export const Payments = () => {
             <label className={cn('text-xs font-bold uppercase tracking-wider opacity-60 flex items-center gap-1.5', getTextColor())}>
               <Link2 size={12} /> Link to customer <span className="opacity-50 font-normal normal-case">(optional — assign now or later)</span>
             </label>
-            <select value={linkLeadId} onChange={e => onPickLeadInModal(e.target.value)}
-              className={cn(inputBase, 'cursor-pointer [&>option]:text-black')}>
-              <option value="">Don't link — assign later</option>
-              {sortedLeads.map(l => <option key={l.id} value={l.id}>{l.name}{l.tripDetails?.destination ? ` · ${l.tripDetails.destination}` : ''}</option>)}
-            </select>
+            <SearchSelect label="Customer or lead" value={linkLeadId} onChange={onPickLeadInModal} placeholder="Don’t link — assign later" options={sortedLeads.map(lead=>({value:lead.id,label:lead.name,description:lead.tripDetails?.destination}))}/>
           </div>
 
           {/* SMS toggle */}

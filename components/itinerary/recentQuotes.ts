@@ -1,3 +1,4 @@
+import { localStore, readStoredArray } from '../../lib/browserStorage';
 
 const KEY = 'tte_recent_quotes';
 const MAX = 6;
@@ -15,11 +16,7 @@ export interface RecentQuote {
 }
 
 export const loadRecentQuotes = (): RecentQuote[] => {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || '[]');
-  } catch {
-    return [];
-  }
+  return readStoredArray<RecentQuote>(localStore, KEY, q => q && typeof q.id === 'string' && typeof q.guestName === 'string' && typeof q.packageId === 'string' && typeof q.packageName === 'string');
 };
 
 export const saveRecentQuote = (q: Omit<RecentQuote, 'id' | 'savedAt'>) => {
@@ -29,7 +26,7 @@ export const saveRecentQuote = (q: Omit<RecentQuote, 'id' | 'savedAt'>) => {
   const deduped = existing.filter(e => !(e.guestName === q.guestName && e.packageId === q.packageId));
   const updated = [entry, ...deduped].slice(0, MAX);
   try {
-    localStorage.setItem(KEY, JSON.stringify(updated));
+    localStore.setItem(KEY, JSON.stringify(updated));
   } catch {}
   return updated;
 };

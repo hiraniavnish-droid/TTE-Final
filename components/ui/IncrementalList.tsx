@@ -25,12 +25,16 @@ export function IncrementalList<T extends { id: string }>({ items, renderItem, b
 }
 
 export function useDesktopLayout() {
-  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   useEffect(() => {
-    const query = window.matchMedia('(min-width: 768px)');
+    const query = window.matchMedia('(min-width: 1024px)');
     const update = () => setDesktop(query.matches);
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
+    if (query.addEventListener) {
+      query.addEventListener('change', update);
+      return () => query.removeEventListener('change', update);
+    }
+    query.addListener(update);
+    return () => query.removeListener(update);
   }, []);
   return desktop;
 }

@@ -1,3 +1,4 @@
+import { localStore } from '../lib/browserStorage';
 import React,{useEffect,useState} from 'react';
 import {ContactRound,RefreshCw,Pause,Play,ExternalLink,Copy} from 'lucide-react';
 import {Card} from './ui/Card';
@@ -11,7 +12,7 @@ export default function GoogleContactsSettings(){
  const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  const [client,setClient]=useState(''),[secret,setSecret]=useState(''),[email,setEmail]=useState('booking@thetourismexperts.com');
  async function request(body?:any){
-  const response=await fetch(base+'/api/google-contacts',{method:body?'POST':'GET',credentials:'include',headers:{Authorization:'Bearer '+localStorage.getItem('tte_token'),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  const response=await fetch(base+'/api/google-contacts',{method:body?'POST':'GET',credentials:'include',headers:{Authorization:'Bearer '+localStore.getItem('tte_token'),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   const json=await response.json();if(!response.ok)throw Error(json.error||'Google Contacts settings are unavailable.');return json;
  }
  async function load(hydrate=false){try{const json=await request();setData(json);if(hydrate){setClient(json.settings.client_id);setEmail(json.settings.expected_email||'booking@thetourismexperts.com');}}catch(e){setError((e as Error).message);}}

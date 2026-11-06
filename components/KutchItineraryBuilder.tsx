@@ -1,3 +1,4 @@
+import { localStore } from '../lib/browserStorage';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -74,13 +75,13 @@ const KutchBuilder: React.FC<{
   // Auto-fill from pending lead (set via Leads page "Build Quote" button)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('tte_pending_lead');
+      const raw = localStore.getItem('tte_pending_lead');
       if (raw) {
         const lead = JSON.parse(raw);
         if (lead.name) setGuestName(lead.name);
         if (lead.pax && lead.pax >= 2) setPax(lead.pax);
         if (lead.startDate) setStartDate(lead.startDate);
-        localStorage.removeItem('tte_pending_lead');
+        localStore.removeItem('tte_pending_lead');
       }
     } catch (_) {}
   }, []);
