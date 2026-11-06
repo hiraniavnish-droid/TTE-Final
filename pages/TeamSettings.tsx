@@ -25,7 +25,11 @@ interface LeadRoutingRule {
 interface StoredAutoAssignSettings {
   auto_assign_enabled: boolean;
   auto_assign_to: string | null;
+  rannutsav_round_robin_enabled: boolean;
+  rannutsav_round_robin_employee_ids: string[];
 }
+
+type RoundRobinSettings = { enabled: boolean; employeeIds: string[] };
 
 interface LeadRoutingConfig {
   kind: 'lead-routing-v1';
@@ -76,13 +80,26 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [savedRule, setSavedRule] = useState<string | null>(null);
+  const [rotation, setRotation] = useState<RoundRobinSettings>({ enabled: false, employeeIds: [] });
+  const [rotationDraft, setRotationDraft] = useState<RoundRobinSettings | null>(null);
+  const editedRotation = rotationDraft ?? rotation;
+  const selectedAgents = editedRotation.employeeIds.flatMap(id => {
+    const agent = agents.find(employee => employee.id === id);
+    return agent ? [agent] : [];
+  });
 
   useEffect(() => {
     let cancelled = false;
-    supabase.from('app_settings').select('auto_assign_enabled, auto_assign_to').eq('id', true).single()
+    supabase.from('app_settings')
+      .select('auto_assign_enabled, auto_assign_to, rannutsav_round_robin_enabled, rannutsav_round_robin_employee_ids')
+      .eq('id', true).single()
       .then(({ data, error }) => {
         if (cancelled || error || !data) return;
         setConfig(toConfig(data as StoredAutoAssignSettings));
+        setRotation({
+          enabled: data.rannutsav_round_robin_enabled === true,
+          employeeIds: [...new Set<string>(data.rannutsav_round_robin_employee_ids || [])],
+        });
       });
     return () => { cancelled = true; };
   }, []);
@@ -108,6 +125,27 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
     } finally { setSaving(false); }
   };
 
+  const saveRotation = async () => {
+    if (saving || !rotationDraft || (editedRotation.enabled && !selectedAgents.length)) return;
+    const next = { enabled: editedRotation.enabled, employeeIds: selectedAgents.map(agent => agent.id) };
+    setSaving(true);
+    setSaveError('');
+    setSavedRule(null);
+    try {
+      const { data, error } = await supabase.from('app_settings').update({
+        rannutsav_round_robin_enabled: next.enabled,
+        rannutsav_round_robin_employee_ids: next.employeeIds,
+      }).eq('id', true).select('id').single();
+      if (error || !data) throw error || new Error('Settings were not saved');
+      setRotation(next);
+      setRotationDraft(null);
+      setSavedRule('saved');
+      setTimeout(() => setSavedRule(null), 2000);
+    } catch {
+      setSaveError('Could not save round robin. Please try again.');
+    } finally { setSaving(false); }
+  };
+
   if (!config) return null;
 
   return (
@@ -118,7 +156,7 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
         </div>
         <div>
           <h2 className={cn('font-bold', getTextColor())}>Website Lead Routing</h2>
-          <p className={cn('text-[12px] opacity-60', getTextColor())}>Set a separate owner or pause intake for each website.</p>
+          <p className={cn('text-[12px] opacity-60', getTextColor())}>Choose how new leads are assigned for each website.</p>
         </div>
         {savedRule && (
           <span className="ml-auto flex items-center gap-1 text-[11px] font-bold text-emerald-500">
@@ -131,6 +169,8 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
       <fieldset disabled={saving} aria-busy={saving} className="grid gap-3 lg:grid-cols-2 disabled:opacity-60">
         {WEBSITE_ROUTES.map(route => {
           const rule = config.routes[route.source_key];
+          const supportsRotation = route.source_key === 'rannutsav_website';
+          const rotates = supportsRotation && rotation.enabled;
           const updateRule = (patch: Partial<typeof rule>) => save({
             ...config,
             routes: { ...config.routes, [route.source_key]: { ...rule, ...patch } },
@@ -157,7 +197,7 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
                   </button>
                 </div>
                 <select
-                  disabled={!rule.enabled}
+                  disabled={!rule.enabled || rotates}
                   value={rule.assignTo || ''}
                   onChange={e => updateRule({ assignTo: e.target.value || null })}
                   className={cn('min-w-[140px] flex-1 rounded-lg p-1.5 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 border transition-colors disabled:opacity-40', getInputClass())}
@@ -169,9 +209,60 @@ const LeadRoutingCard: React.FC<{ agents: UserType[] }> = ({ agents }) => {
               </div>
               <p className={cn('text-[11px] opacity-55', getTextColor())}>
                 {rule.enabled
-                  ? (rule.assignTo ? `New leads go directly to ${rule.assignTo}.` : 'New leads will remain unassigned.')
+                  ? (rotates ? 'Round robin is active for new leads.' : rule.assignTo ? `New leads go directly to ${rule.assignTo}.` : 'New leads will remain unassigned.')
                   : 'Paused — new leads from this website remain unassigned.'}
               </p>
+              {supportsRotation && (
+                <div className="border-t border-slate-500/20 pt-3 space-y-3">
+                  <label className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold">
+                    Assignment method
+                    <select
+                      value={editedRotation.enabled ? 'round-robin' : 'single'}
+                      onChange={event => setRotationDraft({
+                        ...editedRotation,
+                        enabled: event.target.value === 'round-robin',
+                      })}
+                      className={cn('rounded-lg border p-2 text-xs', getInputClass())}
+                    >
+                      <option value="single">Single employee</option>
+                      <option value="round-robin">Round robin</option>
+                    </select>
+                  </label>
+                  {editedRotation.enabled && (
+                    <fieldset className="space-y-1">
+                      <legend className="text-xs font-semibold mb-1">Include employees</legend>
+                      {agents.map(agent => (
+                        <label key={agent.id} className="flex items-center gap-2 py-2 text-xs cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editedRotation.employeeIds.includes(agent.id)}
+                            onChange={event => setRotationDraft({
+                              ...editedRotation,
+                              employeeIds: event.target.checked
+                                ? [...editedRotation.employeeIds, agent.id]
+                                : editedRotation.employeeIds.filter(id => id !== agent.id),
+                            })}
+                          />
+                          {agent.name}
+                        </label>
+                      ))}
+                      <p className="text-xs opacity-60">
+                        {selectedAgents.length
+                          ? `Rotation order: ${selectedAgents.map(agent => agent.name).join(' → ')}`
+                          : 'Select at least one employee to enable round robin.'}
+                      </p>
+                    </fieldset>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!rotationDraft || (editedRotation.enabled && !selectedAgents.length)}
+                    onClick={saveRotation}
+                  >
+                    Save assignment method
+                  </Button>
+                </div>
+              )}
             </div>
           );
         })}
